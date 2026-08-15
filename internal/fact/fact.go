@@ -17,6 +17,7 @@ const (
 	KindIV          = "iv"           // 隐含波动率 DVOL（UnitPct）
 	KindCalendar    = "calendar"     // 日历事件（季末/月末/国债发行；UnitDays）
 	KindTicker      = "ticker"       // 行情价格（§5 Exchange collector；UnitPrice）
+	KindHeartbeat   = "heartbeat"    // collector 心跳（UnitRatio；M1-f 发射，M1-e 只消费）
 )
 
 // Unit 常量表（§4；口径由 Kind 约定）。
@@ -25,6 +26,7 @@ const (
 	UnitPrice         = "price"          // 价格（如 USDCNH 7.25）
 	UnitPct           = "pct"            // 百分比（如 IV 45%）
 	UnitDays          = "days"           // 天数（日历事件倒计时）
+	UnitRatio         = "ratio"          // 无量纲比率（心跳 = 距上次成功轮询秒数 ÷ 该源轮询间隔）
 )
 
 // Fact 是采集 → 归一 → 规则的唯一数据载体。
@@ -48,6 +50,7 @@ var validKinds = map[string]bool{
 	KindIV:          true,
 	KindCalendar:    true,
 	KindTicker:      true,
+	KindHeartbeat:   true,
 }
 
 // ValidKind 报告 k 是否为已知 Kind。

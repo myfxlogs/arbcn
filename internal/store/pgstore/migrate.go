@@ -18,8 +18,23 @@ import (
 // 已执行版本（schema_migrations 有记录）跳过；重复调用幂等。
 // 迁移文件可用 IF NOT EXISTS 编写，以兼容 M1-a 时期
 // 经 docker-entrypoint 初始化的既有库（0001 即如此）。
+// 并发安全：advisory 锁串行化——多进程/并行测试包共享一库时，版本表查不到
+// 与插入之间的窗口会让两个应用者同时应用同一文件（M1-e 引入第二测试包后实测
+// 撞车），锁按连接持有，故迁移全程走专用连接。
 func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
-	if _, err := pool.Exec(ctx, `
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("pgstore: acquire conn: %w", err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtext('arbcn_schema_migrations'))`); err != nil {
+		return 0, fmt.Errorf("pgstore: lock migrations: %w", err)
+	}
+	defer func() {
+		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock(hashtext('arbcn_schema_migrations'))`)
+	}()
+
+	if _, err := conn.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version    TEXT PRIMARY KEY,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -28,7 +43,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
 	}
 
 	applied := map[string]bool{}
-	rows, err := pool.Query(ctx, `SELECT version FROM schema_migrations`)
+	rows, err := conn.Query(ctx, `SELECT version FROM schema_migrations`)
 	if err != nil {
 		return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
 	}
@@ -64,7 +79,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
 		if err != nil {
 			return n, fmt.Errorf("pgstore: read migration %s: %w", name, err)
 		}
-		tx, err := pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return n, fmt.Errorf("pgstore: begin migration %s: %w", name, err)
 		}

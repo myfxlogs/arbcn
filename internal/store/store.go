@@ -15,12 +15,15 @@ var ErrNotFound = errors.New("store: not found")
 
 // Rule 是 rules 表的持久化记录（规则 = 配置，非代码，§4）。
 type Rule struct {
-	ID      int64
-	Name    string // 唯一键
-	Kind    string // 命中哪个 Fact 流（fact.Kind*）
-	Cond    string // 条件表达式，由表达式求值器解析
-	Level   string // LevelInfo / LevelWarn / LevelCritical
-	Enabled bool
+	ID          int64
+	Name        string // 唯一键
+	Kind        string // 命中哪个 Fact 流（fact.Kind*）
+	Cond        string // 条件表达式，由表达式求值器解析
+	Level       string // LevelInfo / LevelWarn / LevelCritical
+	Enabled     bool
+	Venue       string // 实体 scope：逗号分隔 IN 列表；空 = 不限
+	Symbol      string // 实体 scope：同上
+	IntervalSec int    // 评估间隔（秒）；≤0 = 默认 300
 }
 
 // Rule.Level 值域（与 DB CHECK 一致）。
@@ -44,6 +47,14 @@ const (
 	StateActive   = "active"
 	StateResolved = "resolved"
 )
+
+// Alert 是 alerts 表的持久化记录（状态机状态转变时由规则引擎写入，§4）。
+type Alert struct {
+	RuleID  int64
+	Ts      time.Time // 零值 = 写入时刻
+	Level   string    // LevelInfo / LevelWarn / LevelCritical
+	Message string
+}
 
 // FactQuery 时间窗查询条件；空字段 = 不筛选。
 // 窗口 [From, To)；To 零值 = now；Limit ≤ 0 = 默认 1000。结果按 ts 升序。
@@ -69,4 +80,6 @@ type Store interface {
 	GetTriggerState(ctx context.Context, ruleID int64) (TriggerState, error)
 	// PutTriggerState upsert；Since 零值 = now。
 	PutTriggerState(ctx context.Context, s TriggerState) error
+	// InsertAlert 追加告警行（acked=false；Ts 零值 = now）。
+	InsertAlert(ctx context.Context, a Alert) error
 }

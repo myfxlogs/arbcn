@@ -118,6 +118,39 @@ func assertFact(t *testing.T, got, want fact.Fact) {
 	}
 }
 
+// TestAlertRoundtrip：告警行写入 → 原样读回（acked 默认 false、ts 落库）。
+func TestAlertRoundtrip(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "rules", "alerts")
+
+	s := New(pool)
+	id, err := s.UpsertRule(ctx, store.Rule{
+		Name: "r1", Kind: fact.KindFunding, Cond: "avg_30d > 15", Level: store.LevelWarn, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("UpsertRule: %v", err)
+	}
+	ts := time.Now().UTC().Truncate(time.Microsecond)
+	if err := s.InsertAlert(ctx, store.Alert{RuleID: id, Ts: ts, Level: store.LevelWarn, Message: "r1 active"}); err != nil {
+		t.Fatalf("InsertAlert: %v", err)
+	}
+	var (
+		gotTS time.Time
+		level string
+		msg   string
+		acked bool
+	)
+	if err := pool.QueryRow(ctx, `SELECT ts, level, message, acked FROM alerts WHERE rule_id = $1`, id).
+		Scan(&gotTS, &level, &msg, &acked); err != nil {
+		t.Fatalf("query alert: %v", err)
+	}
+	if !gotTS.Equal(ts) || level != store.LevelWarn || msg != "r1 active" || acked {
+		t.Fatalf("alert = %v/%q/%q/%v, want %v/warn/r1 active/false", gotTS, level, msg, acked, ts)
+	}
+}
+
 // TestInsertFactsRejectsUnknownKind：存储层兜底校验——删掉 InsertFacts 里的
 // Validate 调用本测试必红（§11 对抗测试精神）。
 func TestInsertFactsRejectsUnknownKind(t *testing.T) {
@@ -142,13 +175,15 @@ func TestRulesAndTriggerStateRoundtrip(t *testing.T) {
 
 	s := New(pool)
 	id1, err := s.UpsertRule(ctx, store.Rule{
-		Name: "funding_warn", Kind: fact.KindFunding, Cond: "avg_30d > 15", Level: store.LevelWarn, Enabled: true,
+		Name: "funding_warn", Kind: fact.KindFunding, Cond: "avg_30d > 15",
+		Level: store.LevelWarn, Enabled: true, Symbol: "BTC,ETH", IntervalSec: 300,
 	})
 	if err != nil {
 		t.Fatalf("UpsertRule: %v", err)
 	}
 	id2, err := s.UpsertRule(ctx, store.Rule{
-		Name: "funding_warn", Kind: fact.KindFunding, Cond: "avg_30d > 20", Level: store.LevelCritical, Enabled: true,
+		Name: "funding_warn", Kind: fact.KindFunding, Cond: "avg_30d > 20",
+		Level: store.LevelCritical, Enabled: true, Symbol: "BTC,ETH", IntervalSec: 300,
 	})
 	if err != nil {
 		t.Fatalf("UpsertRule(again): %v", err)
@@ -163,6 +198,10 @@ func TestRulesAndTriggerStateRoundtrip(t *testing.T) {
 	}
 	if len(rules) != 1 || rules[0].Cond != "avg_30d > 20" || rules[0].Level != store.LevelCritical {
 		t.Fatalf("ListRules = %+v, want 1 updated rule", rules)
+	}
+	// scope/间隔字段随 upsert 往返（M1-e 迁移 0002）。
+	if rules[0].Symbol != "BTC,ETH" || rules[0].IntervalSec != 300 {
+		t.Fatalf("ListRules scope/interval = %q/%d, want BTC,ETH/300", rules[0].Symbol, rules[0].IntervalSec)
 	}
 
 	if _, err := s.GetTriggerState(ctx, id1); !errors.Is(err, store.ErrNotFound) {

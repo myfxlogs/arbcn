@@ -1,0 +1,142 @@
+package rule
+
+import (
+	"context"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	"arbcn/internal/fact"
+	"arbcn/internal/store"
+)
+
+// t0 是测试基准时钟（所有合成 fact 的锚点）。
+var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+
+// fct 组装合成 fact（Ts = t0 + off）。
+func fct(kind, venue, symbol string, v float64, off time.Duration) fact.Fact {
+	return fact.Fact{Kind: kind, Venue: venue, Symbol: symbol, Value: v, Ts: t0.Add(off), Src: "test"}
+}
+
+// fakeStore 是内存版 store.Store（线程安全：Engine.Run 并发使用）。
+type fakeStore struct {
+	mu      sync.Mutex
+	rules   []store.Rule
+	facts   []fact.Fact
+	state   map[int64]store.TriggerState
+	alerts  []store.Alert
+	queries int
+}
+
+func newFakeStore(rules []store.Rule, facts []fact.Fact) *fakeStore {
+	for i := range rules {
+		rules[i].ID = int64(i + 1)
+	}
+	return &fakeStore{rules: rules, facts: facts, state: map[int64]store.TriggerState{}}
+}
+
+func (f *fakeStore) InsertFacts(_ context.Context, fs []fact.Fact) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.facts = append(f.facts, fs...)
+	return nil
+}
+
+// QueryFacts 按 FactQuery 过滤（ts 升序，与 pgstore 一致）。
+func (f *fakeStore) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.queries++
+	out := []fact.Fact{}
+	for _, x := range f.facts {
+		if q.Kind != "" && x.Kind != q.Kind {
+			continue
+		}
+		if q.Venue != "" && x.Venue != q.Venue {
+			continue
+		}
+		if q.Symbol != "" && x.Symbol != q.Symbol {
+			continue
+		}
+		if !q.From.IsZero() && x.Ts.Before(q.From) {
+			continue
+		}
+		if !q.To.IsZero() && !x.Ts.Before(q.To) {
+			continue
+		}
+		out = append(out, x)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
+	return out, nil
+}
+
+func (f *fakeStore) UpsertRule(_ context.Context, r store.Rule) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.rules {
+		if f.rules[i].Name == r.Name {
+			r.ID = f.rules[i].ID
+			f.rules[i] = r
+			return r.ID, nil
+		}
+	}
+	r.ID = int64(len(f.rules) + 1)
+	f.rules = append(f.rules, r)
+	return r.ID, nil
+}
+
+func (f *fakeStore) ListRules(context.Context) ([]store.Rule, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]store.Rule(nil), f.rules...), nil
+}
+
+func (f *fakeStore) GetTriggerState(_ context.Context, ruleID int64) (store.TriggerState, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s, ok := f.state[ruleID]
+	if !ok {
+		return store.TriggerState{}, store.ErrNotFound
+	}
+	return s, nil
+}
+
+func (f *fakeStore) PutTriggerState(_ context.Context, s store.TriggerState) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.state[s.RuleID] = s
+	return nil
+}
+
+func (f *fakeStore) InsertAlert(_ context.Context, a store.Alert) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.alerts = append(f.alerts, a)
+	return nil
+}
+
+func (f *fakeStore) alertsCopy() []store.Alert {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]store.Alert(nil), f.alerts...)
+}
+
+func (f *fakeStore) queryCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.queries
+}
+
+// waitFor 轮询等待条件成立（collect 包同款）。
+func waitFor(t *testing.T, d time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition not met in time")
+}

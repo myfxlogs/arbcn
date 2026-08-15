@@ -18,7 +18,7 @@ func dropTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tables ..
 	}
 }
 
-// TestMigrateIdempotent：对真库执行 migrations/ 目录（真实 0001_init.sql）——
+// TestMigrateIdempotent：对真库执行 migrations/ 目录（真实迁移文件）——
 // 首跑建 4 表 + 记账；二跑 0 应用、无错误（幂等）。
 func TestMigrateIdempotent(t *testing.T) {
 	pool := testPool(t)
@@ -29,8 +29,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("Migrate(first) applied = %d, want 1", n)
+	if n != 2 { // 0001_init.sql + 0002_rule_scope.sql
+		t.Fatalf("Migrate(first) applied = %d, want 2", n)
 	}
 
 	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts"} {
@@ -48,8 +48,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 1 {
-		t.Fatalf("schema_migrations count = %d, want 1", versions)
+	if versions != 2 {
+		t.Fatalf("schema_migrations count = %d, want 2", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)

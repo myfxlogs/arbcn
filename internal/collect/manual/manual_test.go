@@ -41,6 +41,7 @@ func (f *fakeStore) GetTriggerState(context.Context, int64) (store.TriggerState,
 	return store.TriggerState{}, store.ErrNotFound
 }
 func (f *fakeStore) PutTriggerState(context.Context, store.TriggerState) error { return nil }
+func (f *fakeStore) InsertAlert(context.Context, store.Alert) error            { return nil }
 
 func (f *fakeStore) count() int {
 	f.mu.Lock()

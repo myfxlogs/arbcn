@@ -98,20 +98,23 @@ func (s *Store) QueryFacts(ctx context.Context, q store.FactQuery) ([]fact.Fact,
 func (s *Store) UpsertRule(ctx context.Context, r store.Rule) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO rules (name, kind, cond, level, enabled)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO rules (name, kind, cond, level, enabled, venue, symbol, interval_sec)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (name) DO UPDATE
 			SET kind = EXCLUDED.kind, cond = EXCLUDED.cond,
-			    level = EXCLUDED.level, enabled = EXCLUDED.enabled
+			    level = EXCLUDED.level, enabled = EXCLUDED.enabled,
+			    venue = EXCLUDED.venue, symbol = EXCLUDED.symbol,
+			    interval_sec = EXCLUDED.interval_sec
 		RETURNING id`,
-		r.Name, r.Kind, r.Cond, r.Level, r.Enabled,
+		r.Name, r.Kind, r.Cond, r.Level, r.Enabled, r.Venue, r.Symbol, r.IntervalSec,
 	).Scan(&id)
 	return id, err
 }
 
 // ListRules 按 name 升序返回全部规则。
 func (s *Store) ListRules(ctx context.Context) ([]store.Rule, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, kind, cond, level, enabled FROM rules ORDER BY name`)
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, name, kind, cond, level, enabled, venue, symbol, interval_sec FROM rules ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +123,8 @@ func (s *Store) ListRules(ctx context.Context) ([]store.Rule, error) {
 	out := []store.Rule{}
 	for rows.Next() {
 		var r store.Rule
-		if err := rows.Scan(&r.ID, &r.Name, &r.Kind, &r.Cond, &r.Level, &r.Enabled); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.Kind, &r.Cond, &r.Level, &r.Enabled,
+			&r.Venue, &r.Symbol, &r.IntervalSec); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -153,6 +157,19 @@ func (s *Store) PutTriggerState(ctx context.Context, st store.TriggerState) erro
 		ON CONFLICT (rule_id) DO UPDATE
 			SET state = EXCLUDED.state, since = EXCLUDED.since, last_value = EXCLUDED.last_value`,
 		st.RuleID, st.State, since, st.LastValue,
+	)
+	return err
+}
+
+// InsertAlert 追加告警行；Ts 零值 = now。
+func (s *Store) InsertAlert(ctx context.Context, a store.Alert) error {
+	ts := a.Ts
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO alerts (rule_id, ts, level, message) VALUES ($1, $2, $3, $4)`,
+		a.RuleID, ts, a.Level, a.Message,
 	)
 	return err
 }
