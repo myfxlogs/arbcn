@@ -1,6 +1,9 @@
-# 代码生成（本地插件，与 D-011 技术栈一致）：
-#   protoc-gen-go / protoc-gen-connect-go → internal/dashboard/gen（Go，入仓库）
-#   protoc-gen-es（web/node_modules 安装后）→ web/src/gen（TS，入仓库）
+# 代码生成（本地插件，与 D-011 技术栈一致）——dashboardv1 域模板。
+# M3-c（D-038 ①）后 sim 域为独立模板 `buf.gen.sim.yaml`（新输出目录 internal/simapi/gen）。
+# 本模板输入限定 `arbcn/dashboard/v1`（input.paths），防 sim.proto 被 dashboard 插件误生成
+# 进 internal/dashboard/gen。生成命令：
+#   buf generate                    # dashboardv1（Go + TS）
+#   buf generate --template buf.gen.sim.yaml   # simv1（Go → internal/simapi/gen + TS）
 version: v2
 plugins:
   - local: protoc-gen-go
@@ -14,3 +17,5 @@ plugins:
     opt: target=ts
 inputs:
   - directory: proto
+    paths:
+      - proto/arbcn/dashboard/v1

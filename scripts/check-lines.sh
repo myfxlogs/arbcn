@@ -8,10 +8,11 @@ ROOT="$(git rev-parse --show-toplevel)"
 SOFT=300
 HARD=450
 
-# exempt：proto 生成代码（internal/dashboard/gen/、web/src/gen/）与 *_test.go。
+# exempt：proto 生成代码（internal/dashboard/gen/、internal/simapi/gen/、web/src/gen/）
+# 与 *_test.go（dialogue #28 裁决：生成代码豁免；M3-c C1：simapi 独立域 gen 同豁免）。
 exempt() {
   case "$1" in
-    internal/dashboard/gen/*|web/src/gen/*|*_test.go) return 0 ;;
+    internal/dashboard/gen/*|internal/simapi/gen/*|web/src/gen/*|*_test.go) return 0 ;;
   esac
   return 1
 }

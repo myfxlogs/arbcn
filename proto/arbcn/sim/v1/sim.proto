@@ -1,0 +1,72 @@
+// arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
+// 独立域 arbcn.sim.v1（D-038 ①）：4 个 RPC（ListSimOrders / ConfirmSimOrder /
+// ListSimPositions / GetSimReport）。确认后仍是模拟（SIMULATED），无任何通往
+// 真实资金的按钮/路径（§6/§8；不赌原则 D-019）。
+// 与 dashboardv1 互不依赖（不动 dashboardv1 生成物，独立域零回归）。
+syntax = "proto3";
+
+package arbcn.sim.v1;
+
+option go_package = "arbcn/internal/simapi/gen/arbcn/sim/v1;simv1";
+
+// SimOrder 与 store.SimOrder 对应（04-m3-spec §1.1 建议订单；§10.2 C1）。
+// status 状态机：suggested → confirmed → filled / rejected / expired（§1.1）。
+message SimOrder {
+  int64 id = 1;
+  int64 ts_ms = 2;            // 毫秒时间戳（前端 bigint 承载）
+  string src_rule = 3;
+  string kind = 4;
+  string venue = 5;
+  string symbol = 6;
+  string side = 7;
+  double qty = 8;
+  double ref_price = 9;
+  double expected_spread = 10;
+  repeated string risk_flags = 11;
+  string status = 12;
+  string note = 13;
+}
+
+// SimPosition 与 store.SimPosition 对应（04-m3-spec §1.2 模拟成交腿）。
+// hedge = 两行（现货 long + 永续 short），carry/repo = 一行。
+// pnl = 已结算累计（模拟 USD）；pnl_rmb = 即期汇率折算（H1/R6#1 刻度线：绝对金额
+// 用即期 USDCNH 直接乘，非 RMBDayEnd 年化口径；汇率缺失 = 0，前端标注「USD 原值」）。
+message SimPosition {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 ts_ms = 3;
+  string kind = 4;
+  string venue = 5;
+  string symbol = 6;
+  string side = 7;
+  double qty = 8;
+  double ref_price = 9;
+  bool funding = 10;
+  double pnl = 11;            // 已结算累计（模拟 USD）
+  double pnl_rmb = 12;        // 即期折算（汇率缺失 = 0，前端标注）
+  string status = 13;
+}
+
+message ListSimOrdersRequest  { string status = 1; }        // 空 = 全部
+message ListSimOrdersResponse { repeated SimOrder orders = 1; }
+message ConfirmSimOrderRequest  { int64 id = 1; }
+message ConfirmSimOrderResponse {
+  SimOrder order = 1;         // 确认后（filled 或 rejected+SPREAD_DRIFT）
+  bool accepted = 2;          // true = 成交；false = 二次门禁拒单
+}
+message ListSimPositionsRequest  {}
+message ListSimPositionsResponse { repeated SimPosition positions = 1; }
+message GetSimReportRequest {}
+message GetSimReportResponse {
+  string markdown = 1;        // 报告内容（文件不存在 = 空 + note 说明）
+  bool exists = 2;
+  string note = 3;            // 未生成时说明"周频报告每 7×8h tick 渲染"
+}
+
+// SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
+service SimService {
+  rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
+  rpc ConfirmSimOrder(ConfirmSimOrderRequest) returns (ConfirmSimOrderResponse);
+  rpc ListSimPositions(ListSimPositionsRequest) returns (ListSimPositionsResponse);
+  rpc GetSimReport(GetSimReportRequest) returns (GetSimReportResponse);
+}
