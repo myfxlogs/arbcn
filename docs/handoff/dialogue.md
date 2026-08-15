@@ -165,3 +165,9 @@
 - **交付**：M1-c（c1accb2 + e2ab7cf）——Collector 接口+注册表、调度器（独立 goroutine/间隔/抖动/退避/优雅退出）、Binance/OKX 四源（funding 年化折算+ticker）、7 个离线 fixture、调度器假源测试、突变测试。真机实测**通过**（无墙风险，无代理无降级）：BTC 7.01%/ETH 5.42%/TRX +5.46%（Binance）、BTC 8.63%（OKX）。
 - **决策层复审**：①命名 ARBCN_COLLECT_SOURCES（间隔+启停一变量）✅ 批准（更简）；②活数据回流事实库——TRX funding 旧快照 −12% 被今日实测 +5.46% 取代（facts.md 更新，D-028 闭环第一圈）；③`-tags=live` 冒烟入口 ✅ 保留（常规测试不触发外网）。
 - **下一步**：M1-d 派发（DeFiRates/ Domestic/FX/Calendar/IV + 人工录入降级通道）。
+
+## #25 · 2026-08-15 · M1-d 交付复审 + Binance 451 裁决（D-031）
+- **参与方**：施工 agent #4、Claude
+- **交付**：M1-d（c8b912d + 43e5bb5）——DeFiRates（DefiLlama 5 池）、Domestic（逆回购新浪 + BOC 挂牌爬取）、FX（USDCNH）、Calendar（规则+人工表）、Manual（人工录入端点）、OptionsIV（Deribit DVOL）；5 源真机全通；突变测试；race 全过。活数据：USDCNH 6.7443 / GC001 0.865% / BTC IV 34.82 / ETH IV 47.27。
+- **复审**：5 项全批（deposit_rate Kind / bank_rate 1h 礼貌频 / 新浪代东财 / calendar venue 值域 / x-text 直依赖）。Binance fapi 451 地域封锁 → D-031 处置（data-api.binance.vision 试修折入 M1-h；补 Bybit/HTX；Earn 利率人工补录；代理需另立 D#）。
+- **下一步**：M1-e 派发（规则引擎 + 状态机 + 对抗测试）。
