@@ -111,6 +111,8 @@ type Rule struct {
 | 告警流 | alerts 时间线 + ack |
 | 事实快照 | facts.md 的机器可读投影 |
 
+**客户端形态（D-030）**：web 仪表盘先行（M1 浏览器直接可用）→ PWA 化（M2：manifest + service worker，手机主屏可装 + 推送）→ 原生 App 挂起（触发条件另立 D#）。
+
 ## 10. 部署与可靠性
 
 - 部署：本机 systemd 常驻；`docker compose up -d arbcn-postgres`；单二进制 + 配置文件（数据源开关/间隔/告警通道）。
