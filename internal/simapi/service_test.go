@@ -1,0 +1,523 @@
+package simapi
+
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"connectrpc.com/connect"
+
+	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
+	"arbcn/internal/fact"
+	"arbcn/internal/sim"
+	"arbcn/internal/store"
+)
+
+// fakeStore 是 simapi 服务测试的内存 store.Store（M3-c C3，只实装服务用到的面，
+// 其余占位；sim 相关写入方法记录调用供断言——误用即红不静默）。
+type fakeStore struct {
+	orders      []store.SimOrder
+	positions   []store.SimPosition
+	facts       []fact.Fact
+	nextOrderID int64
+
+	accepted []acceptedCall // AcceptSimOrder 调用记录
+	rejected []rejectedCall // RejectSimOrder 调用记录
+}
+
+type acceptedCall struct {
+	id   int64
+	note string
+	legs []store.SimPosition
+}
+
+type rejectedCall struct {
+	id     int64
+	reason string
+	flags  []string
+}
+
+func newFakeStore() *fakeStore {
+	return &fakeStore{nextOrderID: 1}
+}
+
+// addOrder 追加订单并回填 id/status 默认值。
+func (f *fakeStore) addOrder(o store.SimOrder) {
+	if o.Status == "" {
+		o.Status = store.SimStatusSuggested
+	}
+	o.ID = f.nextOrderID
+	f.nextOrderID++
+	f.orders = append(f.orders, o)
+}
+
+// addFact 追加事实（含默认单位）。
+func (f *fakeStore) addFact(kind, venue, symbol string, v float64, ts time.Time) {
+	f.facts = append(f.facts, fact.Fact{Kind: kind, Venue: venue, Symbol: symbol, Value: v, Ts: ts})
+}
+
+func (f *fakeStore) orderByID(id int64) (store.SimOrder, bool) {
+	for _, o := range f.orders {
+		if o.ID == id {
+			return o, true
+		}
+	}
+	return store.SimOrder{}, false
+}
+
+func (f *fakeStore) replaceOrder(o store.SimOrder) {
+	for i := range f.orders {
+		if f.orders[i].ID == o.ID {
+			f.orders[i] = o
+			return
+		}
+	}
+}
+
+// —— 服务实际调用的接口面 ——
+
+func (f *fakeStore) GetSimOrder(_ context.Context, id int64) (store.SimOrder, error) {
+	o, ok := f.orderByID(id)
+	if !ok {
+		return store.SimOrder{}, store.ErrNotFound
+	}
+	return o, nil
+}
+
+func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
+	out := append([]store.SimOrder(nil), f.orders...)
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.After(out[j].Ts) })
+	return out, nil
+}
+
+func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
+	return append([]store.SimPosition(nil), f.positions...), nil
+}
+
+func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
+	out := []fact.Fact{}
+	for _, x := range f.facts {
+		if kind != "" && x.Kind != kind {
+			continue
+		}
+		if venue != "" && x.Venue != venue {
+			continue
+		}
+		if symbol != "" && x.Symbol != symbol {
+			continue
+		}
+		out = append(out, x)
+	}
+	// DISTINCT ON (kind,venue,symbol) ts DESC 语义：只回每键最新一条。
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.After(out[j].Ts) })
+	seen := map[string]bool{}
+	dedup := []fact.Fact{}
+	for _, x := range out {
+		k := x.Kind + "\x00" + x.Venue + "\x00" + x.Symbol
+		if seen[k] {
+			continue
+		}
+		seen[k] = true
+		dedup = append(dedup, x)
+	}
+	return dedup, nil
+}
+
+func (f *fakeStore) AcceptSimOrder(_ context.Context, id int64, note string, legs []store.SimPosition) error {
+	f.accepted = append(f.accepted, acceptedCall{id: id, note: note, legs: legs})
+	o, ok := f.orderByID(id)
+	if !ok || o.Status != store.SimStatusSuggested {
+		return errors.New("fakeStore: AcceptSimOrder 守卫（status != suggested）")
+	}
+	o.Status = store.SimStatusFilled
+	o.Note = note
+	f.replaceOrder(o)
+	return nil
+}
+
+func (f *fakeStore) RejectSimOrder(_ context.Context, id int64, reason string, flags ...string) error {
+	f.rejected = append(f.rejected, rejectedCall{id: id, reason: reason, flags: flags})
+	o, ok := f.orderByID(id)
+	if !ok || o.Status != store.SimStatusSuggested {
+		return errors.New("fakeStore: RejectSimOrder 守卫（status != suggested）")
+	}
+	o.Status = store.SimStatusRejected
+	o.Note = reason
+	for _, fl := range flags {
+		if !slices.Contains(o.RiskFlags, fl) {
+			o.RiskFlags = append(o.RiskFlags, fl)
+		}
+	}
+	f.replaceOrder(o)
+	return nil
+}
+
+// —— 其余接口占位（未用即红） ——
+
+func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
+	panic("fakeStore: InsertFacts not used")
+}
+func (f *fakeStore) QueryFacts(context.Context, store.FactQuery) ([]fact.Fact, error) {
+	panic("fakeStore: QueryFacts not used")
+}
+func (f *fakeStore) UpsertRule(context.Context, store.Rule) (int64, error) {
+	panic("fakeStore: UpsertRule not used")
+}
+func (f *fakeStore) ListRules(context.Context) ([]store.Rule, error) {
+	panic("fakeStore: ListRules not used")
+}
+func (f *fakeStore) GetTriggerState(context.Context, int64) (store.TriggerState, error) {
+	panic("fakeStore: GetTriggerState not used")
+}
+func (f *fakeStore) PutTriggerState(context.Context, store.TriggerState) error {
+	panic("fakeStore: PutTriggerState not used")
+}
+func (f *fakeStore) InsertAlert(context.Context, store.Alert) error {
+	panic("fakeStore: InsertAlert not used")
+}
+func (f *fakeStore) PendingAlerts(context.Context, int) ([]store.Alert, error) {
+	panic("fakeStore: PendingAlerts not used")
+}
+func (f *fakeStore) MarkAlertDelivered(context.Context, int64) error {
+	panic("fakeStore: MarkAlertDelivered not used")
+}
+func (f *fakeStore) ListAlerts(context.Context, int, int) ([]store.Alert, error) {
+	panic("fakeStore: ListAlerts not used")
+}
+func (f *fakeStore) AckAlert(context.Context, int64) error {
+	panic("fakeStore: AckAlert not used")
+}
+func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
+	panic("fakeStore: ListTriggerStates not used")
+}
+func (f *fakeStore) ListUnacked(context.Context) ([]store.Alert, error) {
+	panic("fakeStore: ListUnacked not used")
+}
+func (f *fakeStore) AckAll(context.Context) (int64, error) {
+	panic("fakeStore: AckAll not used")
+}
+func (f *fakeStore) InsertLedgerEntry(context.Context, store.LedgerEntry) (int64, error) {
+	panic("fakeStore: InsertLedgerEntry not used")
+}
+func (f *fakeStore) ListLedgerEntries(context.Context, int, int) ([]store.LedgerEntry, error) {
+	panic("fakeStore: ListLedgerEntries not used")
+}
+func (f *fakeStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
+	panic("fakeStore: LedgerSummary not used")
+}
+func (f *fakeStore) InsertSimOrder(context.Context, store.SimOrder) (int64, error) {
+	panic("fakeStore: InsertSimOrder not used")
+}
+func (f *fakeStore) UpdateSimOrderStatus(context.Context, int64, string, string) error {
+	panic("fakeStore: UpdateSimOrderStatus not used")
+}
+func (f *fakeStore) FillSimOrder(context.Context, int64, string, []store.SimPosition) error {
+	panic("fakeStore: FillSimOrder not used")
+}
+func (f *fakeStore) TodaySimNotional(context.Context, time.Time) (float64, error) {
+	panic("fakeStore: TodaySimNotional not used")
+}
+func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
+	panic("fakeStore: InsertSimPosition not used")
+}
+func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
+	panic("fakeStore: ListOpenSimPositions not used")
+}
+func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
+	panic("fakeStore: SettleSimPosition not used")
+}
+
+// t0 / t0Facts：服务测试统一锚定时钟（practices #10：时钟注入覆盖确认成交腿时间戳）。
+var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+
+// service 构造注入固定时钟的 SimService + 直连调用（不经 HTTP，覆盖全部 RPC 逻辑面）。
+func service(st store.Store, cfg sim.Config) *Service {
+	s := NewService(st, cfg)
+	s.Now = func() time.Time { return t0 }
+	return s
+}
+
+// fundingOrder 返回一条典型的 funding_hedge 建议订单（ref=100 / spread=5，二次门禁通过基线）。
+func fundingOrder(id int64) store.SimOrder {
+	return store.SimOrder{ID: id, Ts: t0.Add(-time.Hour), SrcRule: "funding_warn",
+		Kind: store.SimKindFundingHedge, Venue: "binance", Symbol: "BTC",
+		Side: store.SimSideHedge, Qty: 10000, RefPrice: 100, ExpectedSpread: 5,
+		Status: store.SimStatusSuggested}
+}
+
+func confirmReq(id int64) *connect.Request[simv1.ConfirmSimOrderRequest] {
+	return connect.NewRequest(&simv1.ConfirmSimOrderRequest{Id: id})
+}
+
+// TestListSimOrdersEmptyAndStatusFilter：空库返回 [] 不报错；status 过滤生效。
+func TestListSimOrdersEmptyAndStatusFilter(t *testing.T) {
+	st := newFakeStore()
+	s := service(st, sim.Config{})
+
+	// 空库 → []（非 nil）。
+	resp, err := s.ListSimOrders(context.Background(), connect.NewRequest(&simv1.ListSimOrdersRequest{}))
+	if err != nil {
+		t.Fatalf("ListSimOrders(empty): %v", err)
+	}
+	if resp.Msg.Orders == nil || len(resp.Msg.Orders) != 0 {
+		t.Fatalf("orders = %#v, want 空 []", resp.Msg.Orders)
+	}
+
+	// 两单：suggested + rejected；status=suggested → 只回 suggested。
+	st.addOrder(fundingOrder(0))
+	r := fundingOrder(0)
+	r.Status = store.SimStatusRejected
+	st.addOrder(r)
+
+	all, err := s.ListSimOrders(context.Background(), connect.NewRequest(&simv1.ListSimOrdersRequest{}))
+	if err != nil || len(all.Msg.Orders) != 2 {
+		t.Fatalf("ListSimOrders(all) = %d, %v, want 2", len(all.Msg.Orders), err)
+	}
+	sug, err := s.ListSimOrders(context.Background(),
+		connect.NewRequest(&simv1.ListSimOrdersRequest{Status: store.SimStatusSuggested}))
+	if err != nil || len(sug.Msg.Orders) != 1 || sug.Msg.Orders[0].Status != store.SimStatusSuggested {
+		t.Fatalf("ListSimOrders(suggested) = %d orders, %v, want 1 suggested", len(sug.Msg.Orders), err)
+	}
+}
+
+// TestConfirmSimOrderAccept：二次门禁通过 → 原子成交（accepted=true，订单 filled，
+// legs 建腿口径与 sim.BuildLegs 一致、时间戳用注入时钟）。
+func TestConfirmSimOrderAccept(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(accept): %v", err)
+	}
+	if !resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusFilled {
+		t.Fatalf("accepted = %v, status = %q, want true/filled", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.accepted) != 1 || len(st.rejected) != 0 {
+		t.Fatalf("accepted = %d, rejected = %d, want 1/0", len(st.accepted), len(st.rejected))
+	}
+	// 建腿时间戳 = 注入时钟（practices #10）。
+	call := st.accepted[0]
+	if call.id != 1 || len(call.legs) != 2 {
+		t.Fatalf("AcceptSimOrder call = %+v, want id=1 legs=2", call)
+	}
+	if !call.legs[0].Ts.Equal(t0) || !call.legs[1].Ts.Equal(t0) {
+		t.Fatalf("leg Ts = %v/%v, want 注入时钟 %v", call.legs[0].Ts, call.legs[1].Ts, t0)
+	}
+	// funding_hedge = 现货 long 非 funding + 永续 short funding（与 sim.BuildLegs 口径一致）。
+	if call.legs[0].Side != store.SimSideLong || call.legs[0].Funding || call.legs[0].OrderID != 1 {
+		t.Errorf("leg0 = %+v, want long 非 funding OrderID=1", call.legs[0])
+	}
+	if call.legs[1].Side != store.SimSideShort || !call.legs[1].Funding {
+		t.Errorf("leg1 = %+v, want short funding", call.legs[1])
+	}
+}
+
+// TestConfirmSimOrderNonSuggested：非 suggested（filled/rejected/confirmed）→
+// FailedPrecondition，且不产生任何写（防重复确认）。
+func TestConfirmSimOrderNonSuggested(t *testing.T) {
+	for _, status := range []string{store.SimStatusFilled, store.SimStatusRejected, store.SimStatusConfirmed} {
+		st := newFakeStore()
+		o := fundingOrder(0)
+		o.Status = status
+		st.addOrder(o)
+		s := service(st, sim.Config{})
+
+		_, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+		if err == nil {
+			t.Fatalf("%s: ConfirmSimOrder = nil, want error", status)
+		}
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatalf("%s: code = %v, want FailedPrecondition", status, connect.CodeOf(err))
+		}
+		if len(st.accepted)+len(st.rejected) != 0 {
+			t.Fatalf("%s: accepted+rejected = %d, want 0（不得写入）", status, len(st.accepted)+len(st.rejected))
+		}
+	}
+}
+
+// TestConfirmSimOrderInvalidId：id ≤ 0 → InvalidArgument。
+func TestConfirmSimOrderInvalidId(t *testing.T) {
+	s := service(newFakeStore(), sim.Config{})
+	_, err := s.ConfirmSimOrder(context.Background(), confirmReq(0))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument", connect.CodeOf(err))
+	}
+}
+
+// TestConfirmSimOrderUnknownId：未知 id → 存储错误（Unavailable，与 dashboard 同口径）。
+func TestConfirmSimOrderUnknownId(t *testing.T) {
+	s := service(newFakeStore(), sim.Config{})
+	_, err := s.ConfirmSimOrder(context.Background(), confirmReq(999))
+	if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("code = %v, want Unavailable", connect.CodeOf(err))
+	}
+}
+
+// TestConfirmSimOrderDriftReject：确认时刻行情漂移 > 2% → 拒单（accepted=false，
+// RejectSimOrder 带 SPREAD_DRIFT flag，订单 rejected，note 含原因）。
+func TestConfirmSimOrderDriftReject(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 105, t0.Add(-time.Minute)) // +5% > 2%
+	st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(drift): %v", err)
+	}
+	if resp.Msg.Accepted {
+		t.Fatal("accepted = true, want false（漂移拒单）")
+	}
+	if resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("status = %q, want rejected", resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || len(st.accepted) != 0 {
+		t.Fatalf("accepted = %d, rejected = %d, want 0/1", len(st.accepted), len(st.rejected))
+	}
+	call := st.rejected[0]
+	if !slices.Contains(call.flags, sim.RiskSpreadDrift) {
+		t.Fatalf("flags = %v, want 含 SPREAD_DRIFT", call.flags)
+	}
+	if !strings.Contains(call.reason, "SPREAD_DRIFT") {
+		t.Fatalf("reason = %q, want 含 SPREAD_DRIFT", call.reason)
+	}
+}
+
+// TestConfirmSimOrderFailClosedNoData：确认时刻查不到 ticker/funding → fail-closed
+// 拒单（§10.3 无数据不确认；负样本保留）。
+func TestConfirmSimOrderFailClosedNoData(t *testing.T) {
+	for _, missing := range []string{"ticker", "funding"} {
+		st := newFakeStore()
+		st.addOrder(fundingOrder(0))
+		if missing != "ticker" {
+			st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+		}
+		if missing != "funding" {
+			st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+		}
+		s := service(st, sim.Config{})
+
+		resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+		if err != nil {
+			t.Fatalf("%s: ConfirmSimOrder: %v", missing, err)
+		}
+		if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+			t.Fatalf("%s: accepted = %v, status = %q, want false/rejected", missing, resp.Msg.Accepted, resp.Msg.Order.Status)
+		}
+		if len(st.rejected) != 1 {
+			t.Fatalf("%s: rejected = %d, want 1", missing, len(st.rejected))
+		}
+		if !strings.Contains(st.rejected[0].reason, "fail-closed") {
+			t.Fatalf("%s: reason = %q, want 含 fail-closed", missing, st.rejected[0].reason)
+		}
+	}
+}
+
+// TestConfirmSimOrderSpreadReject：预期年化变化 > 20% → 拒单（第二门独立触发）。
+func TestConfirmSimOrderSpreadReject(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 6.5, t0.Add(-time.Minute)) // +30% > 20%
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(spread): %v", err)
+	}
+	if resp.Msg.Accepted {
+		t.Fatal("accepted = true, want false（价差漂移拒单）")
+	}
+	if len(st.rejected) != 1 || !slices.Contains(st.rejected[0].flags, sim.RiskSpreadDrift) {
+		t.Fatalf("rejected = %+v, want SPREAD_DRIFT 拒单", st.rejected)
+	}
+}
+
+// TestListSimPositionsRMBConversion：pnl_rmb = pnl × 即期 USDCNH；汇率缺失 → 0。
+func TestListSimPositionsRMBConversion(t *testing.T) {
+	// 有汇率：pnl=100 × 7.25 → 725。
+	st := newFakeStore()
+	st.positions = []store.SimPosition{
+		{ID: 1, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge, Venue: "binance",
+			Symbol: "BTC", Side: store.SimSideLong, Qty: 10000, RefPrice: 100, Funding: true, PnL: 100},
+	}
+	st.addFact(fact.KindFX, fxVenue, fxSymbol, 7.25, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ListSimPositions(context.Background(), connect.NewRequest(&simv1.ListSimPositionsRequest{}))
+	if err != nil || len(resp.Msg.Positions) != 1 {
+		t.Fatalf("ListSimPositions = %d, %v, want 1", len(resp.Msg.Positions), err)
+	}
+	if got := resp.Msg.Positions[0].PnlRmb; got != 725 {
+		t.Fatalf("pnl_rmb = %v, want 725（100×7.25）", got)
+	}
+
+	// 无汇率 → pnl_rmb=0（前端标「USD 原值」，H1/R6#1 刻度线：绝对金额用即期）。
+	st2 := newFakeStore()
+	st2.positions = append([]store.SimPosition(nil), st.positions...)
+	s2 := service(st2, sim.Config{})
+	resp2, err := s2.ListSimPositions(context.Background(), connect.NewRequest(&simv1.ListSimPositionsRequest{}))
+	if err != nil || len(resp2.Msg.Positions) != 1 {
+		t.Fatalf("ListSimPositions(no fx) = %d, %v, want 1", len(resp2.Msg.Positions), err)
+	}
+	if got := resp2.Msg.Positions[0].PnlRmb; got != 0 {
+		t.Fatalf("pnl_rmb = %v, want 0（无汇率）", got)
+	}
+}
+
+// TestGetSimReport：未启用（路径空 / HistoryDays=0）/ 文件不存在 / 存在 三态。
+func TestGetSimReport(t *testing.T) {
+	t.Run("disabled-empty-path", func(t *testing.T) {
+		s := service(newFakeStore(), sim.Config{})
+		resp, err := s.GetSimReport(context.Background(), connect.NewRequest(&simv1.GetSimReportRequest{}))
+		if err != nil || resp.Msg.Exists {
+			t.Fatalf("exists = %v, %v, want false", resp.Msg.Exists, err)
+		}
+		if resp.Msg.Note == "" {
+			t.Fatal("note 为空，want 未启用说明")
+		}
+	})
+	t.Run("disabled-zero-history", func(t *testing.T) {
+		s := service(newFakeStore(), sim.Config{ReportPath: "x.md", HistoryDays: 0})
+		resp, err := s.GetSimReport(context.Background(), connect.NewRequest(&simv1.GetSimReportRequest{}))
+		if err != nil || resp.Msg.Exists {
+			t.Fatalf("exists = %v, %v, want false", resp.Msg.Exists, err)
+		}
+	})
+	t.Run("missing-file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "nope.md")
+		s := service(newFakeStore(), sim.Config{ReportPath: path, HistoryDays: 7})
+		resp, err := s.GetSimReport(context.Background(), connect.NewRequest(&simv1.GetSimReportRequest{}))
+		if err != nil || resp.Msg.Exists {
+			t.Fatalf("exists = %v, %v, want false", resp.Msg.Exists, err)
+		}
+		if resp.Msg.Note == "" || resp.Msg.Markdown != "" {
+			t.Fatalf("note = %q, markdown = %q, want 未生成说明", resp.Msg.Note, resp.Msg.Markdown)
+		}
+	})
+	t.Run("exists", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "sim_report.md")
+		if err := os.WriteFile(path, []byte("# 模拟盘周报\n"), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		s := service(newFakeStore(), sim.Config{ReportPath: path, HistoryDays: 7})
+		resp, err := s.GetSimReport(context.Background(), connect.NewRequest(&simv1.GetSimReportRequest{}))
+		if err != nil || !resp.Msg.Exists {
+			t.Fatalf("exists = %v, %v, want true", resp.Msg.Exists, err)
+		}
+		if resp.Msg.Markdown != "# 模拟盘周报\n" {
+			t.Fatalf("markdown = %q, want 文件内容", resp.Msg.Markdown)
+		}
+	})
+}

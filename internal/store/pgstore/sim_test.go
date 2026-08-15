@@ -286,6 +286,132 @@ func TestFillSimOrderAtomicity(t *testing.T) {
 	}
 }
 
+// TestAcceptSimOrderAtomicity（M3-c C3，practices #8）：人工确认原子成交——
+// suggested→confirmed→filled + 建全部腿在同一事务；非 suggested/不存在/重复确认拒绝，
+// 不留"已确认未成交"悬挂、无重复建腿。
+// [对抗测试锚点] 删 AcceptSimOrder 的 status='suggested' 守卫（第一 UPDATE WHERE 条件）
+// → 重复确认/confirmed 拒绝断言必红；把 INSERT 腿移出事务 → 失败回滚断言必红。
+func TestAcceptSimOrderAtomicity(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+
+	s := New(pool)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	legs := []store.SimPosition{
+		{Ts: now, Kind: store.SimKindFundingHedge, Venue: "sim_local", Symbol: "BTC",
+			Side: store.SimSideLong, Qty: 10000, RefPrice: 60000, Funding: false, Status: store.SimPosStatusOpen},
+		{Ts: now, Kind: store.SimKindFundingHedge, Venue: "sim_local", Symbol: "BTC",
+			Side: store.SimSideShort, Qty: 10000, RefPrice: 60000, Funding: true, Status: store.SimPosStatusOpen},
+	}
+	newOrder := func(status string) int64 {
+		id, err := s.InsertSimOrder(ctx, store.SimOrder{Ts: now, Kind: store.SimKindFundingHedge,
+			Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+			RefPrice: 60000, ExpectedSpread: 10, Status: status})
+		if err != nil {
+			t.Fatalf("InsertSimOrder: %v", err)
+		}
+		return id
+	}
+
+	// 1) suggested → filled + 两腿。
+	id := newOrder(store.SimStatusSuggested)
+	if err := s.AcceptSimOrder(ctx, id, "人工确认成交", legs); err != nil {
+		t.Fatalf("AcceptSimOrder: %v", err)
+	}
+	o, err := s.GetSimOrder(ctx, id)
+	if err != nil || o.Status != store.SimStatusFilled || o.Note != "人工确认成交" {
+		t.Fatalf("order after accept = %+v, %v, want filled/人工确认成交", o, err)
+	}
+	open, err := s.ListOpenSimPositions(ctx, "", "")
+	if err != nil || len(open) != 2 {
+		t.Fatalf("legs = %d, %v, want 2", len(open), err)
+	}
+
+	// 2) 重复确认（已 filled）→ 拒绝（suggested 守卫，防并发双确认/双插）。
+	if err := s.AcceptSimOrder(ctx, id, "again", legs); err == nil {
+		t.Fatal("AcceptSimOrder(filled) = nil, want error（守卫）")
+	}
+	if open, _ = s.ListOpenSimPositions(ctx, "", ""); len(open) != 2 {
+		t.Fatalf("legs after dup = %d, want 2（不得双插）", len(open))
+	}
+
+	// 3) confirmed（已确认未成交 = 事务中间态，外部不应存在）→ 拒绝（suggested 守卫）。
+	cid := newOrder(store.SimStatusConfirmed)
+	if err := s.AcceptSimOrder(ctx, cid, "", legs); err == nil {
+		t.Fatal("AcceptSimOrder(confirmed) = nil, want error（suggested 守卫）")
+	}
+
+	// 4) rejected → 拒绝。
+	rid := newOrder(store.SimStatusRejected)
+	if err := s.AcceptSimOrder(ctx, rid, "", legs); err == nil {
+		t.Fatal("AcceptSimOrder(rejected) = nil, want error")
+	}
+
+	// 5) 不存在 id → 拒绝。
+	if err := s.AcceptSimOrder(ctx, 999_999, "", legs); err == nil {
+		t.Fatal("AcceptSimOrder(missing) = nil, want error")
+	}
+}
+
+// TestRejectSimOrderAppendsFlag（M3-c C3）：suggested → rejected + risk_flags 追加
+// SPREAD_DRIFT（保留既有标记、去重）+ note 覆盖；非 suggested/未知 id → 报错（状态守卫）。
+// [对抗测试锚点] 删 RejectSimOrder 的 status='suggested' 守卫 → 非 suggested 拒绝断言必红。
+func TestRejectSimOrderAppendsFlag(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "sim_orders")
+
+	s := New(pool)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	newOrder := func(status string) int64 {
+		id, err := s.InsertSimOrder(ctx, store.SimOrder{Ts: now, Kind: store.SimKindFundingHedge,
+			Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+			RefPrice: 60000, ExpectedSpread: 10, RiskFlags: []string{"SPREAD_LOW"}, Status: status})
+		if err != nil {
+			t.Fatalf("InsertSimOrder: %v", err)
+		}
+		return id
+	}
+
+	// 1) suggested → rejected + SPREAD_DRIFT 追加（保留既有 SPREAD_LOW）+ note 覆盖。
+	id := newOrder(store.SimStatusSuggested)
+	if err := s.RejectSimOrder(ctx, id, "SPREAD_DRIFT: ref_price 漂移 5.00%", "SPREAD_DRIFT"); err != nil {
+		t.Fatalf("RejectSimOrder: %v", err)
+	}
+	o, err := s.GetSimOrder(ctx, id)
+	if err != nil || o.Status != store.SimStatusRejected {
+		t.Fatalf("order = %+v, %v, want rejected", o, err)
+	}
+	if !slices.Contains(o.RiskFlags, "SPREAD_DRIFT") {
+		t.Fatalf("risk_flags = %v, want 含 SPREAD_DRIFT", o.RiskFlags)
+	}
+	if !slices.Contains(o.RiskFlags, "SPREAD_LOW") {
+		t.Fatalf("risk_flags = %v, want 保留既有 SPREAD_LOW", o.RiskFlags)
+	}
+	if o.Note != "SPREAD_DRIFT: ref_price 漂移 5.00%" {
+		t.Fatalf("note = %q, want 拒单原因覆盖", o.Note)
+	}
+
+	// 2) filled（非 suggested）→ 拒绝（守卫）。
+	fid := newOrder(store.SimStatusFilled)
+	if err := s.RejectSimOrder(ctx, fid, "x", "SPREAD_DRIFT"); err == nil {
+		t.Fatal("RejectSimOrder(filled) = nil, want error（守卫）")
+	}
+
+	// 3) 未知 id → 拒绝。
+	if err := s.RejectSimOrder(ctx, 999_999, "x", "SPREAD_DRIFT"); err == nil {
+		t.Fatal("RejectSimOrder(missing) = nil, want error")
+	}
+
+	// 4) flags 为空 → 拒绝调用。
+	if err := s.RejectSimOrder(ctx, id, "x"); err == nil {
+		t.Fatal("RejectSimOrder(no flags) = nil, want error")
+	}
+}
+
 // simRiskWhitelist 与 sim 包常量对齐的测试局部别名（pgstore 不 import internal/sim，
 // 避免循环依赖；值域以 04-m3-spec §1.1 为准）。
 const simRiskWhitelist = "WHITELIST"

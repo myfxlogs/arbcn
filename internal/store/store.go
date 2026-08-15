@@ -236,6 +236,17 @@ type Store interface {
 	// sim_positions 腿」，任一失败整体回滚——不留"filled 但缺腿"的半对冲状态（D-019）。
 	// 订单不存在或非 confirmed → 拒绝（防状态漂移/并发双插）。legs 的 OrderID 缺省回填 id。
 	FillSimOrder(ctx context.Context, id int64, note string, legs []SimPosition) error
+	// AcceptSimOrder 人工确认原子成交（M3-c C3，practices #8）：单事务内
+	// suggested→confirmed→filled + 建全部 sim_positions 腿；任一守卫 RowsAffected 为 0
+	// 整体回滚。事务内 confirmed 是中间态，外部只见 suggested/filled（无"已确认未成交"
+	// 悬挂）；并发双确认 → 守卫 1（status='suggested'）拦第二次（无重复建腿）。
+	// 语义与 FillSimOrder（confirmed→filled）互补：AcceptSimOrder 是 M3-c 人工流从
+	// suggested 一次性确认成交。legs 的 OrderID 缺省回填 id。
+	AcceptSimOrder(ctx context.Context, id int64, note string, legs []SimPosition) error
+	// RejectSimOrder 确认时拒单（M3-c C3）：原子置 rejected + note 覆盖 + risk_flags
+	// 追加 flags（去重）。仅 status='suggested' 时生效（RowsAffected 守卫），未知 id /
+	// 非 suggested → 报错（并发/状态漂移最后防线）。拒单 = 负样本保留（04-m3-spec §4）。
+	RejectSimOrder(ctx context.Context, id int64, reason string, flags ...string) error
 	// TodaySimNotional 当日（[当日 00:00, now) 本地日）活跃订单
 	// （suggested/confirmed/filled）名义和——DAILY_OVER 门禁数据面（04-m3-spec §4）。
 	TodaySimNotional(ctx context.Context, now time.Time) (float64, error)

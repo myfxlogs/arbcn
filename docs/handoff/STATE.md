@@ -48,7 +48,7 @@
   | **M3-c 细化设计定稿** | ✅ | D-038 + spec §10（C1–C5，含 proto 全文/RPC/门禁/锚点） |
   | **M3-c C1：SimService proto + 生成物** | ✅ | proto/arbcn/sim/v1/sim.proto + buf.gen.sim.yaml（独立域；dashboardv1 生成物 byte-identical 未动） |
   | **M3-c C2：SPREAD_DRIFT 二次门禁** | ✅ | sim/order.go RiskSpreadDrift + sim/confirm.go ConfirmDriftCheck（G5 口径 + fail-closed） |
-  | **M3-c C3：确认成交流（ConfirmSimOrder 唯一写路径）** | ⬜ | simapi/service.go + pgstore Accept/RejectSimOrder（suggested 守卫原子） |
+  | **M3-c C3：确认成交流（ConfirmSimOrder 唯一写路径）** | ✅ | simapi/service.go + pgstore Accept/RejectSimOrder（suggested 守卫原子） |
   | **M3-c C4：模拟执行 UI tab** | ⬜ | App.tsx 第 4 tab + SimExec.tsx（SIMULATED 徽标 + 即期 RMB） |
   | **M3-c C5：可检查性 + main.go 接线 + 验收** | ⬜ | domains_test simapi grep 断言 + mux 接线 + go vet/test -race |
 - 阻塞/待决策:
@@ -60,5 +60,5 @@
   - **M3-b 交付注**：sim 已接线进 main.go（backfill / simDriver / OnActive compose / 8h 结算循环 / 探针随 tick）；结算数据源 = 真实市场公开 funding（D-037 裁决），testnet 费率不参与结算只做 key 隔离验证。sim 包保持零网络零密钥（domains_test + TestNoNetworkImports 把关）。
   - **D-031 实证修订**：data-api.binance.vision 不镜像 /fapi/*（404）；历史回填源回落 fapi.binance.com（部署机直连 200、满 365d）；OKX 历史端点为 funding-rate-history（funding-history 404），仅保留 ~90d（OKX 部分覆盖，sim_report/avg_30d 受窗口限制，已知 degrade）。
   - 待决策观察（不阻塞）：repo 信号经 SignalToOrder 时仍受 5% 门槛（SPREAD_LOW）约束——平时逆回购 2-4% 会被拒单，仅季末/年末上冲 ≥5% 时放行；与"时点逆回购"策略意图一致（宁缺毋滥），但若业主希望 repo 绕过价差门槛须走 D# 调整。
-- 下一步: **M3-c 施工中**（04-m3-spec.md §10 C1–C5；D-038 定稿）。C1（proto+生成物）已交付；C2（SPREAD_DRIFT 门禁）、C3（确认成交流）施工中；C4（UI tab）、C5（可检查性+接线+验收）待做。并行等待业主 testnet key（S3 启用门控）。
+- 下一步: **M3-c 施工中**（04-m3-spec.md §10 C1–C5；D-038 定稿）。C1（proto+生成物）、C2（SPREAD_DRIFT 门禁）、C3（确认成交流+原子化+测试）已交付；C4（UI tab）、C5（可检查性+接线+验收）待做。并行等待业主 testnet key（S3 启用门控）。
 - 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；对话落 dialogue.md #39/#40/#41/#42/#43/#44/#45。

@@ -178,6 +178,12 @@ func (m *memStore) UpdateSimOrderStatus(context.Context, int64, string, string) 
 func (m *memStore) FillSimOrder(context.Context, int64, string, []store.SimPosition) error {
 	panic("memStore: FillSimOrder not used")
 }
+func (m *memStore) AcceptSimOrder(context.Context, int64, string, []store.SimPosition) error {
+	panic("memStore: AcceptSimOrder not used")
+}
+func (m *memStore) RejectSimOrder(context.Context, int64, string, ...string) error {
+	panic("memStore: RejectSimOrder not used")
+}
 func (m *memStore) TodaySimNotional(context.Context, time.Time) (float64, error) {
 	panic("memStore: TodaySimNotional not used")
 }

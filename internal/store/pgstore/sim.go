@@ -193,6 +193,75 @@ func (s *Store) FillSimOrder(ctx context.Context, id int64, note string, legs []
 	return nil
 }
 
+// AcceptSimOrder 人工确认原子成交（M3-c C3，替代"先置 confirmed 再 ConfirmAndFill"
+// 两步——practices #8 原子性）：单事务 suggested→confirmed→filled + INSERT 全腿。
+// 守卫：第一次 UPDATE 要求 status='suggested'，第二次要求 status='confirmed'
+// （RowsAffected 任一为 0 → 整体回滚）。并发双确认 → 守卫 1 拦第二次（无重复建腿）；
+// 事务内 confirmed 是中间态，外部永远看到 suggested 或 filled（无"已确认未成交"悬挂）。
+func (s *Store) AcceptSimOrder(ctx context.Context, id int64, note string, legs []store.SimPosition) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pgstore: accept sim order: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // 成功后 Rollback 是 no-op
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE sim_orders SET status = $1 WHERE id = $2 AND status = $3`,
+		store.SimStatusConfirmed, id, store.SimStatusSuggested)
+	if err != nil {
+		return fmt.Errorf("pgstore: accept sim order: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("pgstore: accept sim order %d: 非 suggested/不存在（拒绝，防并发双确认/状态漂移）", id)
+	}
+	tag, err = tx.Exec(ctx,
+		`UPDATE sim_orders
+		 SET status = $1, note = CASE WHEN $2 <> '' THEN $2 ELSE note END
+		 WHERE id = $3 AND status = $4`,
+		store.SimStatusFilled, note, id, store.SimStatusConfirmed)
+	if err != nil {
+		return fmt.Errorf("pgstore: accept sim order: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("pgstore: accept sim order %d: confirmed 守卫未命中（回滚）", id)
+	}
+	for _, p := range legs {
+		if p.OrderID <= 0 {
+			p.OrderID = id // 缺省回填
+		}
+		if _, err := insertSimPosition(ctx, tx, p); err != nil {
+			return fmt.Errorf("pgstore: accept sim order: leg: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pgstore: accept sim order: commit: %w", err)
+	}
+	return nil
+}
+
+// RejectSimOrder 确认时拒单（M3-c C3）：原子置 rejected + note 覆盖 + risk_flags
+// 追加 flags（去重，array_agg(DISTINCT) 保序）。仅 status='suggested' 时生效
+// （RowsAffected 守卫）；未知 id / 非 suggested → 报错。拒单 = 负样本保留（§4）。
+// flags 为空 → 拒绝调用（调用方必须给至少一个标记，如 SPREAD_DRIFT）。
+func (s *Store) RejectSimOrder(ctx context.Context, id int64, reason string, flags ...string) error {
+	if len(flags) == 0 {
+		return errors.New("pgstore: reject sim order: flags required")
+	}
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE sim_orders
+		SET status = $1, note = $2,
+		    risk_flags = (SELECT array_agg(DISTINCT f) FROM unnest(risk_flags || $3::text[]) f)
+		WHERE id = $4 AND status = $5`,
+		store.SimStatusRejected, reason, flags, id, store.SimStatusSuggested)
+	if err != nil {
+		return fmt.Errorf("pgstore: reject sim order: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("pgstore: reject sim order %d: 非 suggested/不存在（拒绝）", id)
+	}
+	return nil
+}
+
 // scanSimPositions 是 ListSimPositions / ListOpenSimPositions 共用的行扫描器。
 func scanSimPositions(rows pgx.Rows) ([]store.SimPosition, error) {
 	out := []store.SimPosition{}

@@ -67,6 +67,18 @@ func (s *Simulator) ConfirmAndFill(ctx context.Context, orderID int64) error {
 	}
 
 	now := s.now()
+	legs := BuildLegs(o, now)
+	// 原子成交（M3-a 复审 M1）：订单状态与建腿在 store 单事务内完成——任一失败整体
+	// 回滚，不留"filled 但缺腿"的半对冲裸敞口（D-019）。前置 status 检查只为报错更清，
+	// 事务内 RowsAffected 守卫才是权威（并发/状态漂移也在 store 层拦截）。
+	return s.st.FillSimOrder(ctx, orderID, "本地模拟即时成交 @ ref_price（忽略滑点/深度）", legs)
+}
+
+// BuildLegs 组装订单成交腿（04-m3-spec §3.2 / §10.4 C3 共享建腿逻辑）：
+// funding_hedge = 两行（现货 long 非 funding + 永续 short funding），carry/repo = 一行
+// （funding 生息腿）。ConfirmAndFill（M3-b）与 simapi.ConfirmSimOrder（M3-c 人工流）
+// 共用，保证两侧建腿口径一致。
+func BuildLegs(o store.SimOrder, now time.Time) []store.SimPosition {
 	legs := []store.SimPosition{}
 	switch o.Kind {
 	case store.SimKindFundingHedge:
@@ -83,10 +95,7 @@ func (s *Simulator) ConfirmAndFill(ctx context.Context, orderID int64) error {
 			Symbol: o.Symbol, Side: store.SimSideLong, Qty: o.Qty, RefPrice: o.RefPrice,
 			Funding: true, Status: store.SimPosStatusOpen})
 	}
-	// 原子成交（M3-a 复审 M1）：订单状态与建腿在 store 单事务内完成——任一失败整体
-	// 回滚，不留"filled 但缺腿"的半对冲裸敞口（D-019）。前置 status 检查只为报错更清，
-	// 事务内 RowsAffected 守卫才是权威（并发/状态漂移也在 store 层拦截）。
-	return s.st.FillSimOrder(ctx, orderID, "本地模拟即时成交 @ ref_price（忽略滑点/深度）", legs)
+	return legs
 }
 
 // SettleFunding 按 funding 周期结算：对 (symbol, venue) 下全部 open 且 funding 的
