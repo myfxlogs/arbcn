@@ -35,7 +35,7 @@
   | 部署 systemd 常驻（mluser 运行） | ✅ | 2026-08-15 实测 active |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
   | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | ✅ | e26eea9 |
-  | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ✅ | 本提交 |
+  | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ✅ | 2afac33 |
   | M2-b：RMB 折算 + facts.md 导出 + 台账 | ⬜ | M2-a 后 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
