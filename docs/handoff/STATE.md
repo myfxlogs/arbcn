@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **i18n 清理完成**——页面硬编码英文全部中文化（format.ts statusText/reasonText/stateText/levelText/ruleLabel + Chip 徽标 + 铃铛规则名 + 告警流/触发器规则名 + 后端规则消息模板 activeMsg/已解除 + 机会面板标题）；新构建已 systemd 部署（SIGKILL 重启），healthz ok，源健康实测 live/stale 判定正确。M2-a 全链路完成；**下一项 = M2-b（RMB 折算 + facts.md 导出 + 台账）**。
+- 现状: **M2-a 全链路 + i18n 完成，已部署**；D-034 已定（模拟执行验证方向批准，M3 spec 细化设计稿已写）。M2-a 交付：铃铛通知中心 + freshness 徽标 + 去重；i18n：页面硬编码英文全中文化（前后端 ruleLabel/消息模板对齐），新构建已 systemd 部署，healthz ok，源健康判定正确。**下一步 = 确认 M3 spec → M2-b 施工**。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -36,11 +36,12 @@
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
   | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | ✅ | e26eea9 |
   | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ✅ | 2afac33 |
-  | **i18n：页面硬编码英文 → 中文（前后端一致 ruleLabel/消息模板）** | ✅ | 本次提交 |
-  | M2-b：RMB 折算 + facts.md 导出 + 台账 | ⬜ | M2-a 后 |
+  | **i18n：页面硬编码英文 → 中文（前后端一致 ruleLabel/消息模板）** | ✅ | 34ae607 |
+  | M2-b：RMB 折算 + facts.md 导出 + 台账 | ⬜ | 下一项 |
+  | M3：模拟执行验证（a 订单生成器 → b testnet 只读收敛 → c 一键确认 UI） | ⬜ | D-034 · spec 待确认 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
-  - **方向级待决策（D-034 讨论中）**：业主提议「监控 → 自动交易（人工确认）+ 模拟账号验证，尤其加密层」。触无密钥铁律（D-010/§13）与「决策监控不自动执行」形态，需 讨论→决定 后落 D#；未决前不动手。
-- 下一步: M2-b 施工（RMB 折算 + facts.md 自动导出 + 台账，03-m2-spec.md §4–§6）。
+  - **M3 方向已定（D-034）**：模拟执行验证批准；testnet key 豁免条款（隔离+标记，真金零密钥不变）；Binance+OKX 都接；先 M2-b 后 M3。**M3 spec（04-m3-spec.md）待决策层确认**后方可派发施工（D-034 ⑦）。
+- 下一步: ①决策层确认 M3 spec（04-m3-spec.md，D-034 ⑦ 动工前须确认）→ ②M2-b 施工（RMB 折算 + facts.md 自动导出 + 台账，03-m2-spec.md §4–§6）→ ③M3-a 派发。
 - 清扫上翻: 今日生产实证入共享层——周六闭市 fx/repo 报价冻结但采集器健康、心跳用轮询时刻故元监控不误报、展示层需 freshness 区分"闭市/源死"（已入 D-033 + 03-m2-spec.md）；systemd 部署决策（mluser 非 arbcn 用户）已同步 unit 模板；仪表盘布局（告警流与机会面板同行，dialogue #32）已交付；M2-a 后端施工心得入 practices.md（time.Time 比较用 .Equal 不用 ==——PG TZ=+0800 读回带时区的坑，兼修 pgstore/dashboard_test.go 既有断言）。
