@@ -233,7 +233,7 @@ func TestOnActiveFiresOnTransitionOnly(t *testing.T) {
 	}, nil)
 	clock := t0
 	var fired []string
-	onActive := func(_ context.Context, r store.Rule) { fired = append(fired, r.Name) }
+	onActive := func(_ context.Context, r store.Rule, _ []store.EntityHit) { fired = append(fired, r.Name) }
 	e, err := New(context.Background(), st, Config{
 		Now:      func() time.Time { return clock },
 		OnActive: onActive,

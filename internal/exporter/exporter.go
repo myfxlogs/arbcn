@@ -112,7 +112,8 @@ func (x *Exporter) Run(ctx context.Context) error {
 
 // OnRuleActive 关键规则激活事件回调（armed→active 转变；接 rule.Config.OnActive）。
 // 非阻塞投递触发信号：突发合并为一次导出，不阻塞规则引擎。
-func (x *Exporter) OnRuleActive(context.Context, store.Rule) {
+// M3-b §9.2：签名扩展携带命中实体（entities 忽略——导出只关心规则名/快照刷新）。
+func (x *Exporter) OnRuleActive(context.Context, store.Rule, []store.EntityHit) {
 	select {
 	case x.trigger <- struct{}{}:
 	default: // 已排队，合并本次触发

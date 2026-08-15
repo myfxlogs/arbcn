@@ -207,7 +207,7 @@ func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64
 func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
 	panic("fakeStore: ListSimPositions not used")
 }
-func (f *fakeStore) ListOpenSimPositions(context.Context, string) ([]store.SimPosition, error) {
+func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
 	panic("fakeStore: ListOpenSimPositions not used")
 }
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {

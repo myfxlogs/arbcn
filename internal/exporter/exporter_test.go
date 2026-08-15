@@ -176,7 +176,7 @@ func TestExportRewritesInPlace(t *testing.T) {
 func TestOnRuleActiveCoalesces(t *testing.T) {
 	x, _ := newTestExporter(t)
 	for i := 0; i < 5; i++ {
-		x.OnRuleActive(context.Background(), store.Rule{})
+		x.OnRuleActive(context.Background(), store.Rule{}, nil)
 	}
 	if len(x.trigger) != 1 {
 		t.Errorf("trigger 队列 len = %d, want 1（合并）", len(x.trigger))
@@ -212,7 +212,7 @@ func TestRunExportsOnTrigger(t *testing.T) {
 	// 触发规则事件：新时刻（18:44）快照应写入。
 	expNow2 := expNow.Add(30 * time.Minute)
 	x.Now = func() time.Time { return expNow2 }
-	x.OnRuleActive(context.Background(), store.Rule{})
+	x.OnRuleActive(context.Background(), store.Rule{}, nil)
 	waitFor(t, 2*time.Second, func() bool {
 		b, _ := os.ReadFile(path)
 		return strings.Contains(string(b), "### 快照 2026-08-15 18:44（现行）")

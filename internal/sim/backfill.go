@@ -89,11 +89,12 @@ func (s *Simulator) ConfirmAndFill(ctx context.Context, orderID int64) error {
 	return s.st.FillSimOrder(ctx, orderID, "本地模拟即时成交 @ ref_price（忽略滑点/深度）", legs)
 }
 
-// SettleFunding 按 funding 周期结算：对 symbol 下全部 open 且 funding 的持仓腿，
-// pnl += SettleFundingPnl(Per8hRate(annualized), qty)，置 updated_at。返回结算腿数。
-// annualized 为年化资金费率（%）；调用方从行情/快照供给（M3-a 本地显式传入）。
-func (s *Simulator) SettleFunding(ctx context.Context, symbol string, annualized float64) (int, error) {
-	legs, err := s.st.ListOpenSimPositions(ctx, symbol)
+// SettleFunding 按 funding 周期结算：对 (symbol, venue) 下全部 open 且 funding 的
+// 持仓腿，pnl += SettleFundingPnl(Per8hRate(annualized), qty)，置 updated_at。
+// 返回结算腿数。annualized 为年化资金费率（%）；调用方从行情/快照供给。
+// M3-b §9.3：venue 维度避免 BTC@binance 与 BTC@okx 互相污染（错 rate / 串 venue → 必红）。
+func (s *Simulator) SettleFunding(ctx context.Context, symbol, venue string, annualized float64) (int, error) {
+	legs, err := s.st.ListOpenSimPositions(ctx, symbol, venue)
 	if err != nil {
 		return 0, err
 	}

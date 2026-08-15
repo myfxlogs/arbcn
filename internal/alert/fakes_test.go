@@ -187,7 +187,7 @@ func (m *memStore) InsertSimPosition(context.Context, store.SimPosition) (int64,
 func (m *memStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
 	panic("memStore: ListSimPositions not used")
 }
-func (m *memStore) ListOpenSimPositions(context.Context, string) ([]store.SimPosition, error) {
+func (m *memStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
 	panic("memStore: ListOpenSimPositions not used")
 }
 func (m *memStore) SettleSimPosition(context.Context, int64, float64, string) error {

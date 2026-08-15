@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿**（D-037：spec §9 S1–S5，结算数据源裁决 = 真实市场公开 funding 非 testnet）。追溯深审（R1-R6 六路 review + 决策层逐条验证）修复 14 项（高危 5/中危 6/低危 3），M3-a 复审修复 H1 结算 PnL 100 倍放大（点数÷100）+ M1 成交原子化（FillSimOrder 单事务）+ M3 NaN 门禁加固 + L1/L2/L3；M3-a 达验收线，SIGKILL 部署验证通过（PID 2328862，healthz ok，migration 0005 applied）。**下一步 = M3-b 施工派工（spec §9 S1–S5）**。
+- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿 + 施工交付**（D-037 + 本 commit：spec §9 S1–S5 全落地）。S1 规则→Signal 驱动（rule.OnActive 携带命中实体 + sim.Driver §3.1.1 映射表，删映射必红）；S2 8h 结算（(symbol,venue) 分组取真实市场 funding，跨 venue 污染必红）；S3 testnet 只读探针 + key 隔离（新包 internal/simtestnet，SIMULATED 缺标记拒绝加载，sim 包零网络由 domains_test 把关）；S4 历史收敛（exchange data-api 历史 collector + 幂等回填 + sim_report 周频统计）；S5 carry 白名单默认空（宁缺毋滥）。main.go 已接线：boot 历史回填（一次性幂等）+ simDriver（OnActive compose）+ 8h 结算循环 + testnet 探针随 settle tick。**下一步 = M3-c（一键确认 UI + SPREAD_DRIFT）或业主提供 testnet key 启用 S3**。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13，M3-a 复审复核：sim 包零网络零密钥）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -40,13 +40,19 @@
   | **M1/M2-a 追溯深审（R1-R6 六路 review + 修复 14 项）** | ✅ | D-035 |
   | **M3-a：订单生成器 + 本地模拟盘回填** | ✅ | D-034/D-035 |
   | **M3-a 复审修复：H1 结算 100× / M1 成交原子 / M3 NaN 门禁 / L1-L3** | ✅ | D-035 |
-  | M3：模拟执行验证（b 机制收敛 + §5.3 历史统计前置 → c 一键确认 UI） | ⬜ | D-034/D-036/D-037 · 下一项（b 细化设计定稿 spec §9，待派工） |
+  | **M3-b S1：规则→Signal 驱动接线（rule.OnActive 携带命中实体 + sim.Driver 映射表）** | ✅ | sim/driver.go + driver_test.go（删映射必红） |
+  | **M3-b S2：8h 结算调度（(symbol,venue) 分组取真实 funding）** | ✅ | sim/driver.go settleLoop + TestSettleByVenue |
+  | **M3-b S3：testnet 只读探针 + key 隔离（新包 simtestnet，SIMULATED 门控）** | ✅ | internal/simtestnet/ + domains_test |
+  | **M3-b S4：历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频）** | ✅ | collect/exchange/history.go + sim/report.go |
+  | **M3-b S5：carry 白名单 + 降级（默认空宁缺毋滥）** | ✅ | sim/config.go CarryWhitelist |
+  | M3-c：模拟执行一键确认 UI + SPREAD_DRIFT 漂移门禁 | ⬜ | D-034 ⑤ 顺序不变 · M3-b 后开工 · 下一项 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
   - R3-L3 遗留：calendar collector 的 thursday 周记语义待业主决策（低危，接受待决）。
-  - **M3-a 已验收（D-035）**；**M3-b 细化设计已定稿（D-037，spec §9 S1–S5）**，待施工派工。
-  - **testnet key 依赖业主提供**（D-037 S3 门控）：缺 key → S3 降级禁用，不阻塞 S1/S2/S4/S5。
-  - **M3-a 交付形态注**：sim 是零侵入纯库（订单生成器 + 模拟盘回填逻辑，全量对抗测试；migration 0005 已 applied），**尚未接线进服务**（main.go/dashboard 无 sim import）——运行驱动（调度/CLI/RPC）属 M3-b/c 集成时接。
-- 下一步: **M3-b 施工派工**（04-m3-spec.md §9 S1–S5：驱动接线 / 8h 结算 / testnet key 隔离 / 历史回填+报告 / 白名单；S3 依赖业主 testnet key）。
-- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；对话落 dialogue.md #39/#40/#41/#42。
+  - **M3-a 已验收（D-035）**；**M3-b 已施工交付**（D-037 + 本 commit，S1–S5 全落地，见施工表）。
+  - **testnet key 依赖业主提供**（D-037 S3 门控）：缺 key → S3 探针降级禁用（warn 不退出），不阻塞 S1/S2/S4/S5；key 到位后重启服务即启用（读 /etc/arbcn/arbcn-sim.env，SIMULATED=true 显式标记）。
+  - **M3-b 交付注**：sim 已接线进 main.go（backfill / simDriver / OnActive compose / 8h 结算循环 / 探针随 tick）；结算数据源 = 真实市场公开 funding（D-037 裁决），testnet 费率不参与结算只做 key 隔离验证。sim 包保持零网络零密钥（domains_test + TestNoNetworkImports 把关）。
+  - 待决策观察（不阻塞）：repo 信号经 SignalToOrder 时仍受 5% 门槛（SPREAD_LOW）约束——平时逆回购 2-4% 会被拒单，仅季末/年末上冲 ≥5% 时放行；与"时点逆回购"策略意图一致（宁缺毋滥），但若业主希望 repo 绕过价差门槛须走 D# 调整。
+- 下一步: **M3-c 开工**（04-m3-spec.md §9.9：一键确认 UI + SPREAD_DRIFT 漂移门禁，D-034 ⑤ 顺序）；并行等待业主 testnet key（S3 启用门控）。
+- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；对话落 dialogue.md #39/#40/#41/#42/#43。

@@ -34,7 +34,13 @@ func (e *Engine) transition(ctx context.Context, r store.Rule, st store.TriggerS
 			return true, fmt.Errorf("rule %q: insert alert: %w", r.Name, err)
 		}
 		if e.onActive != nil {
-			e.onActive(ctx, r) // 关键规则触发事件（M2-b §5：FactsExporter 立即导出快照）
+			// [对抗测试锚点] M3-b §9.2 S1 驱动接线：armed→active 回调携带命中实体映射。
+			// 删除该映射/回调 → sim/driver_test.go TestDriverFundingHitCreatesOrder 必红。
+			entities := make([]store.EntityHit, 0, len(matches))
+			for _, m := range matches {
+				entities = append(entities, store.EntityHit{Venue: m.venue, Symbol: m.symbol, Value: m.value})
+			}
+			e.onActive(ctx, r, entities) // 关键规则触发事件（M2-b §5：FactsExporter 立即导出快照）
 		}
 		return true, e.st.PutTriggerState(ctx, store.TriggerState{
 			RuleID: r.ID, State: store.StateActive, Since: now, LastValue: matches[0].value,

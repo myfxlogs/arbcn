@@ -130,6 +130,14 @@ type SimOrder struct {
 	Note           string    // 拒单原因 / 结算备注
 }
 
+// EntityHit 是规则命中实体的描述（M3-b §9.2：S1 驱动组装 Signal 的输入）。
+// 由规则引擎在 armed→active 转变时从命中匹配映射而来（含全局模式：venue/symbol 为空）。
+type EntityHit struct {
+	Venue  string
+	Symbol string
+	Value  float64
+}
+
 // SimPosition 是 sim_positions 表的持久化记录（04-m3-spec §1.2 模拟成交腿）。
 // hedge = 两行（现货 long + 永续 short），carry/repo = 一行。pnl 按 funding 周期累计。
 type SimPosition struct {
@@ -235,8 +243,9 @@ type Store interface {
 	InsertSimPosition(ctx context.Context, p SimPosition) (int64, error)
 	// ListSimPositions 按 ts DESC, id DESC 分页返回持仓腿（稳定排序）。
 	ListSimPositions(ctx context.Context, limit, offset int) ([]SimPosition, error)
-	// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；ts ASC 建仓序）。
-	ListOpenSimPositions(ctx context.Context, symbol string) ([]SimPosition, error)
+	// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；venue 空 = 不限；
+	// ts ASC 建仓序）。M3-b §9.3：按 (symbol,venue) 分组结算，避免跨 venue 污染。
+	ListOpenSimPositions(ctx context.Context, symbol, venue string) ([]SimPosition, error)
 	// SettleSimPosition 结算更新持仓腿：pnl += addPnl，status 覆盖（settled 关闭），
 	// updated_at = now。未知 id 无操作。
 	SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error

@@ -4,25 +4,108 @@ import (
 	"context"
 	"errors"
 	"math"
+	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"arbcn/internal/fact"
 	"arbcn/internal/store"
 )
 
 // storeStub 内嵌 nil store.Store 接口：只实现 sim 数据面（真语义），其余方法
 // 运行时 nil 解引用 panic（测试误用即红）。免去 20+ 空方法样板。
+// mu 保护 orders/positions/facts：settleLoop 并发测试（TestSettleLoopTicks）下
+// 结算 goroutine 写、断言 goroutine 读，无锁即数据竞争（-race 必红）。
 type storeStub struct {
 	store.Store
-	orders       []store.SimOrder
-	positions    []store.SimPosition
-	nextOID      int64
-	nextPID      int64
-	dayNotional  float64
-	orderErr     error
+	mu             sync.Mutex
+	orders         []store.SimOrder
+	positions      []store.SimPosition
+	facts          []fact.Fact // driver 测试的行情/费率面
+	nextOID        int64
+	nextPID        int64
+	dayNotional    float64
+	orderErr       error
+	insertFactsErr error // 注入 InsertFacts 失败（回填错误路径测试）
+}
+
+// snapshotPositions 返回 positions 的拷贝（并发断言读；避免与 settle goroutine 竞争）。
+func (m *storeStub) snapshotPositions() []store.SimPosition {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]store.SimPosition(nil), m.positions...)
+}
+
+// —— driver 测试扩展：facts 面（LatestFacts / QueryFacts）——
+
+// LatestFacts 返回每 (kind, venue, symbol) 最新一条事实（按 Ts 最大）。
+func (m *storeStub) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var best *fact.Fact
+	for i := range m.facts {
+		f := &m.facts[i]
+		if kind != "" && f.Kind != kind {
+			continue
+		}
+		if venue != "" && f.Venue != venue {
+			continue
+		}
+		if symbol != "" && f.Symbol != symbol {
+			continue
+		}
+		if best == nil || f.Ts.After(best.Ts) {
+			best = f
+		}
+	}
+	if best == nil {
+		return nil, nil
+	}
+	return []fact.Fact{*best}, nil
+}
+
+// QueryFacts 按 FactQuery 过滤（ts 升序）。
+func (m *storeStub) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var out []fact.Fact
+	for _, f := range m.facts {
+		if q.Kind != "" && f.Kind != q.Kind {
+			continue
+		}
+		if q.Venue != "" && f.Venue != q.Venue {
+			continue
+		}
+		if q.Symbol != "" && f.Symbol != q.Symbol {
+			continue
+		}
+		if !q.From.IsZero() && f.Ts.Before(q.From) {
+			continue
+		}
+		if q.To.IsZero() == false && f.Ts.After(q.To) {
+			continue
+		}
+		out = append(out, f)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
+	return out, nil
+}
+
+// InsertFacts 批量追加到 m.facts（回填编排数据面；insertFactsErr 注入失败路径）。
+func (m *storeStub) InsertFacts(_ context.Context, fs []fact.Fact) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.insertFactsErr != nil {
+		return m.insertFactsErr
+	}
+	m.facts = append(m.facts, fs...)
+	return nil
 }
 
 func (m *storeStub) InsertSimOrder(_ context.Context, o store.SimOrder) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if m.orderErr != nil {
 		return 0, m.orderErr
 	}
@@ -32,6 +115,8 @@ func (m *storeStub) InsertSimOrder(_ context.Context, o store.SimOrder) (int64, 
 	return o.ID, nil
 }
 func (m *storeStub) GetSimOrder(_ context.Context, id int64) (store.SimOrder, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, o := range m.orders {
 		if o.ID == id {
 			return o, nil
@@ -40,6 +125,8 @@ func (m *storeStub) GetSimOrder(_ context.Context, id int64) (store.SimOrder, er
 	return store.SimOrder{}, store.ErrNotFound
 }
 func (m *storeStub) UpdateSimOrderStatus(_ context.Context, id int64, status, note string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for i := range m.orders {
 		if m.orders[i].ID == id {
 			m.orders[i].Status = status
@@ -52,6 +139,8 @@ func (m *storeStub) UpdateSimOrderStatus(_ context.Context, id int64, status, no
 	return nil
 }
 func (m *storeStub) FillSimOrder(_ context.Context, id int64, note string, legs []store.SimPosition) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	// 仿 pgstore 语义：仅 confirmed → filled + 建腿；否则拒绝（状态守卫 = 原子性测试锚点）。
 	for i := range m.orders {
 		if m.orders[i].ID == id {
@@ -76,24 +165,39 @@ func (m *storeStub) FillSimOrder(_ context.Context, id int64, note string, legs 
 	return store.ErrNotFound
 }
 func (m *storeStub) TodaySimNotional(context.Context, time.Time) (float64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.dayNotional, nil
 }
 func (m *storeStub) InsertSimPosition(_ context.Context, p store.SimPosition) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.nextPID++
 	p.ID = m.nextPID
 	m.positions = append(m.positions, p)
 	return p.ID, nil
 }
-func (m *storeStub) ListOpenSimPositions(_ context.Context, symbol string) ([]store.SimPosition, error) {
+func (m *storeStub) ListOpenSimPositions(_ context.Context, symbol, venue string) ([]store.SimPosition, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	var out []store.SimPosition
 	for _, p := range m.positions {
-		if p.Status == store.SimPosStatusOpen && (symbol == "" || p.Symbol == symbol) {
-			out = append(out, p)
+		if p.Status != store.SimPosStatusOpen {
+			continue
 		}
+		if symbol != "" && p.Symbol != symbol {
+			continue
+		}
+		if venue != "" && p.Venue != venue {
+			continue
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
 func (m *storeStub) SettleSimPosition(_ context.Context, id int64, addPnl float64, status string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for i := range m.positions {
 		if m.positions[i].ID == id {
 			m.positions[i].PnL += addPnl
@@ -240,7 +344,7 @@ func TestSettleFunding(t *testing.T) {
 		t.Fatalf("ConfirmAndFill: %v", err)
 	}
 
-	n, err := s.SettleFunding(context.Background(), "BTC", 10.95)
+	n, err := s.SettleFunding(context.Background(), "BTC", "", 10.95)
 	if err != nil {
 		t.Fatalf("SettleFunding: %v", err)
 	}
@@ -275,7 +379,7 @@ func TestSettleFundingSkipsNonFunding(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	n, err := s.SettleFunding(context.Background(), "", 10.95)
+	n, err := s.SettleFunding(context.Background(), "", "", 10.95)
 	if err != nil {
 		t.Fatalf("SettleFunding: %v", err)
 	}

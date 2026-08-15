@@ -228,8 +228,9 @@ func (s *Store) ListSimPositions(ctx context.Context, limit, offset int) ([]stor
 	return scanSimPositions(rows)
 }
 
-// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；ts ASC 建仓序）。
-func (s *Store) ListOpenSimPositions(ctx context.Context, symbol string) ([]store.SimPosition, error) {
+// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；venue 空 = 不限；ts ASC
+// 建仓序）。M3-b §9.3：venue 过滤支撑按 (symbol,venue) 分组结算，避免跨 venue 污染。
+func (s *Store) ListOpenSimPositions(ctx context.Context, symbol, venue string) ([]store.SimPosition, error) {
 	query := `
 		SELECT id, order_id, ts, kind, venue, symbol, side, qty, ref_price,
 		       funding, pnl, status, updated_at
@@ -237,8 +238,12 @@ func (s *Store) ListOpenSimPositions(ctx context.Context, symbol string) ([]stor
 		WHERE status = $1`
 	args := []any{store.SimPosStatusOpen}
 	if symbol != "" {
-		query += ` AND symbol = $2`
 		args = append(args, symbol)
+		query += fmt.Sprintf(" AND symbol = $%d", len(args))
+	}
+	if venue != "" {
+		args = append(args, venue)
+		query += fmt.Sprintf(" AND venue = $%d", len(args))
 	}
 	query += ` ORDER BY ts ASC, id ASC`
 	rows, err := s.pool.Query(ctx, query, args...)

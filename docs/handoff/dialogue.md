@@ -298,3 +298,16 @@
 - **结论**：决策层摸清代码面（rule.OnActive 调用点 state.go:37、Scheduler、sim/store/exchange collector/main.go 接线）后定稿 spec §9（S1–S5）。核心裁决（D-037）：①**结算数据源 = 真实市场公开 funding，非 testnet**（testnet 费率有偏差，污染机制验证；testnet 只做 key 隔离验证，D-034 ④ 都接保持仅明确用途）；②S1 驱动 = OnActive 携带命中实体单点改 + sim.Driver 按 §3.1.1 映射组装；③S2 结算按 (symbol,venue) 分组防跨 venue 污染；④S3 testnet 只读 key 门控（缺 key 降级不阻塞）；⑤S4 历史回填落 facts 表（顺带富化 funding_warn 的 avg_30d）+ 周频 sim_report；⑥S5 白名单默认空宁缺毋滥；⑦诚实标注现货腿取永续 ticker（无现货 collector）。spec §5.1/§5.2 数据源修正 + §9 施工细化。
 - **决策号**：D-037。
 - **下一步**：M3-b 施工派工（spec §9 S1–S5）。
+
+## #43 · 2026-08-15 · M3-b 施工交付（S1–S5 全落地）· 施工 agent → 决策层
+- **参与方**：施工 agent（M3-b）、Claude（决策层）
+- **交付**：04-m3-spec.md §9 S1–S5 五件套全落地。
+  - **S1 规则→Signal 驱动**：rule.OnActive 签名携带 `[]store.EntityHit`（改点仅 state.go 回调映射）；新 sim.Driver 按 §3.1.1 不可变映射表组装 Signal → Generate 落库；funding_*→funding_hedge（SpotPrice/PerpPrice 取 ticker 最新价、FundingAnn=hit.value，诚实标注：系统无现货 collector，腿存在性由门禁把关）、reverse_repo_timing→repo、carry 白名单→carry_asset、其余信息/遥测规则不建单（宁缺毋滥）。删映射 → TestDriverFundingHitCreatesOrder 必红。
+  - **S2 8h 结算调度**：store.ListOpenSimPositions 扩展 venue 维度；settleLoop 按 (symbol,venue) 分组取真实市场 funding（LatestFacts）结算，无事实 skip+warn。串 venue → TestSettleByVenue 必红。
+  - **S3 testnet 只读 + key 隔离**：新包 internal/simtestnet（key 承载层，与 sim 物理隔离）；/etc/arbcn/arbcn-sim.env SIM_* 加载，SIMULATED=true 缺标记拒绝加载（TestLoadMissingSimulatedMarker 必红）；只读探针（binance_testnet / okx_demo 公共行情 + 账户只读，HMAC 签名），成功经 Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx")；零下单路径（domains_test：simtestnet 仅 testnet/demo 域、无主网交易域、无 order 端点；sim 包 TestNoNetworkImports/TestNoOrderEndpoints 把关）。缺 key → 降级禁用不阻塞。
+  - **S4 历史收敛**：exchange 历史 collector（Binance data-api.binance.vision fundingRate 翻页 + OKX funding-history after 翻页，annualize 折算）；sim.BackfillHistory 幂等编排（QueryFacts 既有 ts → UncoveredFacts 跳过 → InsertFacts，键含 (venue,symbol,ts) 防同刻跨币误判）；sim_report 周频统计纯函数（实际/理论累计、残差分布、半衰期、摩擦后净 vs 5% 门槛）+ markdown 独占段导出。删 annualize/删幂等跳过 → 必红。
+  - **S5 白名单 + 降级**：Config.CarryWhitelist（ARBCN_SIM_CARRY_WHITELIST 逗号分隔去重，默认空）；carry 未白名单 → WHITELIST 拒单；sim 配置缺失 → Driver nil、settleLoop/backfill 跳过（warn 不退出，D-032 同口径）。
+  - **main.go 接线（§9.7）**：boot 一次性幂等历史回填 → simDriver（nil=降级）→ OnActive compose（factsExporter + simDriver）→ go settleLoop → testnet 探针随 settle tick；sim_testnet 源并入心跳 Track + 仪表盘源健康面。不新增端口/RPC。
+- **验证**：go vet / go build / go test -race ./... 全绿（PG 集成测试 ARBCN_TEST_PG_DSN）；对抗测试锚点逐一实测必红（annualize / SIMULATED 门控 / venue 分组 / 映射表 / 幂等键）；无真实 key（探针 = 机制 + 测试，缺 key 降级）。
+- **待决策观察**（不阻塞）：repo 信号受 5% 价差门槛约束（平时逆回购 2-4% 拒单，时点上冲放行）——与"时点逆回购"意图一致，若业主欲 repo 绕门槛须走 D#。
+- **下一步**：M3-c（一键确认 UI + SPREAD_DRIFT）；并行等业主 testnet key（S3 启用门控）。

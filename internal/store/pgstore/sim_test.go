@@ -179,7 +179,7 @@ func TestSimPositionRoundtrip(t *testing.T) {
 		t.Fatalf("funding 标定错：got[0]=%+v got[1]=%+v", got[0], got[1])
 	}
 
-	open, err := s.ListOpenSimPositions(ctx, "BTC")
+	open, err := s.ListOpenSimPositions(ctx, "BTC", "")
 	if err != nil {
 		t.Fatalf("ListOpenSimPositions: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestSimPositionRoundtrip(t *testing.T) {
 	if err := s.SettleSimPosition(ctx, pids[0], 0, store.SimPosStatusSettled); err != nil {
 		t.Fatalf("SettleSimPosition(settled): %v", err)
 	}
-	open, err = s.ListOpenSimPositions(ctx, "BTC")
+	open, err = s.ListOpenSimPositions(ctx, "BTC", "")
 	if err != nil {
 		t.Fatalf("ListOpenSimPositions(after): %v", err)
 	}
@@ -204,7 +204,7 @@ func TestSimPositionRoundtrip(t *testing.T) {
 	}
 
 	// 空 symbol → 不过滤（全 open）。
-	allOpen, err := s.ListOpenSimPositions(ctx, "")
+	allOpen, err := s.ListOpenSimPositions(ctx, "", "")
 	if err != nil || len(allOpen) != 1 {
 		t.Fatalf("ListOpenSimPositions('') = %+v, %v, want 1 条", allOpen, err)
 	}
@@ -258,7 +258,7 @@ func TestFillSimOrderAtomicity(t *testing.T) {
 	if err != nil || o.Status != store.SimStatusFilled || o.Note != "即时成交" {
 		t.Fatalf("order after fill = %+v, %v, want filled/即时成交", o, err)
 	}
-	open, err := s.ListOpenSimPositions(ctx, "")
+	open, err := s.ListOpenSimPositions(ctx, "", "")
 	if err != nil || len(open) != 2 {
 		t.Fatalf("legs = %d, %v, want 2", len(open), err)
 	}
@@ -267,7 +267,7 @@ func TestFillSimOrderAtomicity(t *testing.T) {
 	if err := s.FillSimOrder(ctx, id, "again", legs); err == nil {
 		t.Fatal("FillSimOrder(filled) = nil, want error（状态守卫）")
 	}
-	if open, _ = s.ListOpenSimPositions(ctx, ""); len(open) != 2 {
+	if open, _ = s.ListOpenSimPositions(ctx, "", ""); len(open) != 2 {
 		t.Fatalf("legs after dup = %d, want 2（不得双插）", len(open))
 	}
 
@@ -276,7 +276,7 @@ func TestFillSimOrderAtomicity(t *testing.T) {
 	if err := s.FillSimOrder(ctx, sid, "", legs); err == nil {
 		t.Fatal("FillSimOrder(suggested) = nil, want error")
 	}
-	if open, _ = s.ListOpenSimPositions(ctx, ""); len(open) != 2 {
+	if open, _ = s.ListOpenSimPositions(ctx, "", ""); len(open) != 2 {
 		t.Fatalf("legs after suggested = %d, want 2（未确认不得成交）", len(open))
 	}
 

@@ -236,3 +236,16 @@ func TestSignalToOrderRejectsNegativeDayNotional(t *testing.T) {
 		t.Fatalf("status/flags = %q/%v, want rejected/INVALID_INPUT", o.Status, o.RiskFlags)
 	}
 }
+
+// waitFor 轮询等待条件成立（collect/rule/exporter 包同款）。
+func waitFor(t *testing.T, d time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("condition not met in time")
+}

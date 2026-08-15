@@ -30,10 +30,11 @@ type Config struct {
 	Now      func() time.Time               // 0 = time.Now（测试注入时钟）
 	Interval func(store.Rule) time.Duration // 评估间隔覆盖；0 = 规则 interval_sec
 	Log      *slog.Logger                   // 0 = slog.Default()
-	// OnActive 规则 armed→active 转变回调（关键规则触发事件，M2-b §5）。
+	// OnActive 规则 armed→active 转变回调（关键规则触发事件，M2-b §5；
+	// M3-b §9.2 扩展携带命中实体列表）。
 	// 在激活告警落库后同步调用；nil = 不回调。供 FactsExporter 等外部组件
-	// 在规则触发时立即刷新 facts.md 快照。
-	OnActive func(ctx context.Context, r store.Rule)
+	// 在规则触发时立即刷新 facts.md 快照，及 sim.Driver 组装建议订单。
+	OnActive func(ctx context.Context, r store.Rule, entities []store.EntityHit)
 }
 
 // Engine 是规则引擎实例。
@@ -43,7 +44,7 @@ type Engine struct {
 	now      func() time.Time
 	ival     func(store.Rule) time.Duration
 	log      *slog.Logger
-	onActive func(context.Context, store.Rule)
+	onActive func(context.Context, store.Rule, []store.EntityHit)
 }
 
 // evalRule 是加载时解析好的单规则评估单元。

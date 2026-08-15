@@ -31,8 +31,11 @@ import (
 	"arbcn/internal/config"
 	"arbcn/internal/dashboard"
 	"arbcn/internal/exporter"
+	"arbcn/internal/fact"
 	"arbcn/internal/httpapi"
 	"arbcn/internal/rule"
+	"arbcn/internal/sim"
+	"arbcn/internal/simtestnet"
 	"arbcn/internal/store"
 	"arbcn/internal/store/pgstore"
 	"arbcn/web"
@@ -85,6 +88,10 @@ func run() error {
 		return err
 	}
 
+	// M3-b §9.7：sim 配置 + testnet key 配置加载（失败/缺失 → 降级禁用，不退出，D-032 同口径）。
+	simCfg, simOK := loadSimConfig()
+	simnetCfg, simnetOK := loadSimtestnetConfig()
+
 	// 单端口 :50052：/healthz + ConnectRPC + 人工录入 + 嵌入式仪表盘（"/" 兜底）。
 	migrations := pendingMigrations(pool, cfg.MigrationsDir)
 	healthz := &httpapi.Healthz{DB: pool, Migrations: migrations}
@@ -97,7 +104,12 @@ func run() error {
 	mux.Handle("/healthz", healthz)
 	if st != nil {
 		// 源健康信息（name/interval_sec/kind）供 ListSourceHealth 数据面（M2-a §2.2）。
-		path, h := dashboard.New(st, pool, migrations, sourceInfos(enabled)).Handler()
+		// M3-b §9.7 ⑤：testnet 探针启用时把 sim_testnet 源并入健康面。
+		srcInfos := sourceInfos(enabled)
+		if probeEnabled(simOK, simnetCfg) {
+			srcInfos = append(srcInfos, probeSourceInfos()...)
+		}
+		path, h := dashboard.New(st, pool, migrations, srcInfos).Handler()
 		mux.Handle(path, h)
 	}
 	mux.Handle("/manual/fact", manual.NewHandler(st)) // 人工录入降级通道（store 未接线时 503）
@@ -105,7 +117,7 @@ func run() error {
 
 	errCh := make(chan error, 8)
 	if st != nil {
-		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled); err != nil {
+		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled, simCfg, simOK, simnetCfg, simnetOK); err != nil {
 			return err
 		}
 	}
@@ -139,12 +151,19 @@ func run() error {
 }
 
 // startPipeline 装配数据管线（store 可用时）：调度器 + 心跳发射方 → 规则引擎
-// （关键规则触发事件接 FactsExporter）→ SMTP Alerter → FactsExporter（facts.md 快照）。
-// 各组件 Run 阻塞至 ctx 取消（返回 nil）；装配错误 fail fast。
-func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, factsPath string, sources []collect.Named) error {
+// （关键规则触发事件接 FactsExporter + sim 驱动）→ SMTP Alerter → FactsExporter
+// （facts.md 快照）。M3-b §9.7：历史回填（一次性幂等）+ simDriver + 8h 结算循环 +
+// testnet 探针（随 settle tick）。各组件 Run 阻塞至 ctx 取消（返回 nil）；装配错误 fail fast。
+func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, factsPath string, sources []collect.Named, simCfg sim.Config, simOK bool, simnetCfg simtestnet.Config, simnetOK bool) error {
 	hb := &alert.Heartbeat{St: st}
 	for _, src := range sources {
 		hb.Track(src.Name, src.Interval)
+	}
+	// M3-b §9.7 ⑤：testnet 探针启用时 Track sim_testnet 源（成功经 Record 登记 → ListSourceHealth）。
+	probeOn := probeEnabled(simOK, simnetCfg)
+	if probeOn {
+		hb.Track(simtestnet.SourceBinanceTestnet, settleInterval)
+		hb.Track(simtestnet.SourceOKXDemo, settleInterval)
 	}
 	sched := &collect.Scheduler{
 		Sources:   sources,
@@ -161,12 +180,33 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 		slog.Info("rules seeded", "count", n)
 	}
 
+	// M3-b §9.5/§9.7 ①：历史 funding 一次性幂等回填（boot 阻塞至完成；失败 warn 不退出）。
+	// 顺带让 funding_warn/funding_critical 的 avg_30d 有真实回溯（§9.0 双赢）。
+	if simOK {
+		backfillFundingHistory(ctx, st, simCfg)
+	}
+
+	// M3-b §9.7 ②/③/④：sim 驱动接线（配置失败 → simDriver nil = 降级，不接 OnActive、
+	// 不启 settleLoop）。
+	var simDriver *sim.Driver
+	if simOK {
+		simDriver = sim.NewDriver(st, simCfg)
+	}
+
 	// FactsExporter（M2-b §5 / D-028 闭环）：定时（日）+ 规则触发事件 → 把监控
 	// 最新值渲染进 facts.md。factsPath 空 = 禁用；规则引擎 OnActive 接它的
 	// 非阻塞触发（关键规则激活 → 立即刷新快照）。写文件失败只 warn 不崩管线。
 	factsExporter := exporter.New(st, factsPath)
+	composedOnActive := func(ctx context.Context, r store.Rule, entities []store.EntityHit) {
+		factsExporter.OnRuleActive(ctx, r, entities)
+		if simDriver != nil {
+			if err := simDriver.OnRuleActive(ctx, r, entities); err != nil {
+				slog.Warn("sim driver on rule active failed", "rule", r.Name, "err", err)
+			}
+		}
+	}
 	engine, err := rule.New(ctx, st, rule.Config{
-		OnActive: factsExporter.OnRuleActive,
+		OnActive: composedOnActive,
 	})
 	if err != nil {
 		return fmt.Errorf("rule engine: %w", err)
@@ -175,6 +215,16 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 	if factsPath != "" {
 		go func() { errCh <- factsExporter.Run(ctx) }()
 		slog.Info("facts exporter started", "path", factsPath)
+	}
+
+	// M3-b §9.7 ④/⑤：8h 结算循环（simDriver 非 nil 时）+ testnet 探针随 settle tick。
+	if simDriver != nil {
+		if probeOn {
+			if probe, ok := simtestnet.NewProbe(simnetCfg, hb); ok {
+				simDriver.Probe = probe.Run
+			}
+		}
+		go func() { errCh <- simDriver.RunSettleLoop(ctx) }()
 	}
 
 	// SMTP 接线（dialogue #27 门控 + D-032 修订）：未配置或配置非法 → warn +
@@ -214,6 +264,67 @@ func sourceNames(srcs []collect.Named) []string {
 		names = append(names, s.Name)
 	}
 	return names
+}
+
+// settleInterval 8h 三班资金费率结算周期（M3-b §9.3；与 sim.settleInterval 同值，
+// 供心跳 Track / 探针来源元数据复用）。
+const settleInterval = 8 * time.Hour
+
+// loadSimConfig 从 ARBCN_SIM_* 加载 sim 配置；非法 → warn + 禁用（§7/D-032 降级不退出）。
+func loadSimConfig() (sim.Config, bool) {
+	cfg, err := sim.FromEnv(os.Getenv)
+	if err != nil {
+		slog.Warn("sim config invalid, sim driver disabled", "err", err)
+		return sim.Config{}, false
+	}
+	return cfg, true
+}
+
+// loadSimtestnetConfig 加载 testnet key 文件（/etc/arbcn/arbcn-sim.env）。
+// 文件缺失 → 降级禁用（业主未提供 key，S3 不阻塞 S1/S2/S4/S5）；SIMULATED 标记缺失 → warn 禁用。
+func loadSimtestnetConfig() (simtestnet.Config, bool) {
+	cfg, ok, err := simtestnet.Load(simtestnet.DefaultKeyPath)
+	if err != nil {
+		slog.Warn("simtestnet key config invalid, testnet probe disabled", "err", err)
+		return simtestnet.Config{}, false
+	}
+	if !ok {
+		slog.Warn("simtestnet key file not found, testnet probe disabled (S3 degrade, 不阻塞 S1/S2/S4/S5)")
+		return simtestnet.Config{}, false
+	}
+	return cfg, true
+}
+
+// probeEnabled testnet 探针是否启用：sim 驱动可用（settle tick 承载）且 testnet key 非空。
+func probeEnabled(simOK bool, cfg simtestnet.Config) bool {
+	return simOK && !cfg.Empty()
+}
+
+// probeSourceInfos 把 sim_testnet 探针源并入仪表盘源健康面（ListSourceHealth 数据面）。
+func probeSourceInfos() []dashboard.SourceInfo {
+	return []dashboard.SourceInfo{
+		{Name: simtestnet.SourceBinanceTestnet, IntervalSec: int64(settleInterval.Seconds()), Kind: fact.KindHeartbeat},
+		{Name: simtestnet.SourceOKXDemo, IntervalSec: int64(settleInterval.Seconds()), Kind: fact.KindHeartbeat},
+	}
+}
+
+// backfillFundingHistory 一次性幂等回填历史 funding（M3-b §9.5/§9.7 ①）。
+// 阻塞至完成；失败 warn 不退出（D-032 同口径）。幂等由 sim.BackfillHistory 保证
+// （QueryFacts 既有 ts → UncoveredFacts 跳过 → InsertFacts，跑两遍不重复）。
+func backfillFundingHistory(ctx context.Context, st store.Store, cfg sim.Config) {
+	if cfg.HistoryDays <= 0 {
+		return
+	}
+	exchCfg := exchange.FromEnv(os.Getenv)
+	collectors := []sim.HistoryCollector{
+		exchange.NewBinanceFundingHistory(exchCfg, cfg.HistoryDays),
+		exchange.NewOKXFundingHistory(exchCfg, cfg.HistoryDays),
+	}
+	if err := sim.BackfillHistory(ctx, st, collectors, cfg.HistoryDays); err != nil {
+		slog.Warn("funding history backfill failed (sim_report/avg_30d degraded)", "err", err)
+		return
+	}
+	slog.Info("funding history backfill complete", "days", cfg.HistoryDays)
 }
 
 // sourceInfos 把启用源清单投影为 dashboard.SourceInfo（ListSourceHealth 数据面，
