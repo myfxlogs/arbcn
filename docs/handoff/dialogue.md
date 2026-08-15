@@ -363,3 +363,15 @@
 - **验证**：全量 `go test ./...` + `go vet ./internal/simapi/... ./internal/sim/... ./cmd/...` 全绿。
 - **决策号**：D-039（kind 分派数据面）。
 - **下一步**：部署验收（spec §10.6：重启 → healthz → 模拟执行 tab → 确认流冒烟）；等业主 testnet key 启用 S3。
+
+## #48 · 2026-08-15 · 业主提供 testnet key → S3 启用 + OKX 探针 ts 格式 bug 修复 · 决策层
+- **参与方**：业主（提供 key）、Claude（决策层）
+- **议题**：业主提供 Binance 合约测试网 + OKX 模拟盘 key，启用 S3 testnet 只读探针。
+- **处置**：
+  - **key 承载**：写入 `/etc/arbcn/arbcn-sim.env`（mluser:mluser 0600，SIMULATED=true + SIM_BINANCE_*/SIM_OKX_* 全量）；目录原不存在已创建。服务以 mluser 运行 → 文件属主用 mluser（非 spec 注释的 root:root，运行环境实测修正）。
+  - **连通实测**（先核实再采纳 D-028）：Binance `fapi/v1/time` + `fapi/v2/balance`（HMAC 签名）→ 200，测试网虚拟资金 BTC 0.01/USDT 5000/USDC 5000；OKX `public/time` + `account/balance`（x-simulated-trading:1）→ 200，demo 虚拟资金 BTC 1/OKB 100/USDT 5000/ETH 1。
+  - **发现并修复探针 bug**：OKX 签名头 `OK-ACCESS-TIMESTAMP` 必须 **ISO 8601 UTC** 格式，探针原用 Unix 毫秒（从 Binance 惯例照搬）→ 实测 50102 "Timestamp request expired"（本机时钟仅偏 66ms 排除时钟）。修 probe.go ts 格式 + probe_test 加 ISO 正则对抗锚点（改回毫秒 → Record 断言必红）。
+  - 部署：build + 重启，启动日志无 key 加载警告（此前 chown root:root 导致 mluser 读不了 → permission denied，已改 mluser:mluser）。
+- **已知 degrade**：探针随 8h settle tick 跑，首次 heartbeat 登记待下一个 tick（key 连通已由 curl 实测证明，自动化登记等自然 tick）。
+- **决策号**：无新 D#（探针实现修正，practices #12 补协议格式教训）。
+- **下一步**：观察 8h tick 探针 heartbeat 登记（ListSourceHealth 应见 sim_testnet_binance/okx freshness）；S3 全链路闭环。

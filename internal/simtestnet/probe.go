@@ -146,7 +146,9 @@ func (p *Probe) probeOKX(ctx context.Context) error {
 		return fmt.Errorf("public time: %w", err)
 	}
 	// 账户只读（签名；仅查余额，零下单）。模拟盘由 x-simulated-trading:1 头声明。
-	ts := strconv.FormatInt(p.now().UnixMilli(), 10)
+	// OKX 要求 OK-ACCESS-TIMESTAMP 为 ISO 8601 UTC（"2026-08-15T15:54:21.991Z"）——
+	// Unix 毫秒会被拒（50102 Timestamp request expired，2026-08-15 部署机实测，probe_test 锚点）。
+	ts := p.now().UTC().Format("2006-01-02T15:04:05.000Z")
 	sign := okxSign(p.cfg.OKXSecret, ts, "GET", "/api/v5/account/balance", "")
 	hdr := http.Header{
 		"OK-ACCESS-KEY":        []string{p.cfg.OKXAPIKey},

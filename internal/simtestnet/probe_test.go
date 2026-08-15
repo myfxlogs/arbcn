@@ -4,10 +4,14 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"sync"
 	"testing"
 	"time"
 )
+
+// iso8601Regex 匹配 OKX 要求的 ISO 8601 UTC 时间戳（OK-ACCESS-TIMESTAMP 头）。
+var iso8601Regex = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$`)
 
 // fakeRecorder 记录 probe 成功后的 Record 调用（探针成功登记锚点）。
 type fakeRecorder struct {
@@ -69,6 +73,13 @@ func probeFixtureServer(t *testing.T) *httptest.Server {
 			return
 		}
 		ts := r.Header.Get("OK-ACCESS-TIMESTAMP")
+		// [对抗测试锚点] 2026-08-15 部署实测：OKX 要求 ISO 8601 UTC 格式，Unix 毫秒 → 50102。
+		// 改回 FormatInt(UnixMilli) → 本校验必红（TestProbeRunRecordsBoth 不 Record）。
+		if !iso8601Regex.MatchString(ts) {
+			t.Errorf("OK-ACCESS-TIMESTAMP = %q, want ISO 8601 UTC（Unix 毫秒 → OKX 50102）", ts)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
 		wantSign := okxSign("osec", ts, "GET", "/api/v5/account/balance", "")
 		if r.Header.Get("OK-ACCESS-SIGN") != wantSign {
 			w.WriteHeader(http.StatusUnauthorized)
