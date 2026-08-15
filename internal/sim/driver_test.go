@@ -88,13 +88,17 @@ func TestDriverUnknownRuleNoOrder(t *testing.T) {
 	}
 }
 
-// TestDriverRepoBuildsOrder：reverse_repo_timing（全局命中，时点资金面收紧）→ repo 单。
-// 命中值 6.5% 代表季末/年末逆回购利率上冲（>5% 门槛放行；平时 2-4% 会 SPREAD_LOW 拒单负样本，
-// 这是正确行为——宁缺毋滥）。
+// TestDriverRepoBuildsOrder：reverse_repo_timing（全局命中，时点资金面收紧）+ 已补录
+// reverse_repo 事实（季末/年末逆回购年化上冲 6.5% > 5% 门槛）→ repo 单 GC001@100。
+// 命中值 Value=1 是 KindCalendar 的"事件计数"（last_24h ≤ 1），不参与价差（L1 复审）；
+// 平时 2-4% 会 SPREAD_LOW 拒单负样本，这是正确行为——宁缺毋滥。
 func TestDriverRepoBuildsOrder(t *testing.T) {
 	d, st := newDriver(t, DefaultConfig())
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindReverseRepo, Value: 6.5, Ts: t0, Src: "manual",
+	})
 	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "reverse_repo_timing"},
-		[]store.EntityHit{{Value: 6.5}}); err != nil {
+		[]store.EntityHit{{Value: 1}}); err != nil {
 		t.Fatalf("OnRuleActive: %v", err)
 	}
 	if len(st.orders) != 1 {
@@ -102,10 +106,25 @@ func TestDriverRepoBuildsOrder(t *testing.T) {
 	}
 	o := st.orders[0]
 	if o.Kind != store.SimKindRepo || o.Symbol != "GC001" || o.RefPrice != 100 || o.ExpectedSpread != 6.5 {
-		t.Fatalf("order = %+v, want repo GC001 @100 spread 6.5", o)
+		t.Fatalf("order = %+v, want repo GC001 @100 spread 6.5（来自 reverse_repo 事实）", o)
 	}
 	if o.Status != store.SimStatusSuggested || len(o.RiskFlags) != 0 {
 		t.Fatalf("status/flags = %q/%v, want suggested/empty", o.Status, o.RiskFlags)
+	}
+}
+
+// TestDriverRepoNoFactFailsClosed：[对抗测试锚点 L1 复审] 无 reverse_repo 事实 → 不建单
+// （fail-closed，宁缺毋滥）。h.Value 是日历事件计数（last_24h ≤ 1）而非利率，禁止当价差
+// 兜底——原实现把 6.5 当"预期年化价差 6.5%"建单，语义错配。删 repoSignal 的"无事实 →
+// 不建单"分支 → 本测试必红。
+func TestDriverRepoNoFactFailsClosed(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "reverse_repo_timing"},
+		[]store.EntityHit{{Value: 6.5}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 0 {
+		t.Fatalf("orders = %d, want 0（无 reverse_repo 事实不建单）", len(st.orders))
 	}
 }
 

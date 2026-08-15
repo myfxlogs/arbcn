@@ -1,5 +1,8 @@
 // M3-b §9.5 S4：历史 funding 回填数据源（一次性、幂等、无 key）。
-// Binance data-api 公开数据域（D-031）+ OKX 公开 funding-history，翻页拉满窗口。
+// Binance fapi 公开域（D-031 修订 2026-08-15：data-api.binance.vision 不镜像 /fapi/*，
+// fundingRate/klines 均 404；实测回落 fapi.binance.com，本部署机直连 200，365d 深度可用）
+// + OKX 公开 funding-rate-history（funding-history 是业务 404 错端点；OKX 仅保留 ~90d，
+// 365d 窗口部分覆盖，degrade 已知）。翻页拉满窗口。
 // 产出 fact{Kind=funding, Venue, Symbol, Value=年化, Ts=结算时刻, Unit=pct_annualized}。
 // 本文件无密钥、无下单端点；实现 sim.HistoryCollector（Venue + Poll），由 main.go 注入
 // sim.BackfillHistory 编排。days<=0 = 禁用（Poll 返回空）。
@@ -17,12 +20,14 @@ import (
 	"arbcn/internal/fact"
 )
 
-// binanceDataAPIRoot Binance 公开数据域（D-031）：历史 fundingRate 镜像，与实时 fapi 域隔离。
-const binanceDataAPIRoot = "https://data-api.binance.vision"
+// binanceFAPIRoot Binance fapi 公开域（D-031 修订 2026-08-15 实测）：data-api.binance.vision
+// 不镜像 /fapi/*（fundingRate/klines 均 404），历史 fundingRate 直接取 fapi.binance.com
+//（本部署机直连 200、365d 深度可用）。将来 geo-block 由 BinanceHistoryBaseURL 覆盖。
+const binanceFAPIRoot = "https://fapi.binance.com"
 
 const (
-	binanceFundingRatePath = "/fapi/v1/fundingRate"
-	okxFundingHistoryPath  = "/api/v5/public/funding-history"
+	binanceFundingRatePath    = "/fapi/v1/fundingRate"
+	okxFundingRateHistoryPath = "/api/v5/public/funding-rate-history" // OKX 正确端点；funding-history 业务 404
 )
 
 // binanceFundingRateHistory 单行历史结算记录（data-api fundingRate）。
@@ -39,12 +44,12 @@ type okxFundingHistory struct {
 	FundingTime string `json:"fundingTime"`
 }
 
-// binanceHistoryBase 历史数据域（测试注入优先）。
+// binanceHistoryBase 历史数据域（测试注入优先；默认 fapi，D-031 修订）。
 func (c Config) binanceHistoryBase() string {
 	if c.BinanceHistoryBaseURL != "" {
 		return c.BinanceHistoryBaseURL
 	}
-	return binanceDataAPIRoot
+	return binanceFAPIRoot
 }
 
 // BinanceFundingHistory 是 Binance 历史 funding 回填数据源。
@@ -95,7 +100,7 @@ func (c *BinanceFundingHistory) Poll(ctx context.Context) ([]fact.Fact, error) {
 				Kind: fact.KindFunding, Venue: VenueBinance, Symbol: sym,
 				Value: v, Unit: fact.UnitPctAnnualized,
 				Ts:  time.UnixMilli(r.FundingTime),
-				Src: fmt.Sprintf("data-api/fapi/v1/fundingRate rate=%s", r.FundingRate),
+				Src: fmt.Sprintf("fapi/v1/fundingRate rate=%s", r.FundingRate),
 			})
 		}
 	}
@@ -190,7 +195,7 @@ func (c *OKXFundingHistory) Poll(ctx context.Context) ([]fact.Fact, error) {
 				Kind: fact.KindFunding, Venue: VenueOKX, Symbol: sym,
 				Value: v, Unit: fact.UnitPctAnnualized,
 				Ts:  ts,
-				Src: fmt.Sprintf("api/v5/public/funding-history rate=%s", r.FundingRate),
+				Src: fmt.Sprintf("api/v5/public/funding-rate-history rate=%s", r.FundingRate),
 			})
 		}
 	}
@@ -203,7 +208,7 @@ func (c *OKXFundingHistory) paginate(ctx context.Context, client *http.Client, b
 	after := ""
 	fromMs := from.UnixMilli()
 	for {
-		url := base + okxFundingHistoryPath + "?instId=" + inst + "&limit=100"
+		url := base + okxFundingRateHistoryPath + "?instId=" + inst + "&limit=100"
 		if after != "" {
 			url += "&after=" + after
 		}

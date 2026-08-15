@@ -311,3 +311,12 @@
 - **验证**：go vet / go build / go test -race ./... 全绿（PG 集成测试 ARBCN_TEST_PG_DSN）；对抗测试锚点逐一实测必红（annualize / SIMULATED 门控 / venue 分组 / 映射表 / 幂等键）；无真实 key（探针 = 机制 + 测试，缺 key 降级）。
 - **待决策观察**（不阻塞）：repo 信号受 5% 价差门槛约束（平时逆回购 2-4% 拒单，时点上冲放行）——与"时点逆回购"意图一致，若业主欲 repo 绕门槛须走 D#。
 - **下一步**：M3-c（一键确认 UI + SPREAD_DRIFT）；并行等业主 testnet key（S3 启用门控）。
+
+## #44 · 2026-08-15 · M3-b S4 回填数据源修复 + 部署验证 · 决策层
+- **参与方**：Claude（决策层，独立验证）
+- **议题**：M3-b 施工交付后部署，boot 回填失败（双路历史数据源 404），S4 sim_report/avg_30d 退化。
+- **根因**（root-cause-first §7.4）：D-031 前提不成立——data-api.binance.vision 不镜像 /fapi/*（fundingRate/klines 均 404，实测）；fapi.binance.com 部署机直连 200、365d 深度可用（451 未复现）；OKX 记错端点为 funding-history（业务 404），正确端点是 funding-rate-history（仅 ~90d 历史）。
+- **修复**：history.go 默认源 data-api → fapi.binance.com（BinanceHistoryBaseURL 配置项保留作 geo-block 覆盖）；OKX 路径 funding-history → funding-rate-history；Src 标注同步；history_test fixture 同步改路径。H1 复审配套已在上轮完成（8h 桶去重 + Limit 2M，防实时洪水 96 行/桶虚高）。
+- **部署验证**：重启后 journal 报 "funding history backfill complete days=365"；DB 实测——binance funding 3489 条 min_ts=2025-08-15（满 365d）、okx 1080 条 min_ts=2026-05-14（~90d，OKX 保留限制，部分覆盖已标注）；年化值抽查精确（0.00003722×1095×100=4.08%）；avg_30d binance BTC=6.46%（回填前 ~7d 不可靠，现为真实 30d 均值，低于 funding_warn 门槛 15% 不误报）。sim_report 周频文件需 7×8h tick（~56h）后首次渲染。
+- **决策号**：D-031 实证修订（data-api 前提否定 + fapi 回落 + OKX 端点修正）。
+- **下一步**：M3-c（一键确认 UI + SPREAD_DRIFT）；并行等业主 testnet key（S3 启用门控）。

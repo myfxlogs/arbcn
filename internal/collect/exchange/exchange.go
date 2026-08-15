@@ -25,8 +25,9 @@ type Config struct {
 	Symbols        []string     // 基础币种，如 BTC/ETH/TRX
 	BinanceBaseURL string       // 默认 https://fapi.binance.com（USDT-M 合约）
 	OKXBaseURL     string       // 默认 https://www.okx.com
-	// BinanceHistoryBaseURL 历史 funding 回填数据域（M3-b §9.5，D-031 公开数据域；
-	// 默认 https://data-api.binance.vision）。独立于实时 fapi 域；测试可注入 httptest。
+	// BinanceHistoryBaseURL 历史 funding 回填数据域覆盖（M3-b §9.5；默认 fapi.binance.com。
+	// D-031 修订 2026-08-15：data-api 不镜像 /fapi/*，回落 fapi；本项留作 geo-block 覆盖。
+	// 测试注入 httptest 用）。
 	BinanceHistoryBaseURL string
 	Client                *http.Client // nil = 10s 超时默认客户端
 }

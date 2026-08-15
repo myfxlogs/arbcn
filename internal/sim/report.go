@@ -52,6 +52,12 @@ type SeriesReport struct {
 // report_test.go TestReportCumulative 累计断言必红。
 func ComputeSeries(venue, symbol string, fs []fact.Fact, notional, frictionRate float64) SeriesReport {
 	fs = sortedFacts(fs)
+	// H1 复审：实时 funding collector 以采集时刻作 Ts（binance premiumIndex.time /
+	// okx time.Now()），每 5m 轮询在 facts 表落 ~96 行同值事实。周报若把每行当一期，
+	// Σ 累计会虚高近两数量级（残留差信号作废）。按 8h 结算桶折叠为每期一行，Σ 恢复
+	// "一期一次"。桶宽与下方 ÷(3×365) 的 8h 除数一致（当前符号集 BTC/ETH/TRX 均 8h
+	// 结算；将来接入 4h 合约须同改这两处）。
+	fs = dedupSettleBuckets(fs)
 	r := SeriesReport{Venue: venue, Symbol: symbol, HalfLifeDays: math.Inf(1)}
 	if len(fs) == 0 {
 		return r
@@ -93,6 +99,27 @@ func ComputeSeries(venue, symbol string, fs []fact.Fact, notional, frictionRate 
 	return r
 }
 
+// dedupSettleBuckets 把同一 8h 结算桶内的多行折叠为一行（保留桶内最早一行）。
+// 输入须已按 Ts 升序。实时 funding collector 每 5m 轮询落一行（采集时刻作 Ts），
+// 一个结算期 ~96 行同值——折叠后每期一行，Σ 恢复"一期一次"。
+//
+// [对抗测试锚点] §9.5 S4（H1 复审）：删除折叠 → report_test.go TestReportDedupsFlood
+// （96 行/桶不虚高断言）必红。
+func dedupSettleBuckets(fs []fact.Fact) []fact.Fact {
+	const bucket = int64(8 * 3600) // 8h 结算桶（秒）；与 Per8hRate 除数一致
+	out := make([]fact.Fact, 0, len(fs))
+	last := int64(math.MinInt64)
+	for _, f := range fs {
+		b := f.Ts.Unix() / bucket
+		if b == last {
+			continue
+		}
+		last = b
+		out = append(out, f)
+	}
+	return out
+}
+
 // sortedFacts 按 Ts 升序返回副本（纯函数内不修改输入）。
 func sortedFacts(fs []fact.Fact) []fact.Fact {
 	out := append([]fact.Fact(nil), fs...)
@@ -124,7 +151,8 @@ func stddev(xs []float64) float64 {
 	return math.Sqrt(s / float64(len(xs)-1))
 }
 
-// halfLifeDays 返回 |残差| 从首结算点减半所需天数（滚动窗口）；未减半 → +Inf。
+// halfLifeDays 返回 |残差| 相对首结算点减半所需天数；窗口内未减半 → +Inf。
+// （L2 复审：实现为"相对首点"，注释原写"滚动窗口"系口径偏差，已对齐实现。）
 func halfLifeDays(series []float64, fs []fact.Fact) float64 {
 	if len(series) < 2 {
 		return math.Inf(1)
@@ -182,7 +210,10 @@ func (d *Driver) RenderReport(ctx context.Context) ([]SeriesReport, error) {
 		return nil, nil
 	}
 	from := d.now().Add(-time.Duration(d.cfg.HistoryDays) * 24 * time.Hour)
-	fs, err := d.st.QueryFacts(ctx, store.FactQuery{Kind: fact.KindFunding, From: from, Limit: 200_000})
+	// H1 复审：Limit 须盖住实时洪水总量（365d × 3 符号 × 2 venue × ~288 行/日 ≈ 63 万行）；
+	// 200k 会截断到最旧端、丢最近 ~4 个月，窗口整体错位。2M 留足余量，ComputeSeries 内
+	// dedupSettleBuckets 再把每 8h 桶折叠为一行（~6.5k 行）。
+	fs, err := d.st.QueryFacts(ctx, store.FactQuery{Kind: fact.KindFunding, From: from, Limit: 2_000_000})
 	if err != nil {
 		return nil, fmt.Errorf("sim report: query facts: %w", err)
 	}

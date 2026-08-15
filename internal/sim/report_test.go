@@ -71,6 +71,34 @@ func TestReportNetAnnualized(t *testing.T) {
 	}
 }
 
+// TestReportDedupsFlood：[对抗测试锚点 §9.5 S4（H1 复审）] 实时 funding collector 洪水
+// （每 8h 结算期 5m 轮询 ~96 行同值事实，ts=采集时刻）不得把 Σ 虚高 ~96 倍。
+// 折叠后每桶一行 → ActualCumulative = 3.0、残差序列与"3 期真实数据"完全一致（均值 1.0）。
+// 删 dedupSettleBuckets 折叠 → 本测试必红（ActualCumulative 变 ~288×）。
+func TestReportDedupsFlood(t *testing.T) {
+	base := time.Date(2026, 8, 1, 0, 0, 30, 0, time.UTC) // 结算后 30s 首轮
+	var fs []fact.Fact
+	for i := 0; i < 3; i++ { // 3 个结算期
+		bucketStart := base.Add(time.Duration(i) * 8 * time.Hour)
+		for j := 0; j < 96; j++ { // 每期 96 次 5m 轮询
+			fs = append(fs, fact.Fact{
+				Kind: fact.KindFunding, Venue: "okx", Symbol: "BTC",
+				Value: 10.95, Ts: bucketStart.Add(time.Duration(j) * 5 * time.Minute), Src: "poll",
+			})
+		}
+	}
+	r := ComputeSeries("okx", "BTC", fs, 10_000, defaultFrictionRate)
+	if math.Abs(r.ActualCumulative-3.0) > 1e-9 {
+		t.Fatalf("ActualCumulative = %v, want 3.0（洪水折叠后一期一次，非 ~288× 虚高）", r.ActualCumulative)
+	}
+	if math.Abs(r.ResidualMean-1.0) > 1e-9 {
+		t.Fatalf("ResidualMean = %v, want 1.0（与 3 期真实数据同构）", r.ResidualMean)
+	}
+	if len(dedupSettleBuckets(fs)) != 3 {
+		t.Fatalf("dedupSettleBuckets = %d 行, want 3（每桶一行）", len(dedupSettleBuckets(fs)))
+	}
+}
+
 // TestReportEmptySeries：无事实 → 全零/零值报告（不 panic，HalfLife +Inf）。
 func TestReportEmptySeries(t *testing.T) {
 	r := ComputeSeries("binance", "BTC", nil, 10_000, defaultFrictionRate)

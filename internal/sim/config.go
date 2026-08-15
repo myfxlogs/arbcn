@@ -5,8 +5,9 @@
 package sim
 
 import (
-	"slices"
 	"fmt"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -84,9 +85,21 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	if v := strings.TrimSpace(getenv("ARBCN_SIM_REPORT_PATH")); v != "" {
 		cfg.ReportPath = v
 	}
-	if cfg.Capital <= 0 || cfg.MinSpread <= 0 || cfg.MaxSizePct <= 0 || cfg.MaxDailyPct <= 0 {
-		return Config{}, fmt.Errorf("sim: ARBCN_SIM_* 必须为正数（capital=%v min_spread=%v max_size=%v max_daily=%v）",
-			cfg.Capital, cfg.MinSpread, cfg.MaxSizePct, cfg.MaxDailyPct)
+	// M1 复审：NaN/±Inf 对 `<`/`<=` 恒 false，`cfg.MinSpread <= 0` 会静默放行 NaN——
+	// SignalToOrder 的 `spread < cfg.MinSpread` 恒 false → SPREAD_LOW 门禁被架空
+	// （practices #7 同款，M3-a 的 NaN 教训）。非有限值 → 配置拒载。
+	for _, v := range []struct {
+		name string
+		val  float64
+	}{
+		{"capital", cfg.Capital},
+		{"min_spread", cfg.MinSpread},
+		{"max_size_pct", cfg.MaxSizePct},
+		{"max_daily_pct", cfg.MaxDailyPct},
+	} {
+		if math.IsNaN(v.val) || math.IsInf(v.val, 0) || v.val <= 0 {
+			return Config{}, fmt.Errorf("sim: ARBCN_SIM_%s 必须为正有限数（%v）", v.name, v.val)
+		}
 	}
 	return cfg, nil
 }

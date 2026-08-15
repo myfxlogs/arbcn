@@ -15,7 +15,7 @@ import (
 
 // historyFixtureServer 用本地 httptest 模拟两个公开历史端点（无网络）：
 //   - /fapi/v1/fundingRate：8h 间隔、费率 0.0001，limit=1000 翻页（365d 窗口 → 2 页）
-//   - /api/v5/public/funding-history：8h 间隔、费率 0.0001，after 分页（新→旧）
+//   - /api/v5/public/funding-rate-history：8h 间隔、费率 0.0001，after 分页（新→旧）
 func historyFixtureServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -40,7 +40,7 @@ func historyFixtureServer(t *testing.T) *httptest.Server {
 		json.NewEncoder(w).Encode(rows)
 	})
 
-	mux.HandleFunc("/api/v5/public/funding-history", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/v5/public/funding-rate-history", func(w http.ResponseWriter, r *http.Request) {
 		after := r.URL.Query().Get("after")
 		now := time.Now().UnixMilli()
 		var rows []okxFundingHistory

@@ -116,12 +116,10 @@ func run() error {
 	mux.Handle("/", web.Handler(cfg.WebDir))
 
 	errCh := make(chan error, 8)
-	if st != nil {
-		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled, simCfg, simOK, simnetCfg, simnetOK); err != nil {
-			return err
-		}
-	}
-
+	// M3 复审：HTTP server 先于管线启动——历史回填（backfill）阻塞在 startPipeline 内时
+	// /healthz 仍可探测；数据域（data-api）不可达时 10s 超时 × 数十请求会把 boot 拖到
+	// 分钟级，若 server 在管线后启动会造成无 /healthz 的就绪盲窗（systemd 重启判定风险）。
+	// 管线装配错误仍 fail fast（进程退出，goroutine 随进程终止）。
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           mux,
@@ -133,6 +131,13 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 	go func() { errCh <- srv.ListenAndServe() }()
+
+	if st != nil {
+		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled, simCfg, simOK, simnetCfg, simnetOK); err != nil {
+			return err
+		}
+	}
+
 	slog.Info("arbcn monitor started", "addr", cfg.Addr,
 		"sources", sourceNames(enabled), "smtp_configured", cfg.SMTP.Configured())
 

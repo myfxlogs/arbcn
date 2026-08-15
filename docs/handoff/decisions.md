@@ -160,7 +160,8 @@
 ## D-031 Binance API 地域封锁（451）处置策略
 - **背景**：M1-d 复测时 fapi.binance.com 返回 451（地域封锁，curl 直连同），M1-c 实测时尚通——间歇性/新上封锁。
 - **决策**：修复顺序——①换公开行情专用域 data-api.binance.vision（官方公开数据域，折入 M1-h 联调试修）；②失败则补 Bybit/HTX funding 源（OKX 已在，费率监控底线 = ≥2 所，跨所费率差不依赖 Binance）；③Binance Earn 定期利率改人工补录（manual 通道每周）；④代理为最后手段，另立 D# 才可上。
-- **理由**：公开数据可用性波动是常态（M1-c 实测通、M1-d 实测 451），采集层必须多源容错；无密钥原则下换域/补源都是低风险动作，代理涉及合规姿态变化需显式决策。
+- **实证修订（2026-08-15 M3-b S4 部署验证）**：①前提不成立——data-api.binance.vision **不镜像 /fapi/\***（fundingRate/klines 均 404，api/v3 现货域正常）；且 fapi.binance.com 在部署机直连 200、365d fundingRate 历史深度可用（**451 封锁在部署机未复现**，D-031 判定为间歇性）。**修订**：历史 funding 回填数据源默认取 `fapi.binance.com`（`BinanceHistoryBaseURL` 配置项保留，供未来 geo-block 覆盖）；实时 collector 本就是 fapi 域，实时+历史统一为同一数据源。**OKX 端点修正**：历史 funding 正确端点是 `/api/v5/public/funding-rate-history`（`funding-history` 返回业务 404）；OKX 仅保留 ~90d 历史（365d 窗口部分覆盖，回填实测 min_ts=2026-05-14，已文档标注 degrade）。
+- **理由**：公开数据可用性波动是常态（M1-c 实测通、M1-d 实测 451），采集层必须多源容错；无密钥原则下换域/补源都是低风险动作，代理涉及合规姿态变化需显式决策。数据源端点假设一律部署机实测后采纳（先核实再采纳 D-028）。
 
 ## D-032 SMTP 配置非法降级运行（修订 M1-h 行为）
 - **背景**：M1-h 回报——SMTP 配置了但非法时 Alerter 校验失败 → 进程退出 → systemd 重启循环。与"监控自身可用性优先"（dialogue #22：PG 不可达只 warn 不崩）矛盾。

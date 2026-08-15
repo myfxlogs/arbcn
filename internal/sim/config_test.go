@@ -88,6 +88,29 @@ func TestFromEnvInvalid(t *testing.T) {
 	}
 }
 
+// TestFromEnvRejectsNaN：[对抗测试锚点 M1 复审] NaN/±Inf 配置必须拒载。
+// NaN 对 `<`/`<=` 恒 false，原 `cfg.MinSpread <= 0` 校验会被静默穿过——MinSpread=NaN
+// 使 SignalToOrder 的 SPREAD_LOW 门禁恒不触发（practices #7 同款）。删 FromEnv 的
+// IsNaN/IsInf 检查 → 本测试必红。
+func TestFromEnvRejectsNaN(t *testing.T) {
+	if _, err := FromEnv(func(k string) string {
+		if k == "ARBCN_SIM_MIN_SPREAD" {
+			return "NaN"
+		}
+		return ""
+	}); err == nil {
+		t.Fatal("FromEnv(min_spread=NaN) = nil, want error（非有限值拒载）")
+	}
+	if _, err := FromEnv(func(k string) string {
+		if k == "ARBCN_SIM_CAPITAL" {
+			return "+Inf"
+		}
+		return ""
+	}); err == nil {
+		t.Fatal("FromEnv(capital=+Inf) = nil, want error")
+	}
+}
+
 // TestFromEnvCarryWhitelist：[对抗测试锚点 §9.6] 白名单逗号分隔解析 + 大小写/空白归一；
 // 默认空（安全默认，carry 先被 WHITELIST 拒单）。删 FromEnv 白名单解析 → 本测试必红。
 func TestFromEnvCarryWhitelist(t *testing.T) {

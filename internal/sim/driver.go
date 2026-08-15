@@ -24,8 +24,9 @@ const settleInterval = 8 * time.Hour
 // reportEveryTicks 每 7 个 8h tick（周）渲染一次周频统计报告（§9.5）。
 const reportEveryTicks = 7
 
-// signalMapper 按规则名组装 Signal 的函数（映射表值类型）。
-type signalMapper func(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, error)
+// signalMapper 按规则名组装 Signal 的函数（映射表值类型）。ok=false = 不建单
+// （L1 复审：repo 无 reverse_repo 事实时 fail-closed，宁缺毋滥）。
+type signalMapper func(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, bool, error)
 
 // signalMappers 规则名 → Signal 组装（04-m3-spec §3.1.1 表编码，不可变包内常量）。
 //
@@ -83,25 +84,17 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 // buildSignal 按映射表组装 Signal。返回 ok=false = 不建单（未知规则且未白名单）。
 func (d *Driver) buildSignal(ctx context.Context, r store.Rule, h store.EntityHit) (*Signal, bool, error) {
 	if m, ok := signalMappers[r.Name]; ok {
-		sig, err := m(ctx, d, r, h)
-		if err != nil {
-			return nil, false, err
-		}
-		return sig, true, nil
+		return m(ctx, d, r, h)
 	}
 	// carry 白名单（§9.6）：命中标的 ∈ CarryWhitelist → carry_asset。
 	if slices.Contains(d.cfg.CarryWhitelist, h.Symbol) {
-		sig, err := d.carrySignal(ctx, r, h)
-		if err != nil {
-			return nil, false, err
-		}
-		return sig, true, nil
+		return d.carrySignal(ctx, r, h)
 	}
 	return nil, false, nil
 }
 
 // fundingHedgeSignal 组装 funding_hedge Signal（04-m3-spec §3.1.1 首行 + §9.2 诚实标注）。
-func fundingHedgeSignal(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, error) {
+func fundingHedgeSignal(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, bool, error) {
 	// 现货/永续最新价 = LatestFacts(kind=ticker, venue, symbol) 最新一条。
 	// 诚实标注（§9.2）：系统无现货 collector，ticker 即永续价；现货/永续腿存在性由
 	// 门禁把关（>0），basis/现货腿差留真实执行层，M3 只验证 funding 机制。
@@ -115,26 +108,32 @@ func fundingHedgeSignal(ctx context.Context, d *Driver, r store.Rule, h store.En
 		RefPrice: ref, SpotPrice: ref, PerpPrice: ref,
 		FundingAnn: h.Value, ExpectedSpread: 0, // 由 FundingAnn 回填（SignalToOrder）
 		Notional: 0, Ts: d.now(),
-	}, nil
+	}, true, nil
 }
 
 // repoSignal 组装 repo Signal（04-m3-spec §3.1.1 第二行）：全局模式命中，单信号。
-func repoSignal(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, error) {
-	// 当日回购年化 = 人工补录 reverse_repo 事实最新值；无 → 命中 value 兜底。
-	spread := h.Value
-	if fs, err := d.st.LatestFacts(ctx, fact.KindReverseRepo, "", ""); err == nil && len(fs) > 0 {
-		spread = fs[0].Value
+// L1 复审：当日回购年化 = 人工补录 reverse_repo 事实最新值（权威）；**无事实 → 不建单**
+// （fail-closed，宁缺毋滥）——h.Value 对 KindCalendar 规则是"事件计数"（last_24h ≤ 1），
+// 不是利率，用作价差兜底是单位错配（预期年化价差会显示 1.00% 这类计数，误导）。
+func repoSignal(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit) (*Signal, bool, error) {
+	fs, err := d.st.LatestFacts(ctx, fact.KindReverseRepo, "", "")
+	if err != nil {
+		return nil, false, fmt.Errorf("sim driver: repo: latest reverse_repo fact: %w", err)
 	}
+	if len(fs) == 0 {
+		return nil, false, nil // 无 reverse_repo 事实 → 不建单（无法得知当日回购利率）
+	}
+	spread := fs[0].Value
 	return &Signal{
 		RuleName: r.Name, Kind: store.SimKindRepo,
 		Symbol: "GC001", Venue: "domestic", // 交易所逆回购（现金等价，面值 100）
 		RefPrice: 100, ExpectedSpread: spread, FundingAnn: spread,
 		Notional: 0, Ts: d.now(),
-	}, nil
+	}, true, nil
 }
 
 // carrySignal 组装 carry_asset Signal（§9.6）：标的已在白名单（调用方已校验）。
-func (d *Driver) carrySignal(ctx context.Context, r store.Rule, h store.EntityHit) (*Signal, error) {
+func (d *Driver) carrySignal(ctx context.Context, r store.Rule, h store.EntityHit) (*Signal, bool, error) {
 	spread := h.Value // 命中值兜底（生息年化）
 	if fs, err := d.st.LatestFacts(ctx, fact.KindDefiRate, h.Venue, h.Symbol); err == nil && len(fs) > 0 {
 		spread = fs[0].Value
@@ -148,7 +147,7 @@ func (d *Driver) carrySignal(ctx context.Context, r store.Rule, h store.EntityHi
 		Symbol: h.Symbol, Venue: d.venue(h.Venue),
 		RefPrice: ref, ExpectedSpread: spread, FundingAnn: spread,
 		Notional: 0, CarryWhite: true, Ts: d.now(),
-	}, nil
+	}, true, nil
 }
 
 // venue 归一 venue；空（全局命中）→ 默认模拟 venue。
