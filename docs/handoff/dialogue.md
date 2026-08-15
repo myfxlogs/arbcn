@@ -183,3 +183,9 @@
 - **交付**：M1-f（88dbf9e + 12d7df1）——SMTP Alerter（假服务器全路径测试 + 失败重试 + at-least-once）、心跳发射方（独立定时器，停摆仍发射值增长，契约合规）、迁移 degraded（healthz 503 + reason 字段）、store 扩展、race 全过、三处删行必红实测。
 - **决策层复审（5 项全批）**：①STARTTLS/AUTH 真实联测留给业主凭据后人工验证，AUTH LOGIN 不预加（先核实再采纳）✅；②config.AlertEmail 遗留占位 → **M1-h 删除并改 SMTP.Configured() 门控** ✅；③心跳发射 30s 默认 ✅；④healthz reason 字段增量 ✅；⑤at-least-once 投递语义 ✅（重发优于漏报）。
 - **下一步**：M1-g 派发（Web 仪表盘最小集：机会面板/触发器/告警流；ConnectRPC 服务 + React）。
+
+## #28 · 2026-08-15 · M1-g 交付复审（决策层）
+- **参与方**：施工 agent #7、Claude
+- **交付**：M1-g（bb8c399 + 818474f）——proto 5 方法（buf lint 过）、Go 服务（分页钳制/错误映射/Health 同源）、React 三视图（funding 矩阵/利率矩阵/IV/逆回购/倒计时 StatTile、触发器徽标、告警流+ack）、60s 轮询、深/浅主题；npm build + race + 真传输冒烟全过。
+- **决策层复审（5 项全批）**：①Store 接口 4 方法扩展（最小缺口，同 M1-f 模式）✅；②事实快照视图未做 ✅ 接受（M2 可并入机会面板）；③生成代码超限豁免 ✅（机器生成，源 91 行，同 arb proto 豁免先例）；④未评估规则投影 armed ✅（与引擎初态语义一致）；⑤web connect v2 + Go v1.20 跨版本 ✅（已冒烟验证）。
+- **下一步**：M1-h 派发（全链路接线联调：main.go 总装 + config.AlertEmail 清理 + Binance 换域试修 + check-lines 门禁脚本 + 30 分钟实测）。
