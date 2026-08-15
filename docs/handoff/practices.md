@@ -22,3 +22,13 @@
 4. **展示层值格式化必须按 unit 感知，禁止对 kind 一刀切 pct()**：2026-08-15 M2-b 复审（负责人 F2）——FactsSnapshot 对所有 kind 统一 pct()，导致 fx（unit=price，6.7443）显示 "674.43%"、calendar（unit=days，16）显示 "16.00%"。事实值语义由 unit 承载（pct_annualized/pct/days/price/ratio），格式化按 unit 分支；新增事实类型时先看 unit 再决定显示。
 
 5. **快照/投影类 RPC 要排除内部遥测事实**：2026-08-15 M2-b 复审（负责人 F1）——ListFacts 快照投影把 heartbeat（内部遥测，非市场事实）一起返回，与 exporter skipKinds 排除不一致，污染"事实快照"视图。exporter（写 facts.md）和 dashboard 投影（机器可读面）必须同口径排除 heartbeat；实现两处时互相引用锚点，别各写各的。
+
+6. **结算/折算类数值先统一刻度（点数 vs 分数）**：2026-08-15 追溯深审（R6#1）+ M3-a 复审（H1）——rmb 折算与 funding 结算同一根因栽两次。事实层 `pct_annualized` = 百分点点数（6.0 = 6%）；凡是要**乘名义（货币单位）**的，必须先 ÷100 转分数费率。H1 具体：`Per8hRate(10.95)` 原返回 0.01 实为 0.0001，`SettleFundingPnl(0.01, 10000)` = 100 实为 1，模拟 PnL 虚高 100 倍；`RMBDayEnd` 同缺 ÷100。**对抗测试锚点必须锚"正确数值"**——H1 的旧锚点锚了错误值 100，正是靠人工复核才发现，锚点自身的正确性要独立验证。
+
+7. **数值门禁必须防 NaN/±Inf 绕过**：2026-08-15 M3-a 复审（M3）——Go 里 `NaN < x` / `NaN > x` 恒 false，NaN 输入会静默穿过全部 `<`/`>` 门禁，且 NaN 落库污染聚合（SUM→NaN → DAILY_OVER 永久失效）。门禁函数开头对每个数值输入 `IsNaN/IsInf` 检查 → 拒单；配对抗测试（NaN 输入断言拒单）。这条对任何"阈值/超限"逻辑通用，不限于模拟盘。
+
+8. **"置状态 + 建从属行"必须原子，否则不可自愈**：2026-08-15 M3-a 复审（M1）——ConfirmAndFill 先置订单 filled 再逐条插腿，第二腿失败留下"filled 但缺腿"半对冲（违反不赌 D-019），且订单已是 filled、重试被状态守卫拒绝 = 死状态。解法：store 层单事务方法（`FillSimOrder`：UPDATE status 带 `WHERE status='confirmed'` 的 RowsAffected 守卫 + INSERT 全腿），业务代码只调一个原子入口。副作用：状态守卫顺带消掉并发双插。
+
+9. **"非白名单/信任边界"的布尔标记不算可验证门禁**：2026-08-15 M3-a 复审（M2）——`Signal.CarryWhite bool` 由调用方置位，纯函数只查布尔 = 信任边界，不是门禁；数据源/驱动误置即形同虚设。此类信任边界要在 spec 明示，且要在外部数据源接入前落显式配置（如 M3-b 白名单 symbol 集合）。
+
+10. **测试注入时钟要覆盖整个 RPC 路径，grep 掉所有 time.Now()**：2026-08-15 追溯深审（R4#7）——sourceHealth 判定函数接受注入 now，但 ListSourceHealth 入口自己 `time.Now()`，测试注入的固定 now 与运行时 time.Now() 漂移毫秒级 → 边界断言 flake。注入 `svc.Now` 后要 grep 该路径所有 `time.Now()`，入口层最容易漏。

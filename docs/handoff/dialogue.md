@@ -263,3 +263,19 @@
 - **规格歧义裁定**：RMB 公式（spec §4 字面"× 当日 USDCNH"对年化收益率荒谬）→ 裁定 = 收益率 − 年化升值（D-023 算例一致，6%−3%=3%），回填 03-m2-spec.md §4。
 - **验证**：go vet/build/test -race 全绿；线上部署（SIGKILL 重启，PID 2296654）healthz ok；ListFacts 实测排除 heartbeat、fx/calendar 单位正确；facts.md 生产首写成功（20:44 快照，段标记 + 无 heartbeat）。
 - **下一步**：M3-a 派发施工（04-m3-spec.md §3）。
+
+## #39 · 2026-08-15 · 追溯深审 M1/M2-a 全部代码（决策层派 6 路 review agent）· 施工 agent → 决策层
+- **参与方**：Claude（决策层）、R1–R6 只读 review agent
+- **议题**：施工 agent 上交代码复审（业主指示："所有文件，你做了审计吗？你是负责，你要负责分派agent上交过来的代码复审工作"）。
+- **需求**：审全部 M1/M2-a 代码。
+- **结论**：6 路并行只读 review（R1-R6）找施工漏检 → 决策层逐条亲手验证（读代码确认）→ 按实际影响定价（高危 5 / 中危 6 / 低危 3 / 接受 12）→ 修复 + 对抗测试锚点 → Batch 1/2/3 全量测试绿（go test -race 全仓 + npm build）。
+- **决策号**：D-035。
+- **下一步**：M3-a 施工交付复审 → 部署 → 收工落档。
+
+## #40 · 2026-08-15 · M3-a 施工交付复审（独立 review agent）+ 修复 · 施工 agent → 决策层
+- **参与方**：Claude（决策层）、复审 agent
+- **议题**：M3-a 施工交付（sim 订单生成器 + 本地模拟盘回填）验收复审。
+- **需求**：独立复审 → 决策层验证。
+- **结论**：确认无密钥铁律（sim 包零网络零密钥纯本地）、不赌六门禁结构对诚实输入有效、RMB 刻度与 R6#1 兼容；但 **H1 结算 PnL 100 倍放大**（pct_annualized 点数当分数费率，缺 ÷100）阻断验收 → 修（Per8hRate/RMBDayEnd ÷100 + 锚点改正确值）；**M1** 成交非原子（新增 store.FillSimOrder 单事务 + 状态守卫）；**M3** NaN 绕过数值门禁（有限性守卫 + INVALID_INPUT）；L1/L2/L3 门禁加固全修；M2/L4 接受（信任边界 + M3-c 加固，spec 标注）。sim/store/pgstore 全量测试绿。
+- **决策号**：D-035。
+- **下一步**：SIGKILL 部署 → 线上 healthz 验证 → 收工落档 commit。

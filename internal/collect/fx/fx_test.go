@@ -66,6 +66,9 @@ func TestFXBadBody(t *testing.T) {
 	cases := []struct{ name, body, want string }{
 		{"no-quotes", `var hq_str_fx_susdcnh=oops;`, "no quoted payload"},
 		{"short", `var hq_str_fx_susdcnh="a,b,c";`, "fields"},
+		// [对抗测试锚点] 恰 17 字段：价合法但缺 idx17 日期 → 必须报错而非 panic
+		// （R3-H1：原实现 len>=17 放行，quoteTs 访问 fields[17] → index out of range 崩溃）。
+		{"seventeen-fields", `var hq_str_fx_susdcnh="00:00:00,1,2,6.5,4,5,6,7,8,9,10,11,12,13,14,15,16";`, "fields"},
 		{"bad-price", `var hq_str_fx_susdcnh="00:00:00,1,2,abc,4,5,6,7,8,9,10,11,12,13,14,15,16,2026-08-15";`, "bad price"},
 		{"non-positive", `var hq_str_fx_susdcnh="00:00:00,1,2,0,4,5,6,7,8,9,10,11,12,13,14,15,16,2026-08-15";`, "bad price"},
 	}

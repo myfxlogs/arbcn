@@ -87,8 +87,14 @@ func run() error {
 
 	// 单端口 :50052：/healthz + ConnectRPC + 人工录入 + 嵌入式仪表盘（"/" 兜底）。
 	migrations := pendingMigrations(pool, cfg.MigrationsDir)
+	healthz := &httpapi.Healthz{DB: pool, Migrations: migrations}
+	if err != nil {
+		// DSN 解析失败（pool==nil）→ 管线整体跳过；/healthz 必须报 degraded 而非谎报 ok
+		//（R5#1：原实现 DB/Migrations 全 nil → 跳过全部检查返回 ok，管线静默死亡无信号）。
+		healthz.BootErr = err
+	}
 	mux := http.NewServeMux()
-	mux.Handle("/healthz", &httpapi.Healthz{DB: pool, Migrations: migrations})
+	mux.Handle("/healthz", healthz)
 	if st != nil {
 		// 源健康信息（name/interval_sec/kind）供 ListSourceHealth 数据面（M2-a §2.2）。
 		path, h := dashboard.New(st, pool, migrations, sourceInfos(enabled)).Handler()
@@ -108,6 +114,11 @@ func run() error {
 		Addr:              cfg.Addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
+		// R5#6 裁定：原实现无响应体/空闲超时，慢请求（大 POST body / 慢查询）滞留时
+		// SIGTERM 优雅退出 Shutdown 5s 超时 → exit(1) → systemd on-failure 误重启。
+		// WriteTimeout 30s / IdleTimeout 60s 给慢请求明确上限，保优雅退出不被拖死。
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 	go func() { errCh <- srv.ListenAndServe() }()
 	slog.Info("arbcn monitor started", "addr", cfg.Addr,

@@ -100,6 +100,8 @@ func (c *FX) Poll(ctx context.Context) ([]fact.Fact, error) {
 }
 
 // parseQuote 从 `var hq_str_<code>="...";` 脚本中取出引号内逗号分隔字段。
+// 边界：quoteTs 需访问 fields[17]（idx17=日期），故至少 18 字段；原实现允许 17 字段
+// 通过 → quoteTs 触发 index out of range panic 杀死整个进程（R3-H1 裁定）。
 func parseQuote(body string) ([]string, error) {
 	_, after, ok := strings.Cut(body, `"`)
 	if !ok {
@@ -107,14 +109,18 @@ func parseQuote(body string) ([]string, error) {
 	}
 	payload, _, _ := strings.Cut(after, `"`)
 	fields := strings.Split(payload, ",")
-	if len(fields) < 17 {
-		return nil, fmt.Errorf("parse: %d fields, want >= 17", len(fields))
+	if len(fields) < 18 {
+		return nil, fmt.Errorf("parse: %d fields, want >= 18", len(fields))
 	}
 	return fields, nil
 }
 
 // quoteTs 组合 idx17 日期 + idx0 时间（CST）；解析失败回退本地时间。
+// 防御性：字段不足 18 时回退（parseQuote 已保证，双保险防未来调用方误用）。
 func quoteTs(fields []string) time.Time {
+	if len(fields) < 18 {
+		return time.Now()
+	}
 	if t, err := time.ParseInLocation("2006-01-02 15:04:05", fields[17]+" "+fields[0], collect.CST); err == nil {
 		return t
 	}

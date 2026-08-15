@@ -30,8 +30,11 @@ if [ -n "$code_changed" ] && [ "$state_changed" -eq 0 ]; then
 fi
 
 # 2) 历史标记删除守卫（计数制；归档轮转豁免：同 commit 新增 LOG.md）
+# R5#2 裁定：移除 `[ -f "$ROOT/$f" ] || continue`——该跳过让"整文件删除受保护文件"
+# 绕过守卫（工作树文件不存在 → 跳过）；git diff --cached 对已删除文件照常产生
+# 全量删除行（index vs HEAD），无需工作树存在。整删除 → 大量 -标记 → 净减少被拦
+# （除非同 commit LOG.md 有新增 = 归档轮转豁免）。
 for f in $PROTECTED; do
-  [ -f "$ROOT/$f" ] || continue
   del_n="$(git diff --cached -U0 -- "$f" | grep -E '^-[^-]' | sed 's/^-//' | grep -cE "$MARKER" || true)"
   add_n="$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | sed 's/^\+//' | grep -cE "$MARKER" || true)"
   if [ "$del_n" -gt "$add_n" ]; then

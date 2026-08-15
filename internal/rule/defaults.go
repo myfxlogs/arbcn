@@ -100,7 +100,9 @@ func Defaults() []store.Rule {
 	}
 }
 
-// Seed 幂等写入 Defaults（UpsertRule），返回写入条数。
+// Seed 确保 10 条默认规则存在（R2#1 裁定：已存在的规则保留 DB 状态，不覆盖人工编辑；
+// 代码默认值只引导新装，改代码阈值不影响已部署 DB，须显式迁移/SQL 才更新）。
+// 返回处理条数（幂等恒 = len(Defaults)，与 integration_test 锚点一致）。
 func Seed(ctx context.Context, st store.Store) (int, error) {
 	n := 0
 	for _, r := range Defaults() {

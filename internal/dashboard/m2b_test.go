@@ -20,9 +20,11 @@ import (
 // 汇率可用时 FxRate/FxAvailable 回填、原始 Value 不被改写（不污染）。
 func TestListFactsRMBConversion(t *testing.T) {
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
+	// D-023 现实场景：30 天窗口 USDCNH 7.25→7.232 ≈ 年化升值 ~3 个百分点，
+	// 稳定币 6% 收益率 → RMB 净 ~3%（6 − 3）。刻度：appreciation 与 Value 同点数（R6#1）。
 	st := &fakeStore{facts: []fact.Fact{
 		{Kind: fact.KindFX, Venue: "sina", Symbol: "USDCNH", Value: 7.25, Ts: now.Add(-30 * 24 * time.Hour)},
-		{Kind: fact.KindFX, Venue: "sina", Symbol: "USDCNH", Value: 7.03, Ts: now.Add(-time.Minute)},
+		{Kind: fact.KindFX, Venue: "sina", Symbol: "USDCNH", Value: 7.232, Ts: now.Add(-time.Minute)},
 		{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Value: 6.0, Unit: fact.UnitPctAnnualized, Ts: now.Add(-time.Minute)},
 		{Kind: fact.KindReverseRepo, Venue: "sse", Symbol: "GC001", Value: 2.0, Ts: now.Add(-time.Minute)}, // RMB 计价，不折算
 	}}
@@ -36,8 +38,8 @@ func TestListFactsRMBConversion(t *testing.T) {
 		t.Fatalf("ListFacts: %v", err)
 	}
 	msg := resp.Msg
-	if !msg.FxAvailable || math.Abs(msg.FxRate-7.03) > 1e-9 || msg.FxTs.AsTime() != now.Add(-time.Minute) {
-		t.Errorf("fx 快照 = %+v, want available/7.03/ts", msg)
+	if !msg.FxAvailable || math.Abs(msg.FxRate-7.232) > 1e-9 || msg.FxTs.AsTime() != now.Add(-time.Minute) {
+		t.Errorf("fx 快照 = %+v, want available/7.232/ts", msg)
 	}
 	byKind := map[string]*dashboardv1.FactRmb{}
 	for _, f := range msg.Facts {
@@ -53,13 +55,13 @@ func TestListFactsRMBConversion(t *testing.T) {
 	}
 	want := 6.0 - rmb.AnnualizedRMBAppreciation([]fact.Fact{
 		{Ts: now.Add(-30 * 24 * time.Hour), Value: 7.25},
-		{Ts: now.Add(-time.Minute), Value: 7.03},
+		{Ts: now.Add(-time.Minute), Value: 7.232},
 	})
 	if math.Abs(funding.RmbValue-want) > 1e-6 {
 		t.Errorf("funding.RmbValue = %v, want %v（USD 收益率 − 年化升值）", funding.RmbValue, want)
 	}
-	if !funding.FxAvailable || funding.FxRate != 7.03 {
-		t.Errorf("funding fx = %v/%v, want available/7.03", funding.FxAvailable, funding.FxRate)
+	if !funding.FxAvailable || funding.FxRate != 7.232 {
+		t.Errorf("funding fx = %v/%v, want available/7.232", funding.FxAvailable, funding.FxRate)
 	}
 
 	repo := byKind[fact.KindReverseRepo]
@@ -164,6 +166,8 @@ func TestAddLedgerEntry(t *testing.T) {
 		{"缺 channel", &dashboardv1.AddLedgerEntryRequest{Date: tsPtr(t0), Currency: "USDT", Amount: 1}},
 		{"缺 currency", &dashboardv1.AddLedgerEntryRequest{Date: tsPtr(t0), Channel: "a", Amount: 1}},
 		{"NaN 金额", &dashboardv1.AddLedgerEntryRequest{Date: tsPtr(t0), Channel: "a", Currency: "USDT", Amount: math.NaN()}},
+		{"零金额", &dashboardv1.AddLedgerEntryRequest{Date: tsPtr(t0), Channel: "a", Currency: "USDT", Amount: 0}},
+		{"NaN 费率", &dashboardv1.AddLedgerEntryRequest{Date: tsPtr(t0), Channel: "a", Currency: "USDT", Amount: 1, FeeRate: math.NaN()}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := client.AddLedgerEntry(ctx, connect.NewRequest(tc.req))

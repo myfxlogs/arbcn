@@ -21,9 +21,17 @@ type PendingMigrations func(ctx context.Context) ([]string, error)
 type Healthz struct {
 	DB         Pinger
 	Migrations PendingMigrations
+	// BootErr 记录装配期致命错误（如 DSN 非法 → 数据管线整体跳过）；非 nil 时
+	// /healthz 恒报 degraded（boot_error），让"进程存活但管线死亡"可见
+	// （R5#1 裁定：原实现 DB/Migrations 全 nil 时跳过全部检查返回 ok，静默死亡无信号）。
+	BootErr error
 }
 
 func (h *Healthz) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.BootErr != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "degraded", "reason": "boot_error"})
+		return
+	}
 	if h.DB != nil {
 		if err := h.DB.Ping(r.Context()); err != nil {
 			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "degraded", "reason": "db_unreachable"})

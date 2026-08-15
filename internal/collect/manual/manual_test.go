@@ -63,6 +63,36 @@ func (f *fakeStore) ListLedgerEntries(context.Context, int, int) ([]store.Ledger
 func (f *fakeStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
 	panic("fakeStore: LedgerSummary not used")
 }
+func (f *fakeStore) InsertSimOrder(context.Context, store.SimOrder) (int64, error) {
+	panic("fakeStore: InsertSimOrder not used")
+}
+func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
+	panic("fakeStore: ListSimOrders not used")
+}
+func (f *fakeStore) GetSimOrder(context.Context, int64) (store.SimOrder, error) {
+	panic("fakeStore: GetSimOrder not used")
+}
+func (f *fakeStore) UpdateSimOrderStatus(context.Context, int64, string, string) error {
+	panic("fakeStore: UpdateSimOrderStatus not used")
+}
+func (f *fakeStore) FillSimOrder(context.Context, int64, string, []store.SimPosition) error {
+	panic("fakeStore: FillSimOrder not used")
+}
+func (f *fakeStore) TodaySimNotional(context.Context, time.Time) (float64, error) {
+	panic("fakeStore: TodaySimNotional not used")
+}
+func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
+	panic("fakeStore: InsertSimPosition not used")
+}
+func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
+	panic("fakeStore: ListSimPositions not used")
+}
+func (f *fakeStore) ListOpenSimPositions(context.Context, string) ([]store.SimPosition, error) {
+	panic("fakeStore: ListOpenSimPositions not used")
+}
+func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
+	panic("fakeStore: SettleSimPosition not used")
+}
 
 func (f *fakeStore) count() int {
 	f.mu.Lock()
@@ -124,6 +154,35 @@ func TestPostWithFields(t *testing.T) {
 	}
 }
 
+// TestPostUnitDefaultFill：unit 缺省按 kind 填充（R3-M3——空 unit 破坏 unit 感知展示）。
+func TestPostUnitDefaultFill(t *testing.T) {
+	st := &fakeStore{}
+	rec := post(t, NewHandler(st),
+		`{"kind":"funding","venue":"binance","symbol":"BTC","value":10.95}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body)
+	}
+	st.mu.Lock()
+	f := st.facts[0]
+	st.mu.Unlock()
+	if f.Unit != fact.UnitPctAnnualized {
+		t.Errorf("unit = %q, want %q（funding 默认年化百分数）", f.Unit, fact.UnitPctAnnualized)
+	}
+}
+
+// TestPostUnitConflictRejected：显式传与 kind 口径冲突的单位 → 400（防阈值静默失效）。
+func TestPostUnitConflictRejected(t *testing.T) {
+	st := &fakeStore{}
+	rec := post(t, NewHandler(st),
+		`{"kind":"funding","venue":"binance","symbol":"BTC","value":10.95,"unit":"ratio"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400（funding 单位应为 pct_annualized）", rec.Code)
+	}
+	if len(st.facts) != 0 {
+		t.Fatalf("facts = %d, want 0（冲突单位不得入库）", len(st.facts))
+	}
+}
+
 // TestPostValidation：非法输入 → 400，且不入库。
 func TestPostValidation(t *testing.T) {
 	cases := []struct{ name, body, want string }{
@@ -133,6 +192,7 @@ func TestPostValidation(t *testing.T) {
 		{"no-symbol", `{"kind":"iv","venue":"deribit","value":1}`, "venue and symbol"},
 		{"no-value", `{"kind":"iv","venue":"deribit","symbol":"BTC"}`, "value required"},
 		{"bad-ts", `{"kind":"iv","venue":"deribit","symbol":"BTC","value":1,"ts":"2026/08/15"}`, "bad ts"},
+		{"unit-conflict", `{"kind":"iv","venue":"deribit","symbol":"BTC","value":1,"unit":"days"}`, "单位应为"},
 	}
 	for _, tc := range cases {
 		st := &fakeStore{}

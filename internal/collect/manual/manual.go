@@ -8,6 +8,7 @@ package manual
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -26,6 +27,22 @@ type entry struct {
 	Unit   string   `json:"unit"`
 	Ts     string   `json:"ts"`  // RFC3339；空 = now
 	Src    string   `json:"src"` // 空 = "manual"
+}
+
+// kindDefaultUnit：各 Kind 的期望口径（fact.go 注释约定；R3-M3 裁定——人工录入不校验
+// 口径会让"funding 传小数费率而非年化点数"这类错值静默入库，阈值监控失效；空 unit 还
+// 破坏 unit 感知展示）。Unit 缺省按此填充；显式传冲突单位 → 400 拒绝。
+var kindDefaultUnit = map[string]string{
+	fact.KindFunding:     fact.UnitPctAnnualized,
+	fact.KindDefiRate:    fact.UnitPctAnnualized,
+	fact.KindDepositRate: fact.UnitPctAnnualized,
+	fact.KindReverseRepo: fact.UnitPctAnnualized,
+	fact.KindIV:          fact.UnitPct,
+	fact.KindFX:          fact.UnitPrice,
+	fact.KindCalendar:    fact.UnitDays,
+	fact.KindHeartbeat:   fact.UnitRatio,
+	// KindTicker 也是 price；manual 一般不录入 ticker（自动采集充足），留空即可。
+	fact.KindTicker: fact.UnitPrice,
 }
 
 // Handler 处理人工录入请求；Store 未接线（nil）时返回 503（依赖缺失，不静默吞）。
@@ -74,6 +91,15 @@ func (e entry) fact(now time.Time) (fact.Fact, error) {
 	if e.Value == nil || math.IsNaN(*e.Value) || math.IsInf(*e.Value, 0) {
 		return fact.Fact{}, errors.New("manual: value required and must be finite")
 	}
+	unit := e.Unit
+	if want, ok := kindDefaultUnit[e.Kind]; ok {
+		switch {
+		case unit == "":
+			unit = want // 缺省填充（R3-M3：空 unit 破坏 unit 感知展示）
+		case unit != want:
+			return fact.Fact{}, fmt.Errorf("manual: %s 事实单位应为 %s（口径一致，防阈值静默失效）", e.Kind, want)
+		}
+	}
 	ts := now
 	if e.Ts != "" {
 		t, err := time.Parse(time.RFC3339, e.Ts)
@@ -91,7 +117,7 @@ func (e entry) fact(now time.Time) (fact.Fact, error) {
 		Venue:  e.Venue,
 		Symbol: e.Symbol,
 		Value:  *e.Value,
-		Unit:   e.Unit,
+		Unit:   unit,
 		Ts:     ts,
 		Src:    src,
 	}, nil

@@ -72,7 +72,7 @@
 
 ### 3.2 本地模拟盘回填
 - 无 testnet 也运行：成交 = 按 `ref_price` 全额即时成交（简化：忽略滑点/深度，标注为模拟假设）。
-- `filled` 后建 `sim_positions`；按 funding 周期（8h，三班）结算：`pnl = funding_rate × notional`；日终 RMB 折算（M2-b 折算函数复用）。
+- `filled` + 建 `sim_positions` 原子完成（store 单事务 `FillSimOrder`，复审 M1：不留"filled 但缺腿"的半对冲状态，D-019）；按 funding 周期（8h，三班）结算：`pnl = funding_rate × notional`，其中 `funding_rate` 为**分数费率** = 年化点数 ÷100 ÷1095（复审 H1：facts 的 pct_annualized 是百分点点数，先 ÷100 转分数再乘名义；原实现缺 ÷100 使模拟 PnL 虚高 100 倍）；日终 RMB 折算复用 M2-b 折算函数，RMBValue（点数）同样 ÷100 转分数。
 
 ### 3.3 对抗测试锚点
 - 转换器：删"无对冲拒单"分支 → 测试必红；删"预期价差 < 阈值拒单" → 必红。
@@ -91,7 +91,7 @@
 | 价差 | 预期年化 < **5%**（摩擦覆盖）→ 拒单 | `SPREAD_LOW` |
 | 单笔 | 名义 > 模拟资金 **20%** → 拒单 | `SIZE_OVER` |
 | 日累计 | 当日新增名义 > 模拟资金 **50%** → 拒单 | `DAILY_OVER` |
-| 白名单 | `carry_asset` 标的须在显式白名单（sUSDe/USDe 等生息资产） | 未白名单 → 拒单 |
+| 白名单 | `carry_asset` 标的须在显式白名单（sUSDe/USDe 等生息资产） | 未白名单 → 拒单（M3-a 裁定：白名单解析在驱动层 `Signal.CarryWhite`，属信任边界；M3-b 接 testnet 行情数据前须落显式白名单配置，由 `SignalToOrder` 校验 symbol） |
 
 - 门禁在**生成时**执行一次（risk_flags 落库），**确认时**二次校验（M3-c，UI 层再算一遍——防生成到确认之间的状态漂移）。
 - 拒单不是失败：拒单记录 = 有价值的负样本（哪些信号不该执行），纳入对账分析。

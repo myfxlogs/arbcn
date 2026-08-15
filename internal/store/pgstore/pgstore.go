@@ -94,20 +94,22 @@ func (s *Store) QueryFacts(ctx context.Context, q store.FactQuery) ([]fact.Fact,
 	return out, rows.Err()
 }
 
-// UpsertRule 按 Name 幂等写入，返回 id（存在则覆盖字段）。
+// UpsertRule 按 Name 确保规则存在并返回 id（02 §4：规则=DB 配置，改阈值=改 DB 行，
+// 不发布版本）。已存在的规则**不做任何覆盖**——保留 DB 人工编辑（R2#1/R5#3 裁定：
+// 原 DO UPDATE 全字段覆盖会让每次重启把人工改的阈值静默还原）。冲突时取现有行 id。
 func (s *Store) UpsertRule(ctx context.Context, r store.Rule) (int64, error) {
 	var id int64
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO rules (name, kind, cond, level, enabled, venue, symbol, interval_sec)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT (name) DO UPDATE
-			SET kind = EXCLUDED.kind, cond = EXCLUDED.cond,
-			    level = EXCLUDED.level, enabled = EXCLUDED.enabled,
-			    venue = EXCLUDED.venue, symbol = EXCLUDED.symbol,
-			    interval_sec = EXCLUDED.interval_sec
+		ON CONFLICT (name) DO NOTHING
 		RETURNING id`,
 		r.Name, r.Kind, r.Cond, r.Level, r.Enabled, r.Venue, r.Symbol, r.IntervalSec,
 	).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// 已存在（可能被人工编辑过）→ 取现有 id，不覆盖。
+		err = s.pool.QueryRow(ctx, `SELECT id FROM rules WHERE name = $1`, r.Name).Scan(&id)
+	}
 	return id, err
 }
 

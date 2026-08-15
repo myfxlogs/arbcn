@@ -314,7 +314,10 @@ func TestListSourceHealth(t *testing.T) {
 		{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Ts: now.Add(-2 * time.Second)}, // funding 最新 → live
 		{Kind: fact.KindTicker, Venue: "okx", Symbol: "BTC", Ts: now.Add(-30 * time.Second)},     // ticker 最新旧 → stale
 	}}
-	client := newTestServer(t, New(st, nil, nil, sources))
+	// R4#7：注入固定时钟（svc.Now），消除测试 now 与服务内 time.Now 的漂移（墙钟 flake）。
+	svc := New(st, nil, nil, sources)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
 	ctx := context.Background()
 
 	resp, err := client.ListSourceHealth(ctx, connect.NewRequest(&dashboardv1.ListSourceHealthRequest{}))
@@ -355,7 +358,8 @@ func TestListSourceHealth(t *testing.T) {
 }
 
 // TestSourceHealthBoundaries：sourceHealth 纯判定（注入固定 now，避免时钟漂移）——
-// 2×interval / interval 边界的切换点（03-m2-spec §2.1）。
+// 2×interval 的切换点（03-m2-spec §2.1；R4#2 裁定：stale 阈值从 1×iv 改为 2×iv，
+// 给 Scheduler ±10% 抖动留余量）。
 func TestSourceHealthBoundaries(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
@@ -376,14 +380,17 @@ func TestSourceHealthBoundaries(t *testing.T) {
 		hasFact bool
 		want    string
 	}{
-		// live：lastOK 新（≤2×interval），lastFact 新（≤interval）
+		// live：lastOK 新（≤2×interval），lastFact 新（≤2×interval）
 		{"live", now.Add(-time.Second), 0.1, now.Add(-time.Second), true, StatusLive},
+		// [回归锚点] 健康源抖动：lastFact 1.1×iv（11s，Scheduler nextWait 上限）→ 必须 live，
+		// 不得周期性误报 stale（R4#2：原 1×iv 阈值在 0.9–1.1iv 区间反复闪烁）
+		{"抖动 1.1×interval → live", now, 0.1, now.Add(-11 * time.Second), true, StatusLive},
 		// 边界：lastOK 恰 2×interval（20s）→ 非 > → 非 down
 		{"lastPoll 恰 2×interval → live", now, 2.0, now.Add(-time.Second), true, StatusLive},
-		// 边界：lastFact 恰 interval（10s）→ 非 > → 非 stale
-		{"lastFact 恰 interval → live", now, 0.1, now.Add(-10 * time.Second), true, StatusLive},
-		// stale：lastOK 新，lastFact 老（> interval）
-		{"stale", now, 0.1, now.Add(-11 * time.Second), true, StatusStale},
+		// 边界：lastFact 恰 2×interval（20s）→ 非 > → 非 stale
+		{"lastFact 恰 2×interval → live", now, 0.1, now.Add(-20 * time.Second), true, StatusLive},
+		// stale：lastOK 新，lastFact 老（> 2×interval）
+		{"stale", now, 0.1, now.Add(-21 * time.Second), true, StatusStale},
 		// stale：无该 kind fact（从未产出）→ lastFact 零 → stale
 		{"no facts yet → stale", now, 0.1, time.Time{}, false, StatusStale},
 		// down：lastOK 老（> 2×interval）

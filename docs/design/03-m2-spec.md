@@ -45,7 +45,7 @@
 | 状态 | 判定 | 含义 |
 |------|------|------|
 | `live` | now - last_poll ≤ 2×interval | 采集器正常 |
-| `stale` | last_poll 新，但 now - last_fact > interval | 采集正常但无新事实 = 市场闭市/报价冻结 |
+| `stale` | last_poll 新，但 now - last_fact > 2×interval | 采集正常但无新事实 = 市场闭市/报价冻结（R4#2 裁定：sched nextWait 抖动 ±10%，stale 阈值取 2×interval 留余量，防单源抖动瞬时误报 stale） |
 | `down` | now - last_poll > 2×interval | 采集器失联（元监控同口径，collector_heartbeat >2） |
 
 ### 2.2 proto

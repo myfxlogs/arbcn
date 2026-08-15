@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -83,6 +84,44 @@ func TestDedupKeyIsolation(t *testing.T) {
 	}
 	if sink.count() != 4 {
 		t.Fatalf("sink 收到 %d 条, want 4（仅第 5 条与第 1 条同 key 被去重）", sink.count())
+	}
+}
+
+// TestDedupSinkFailureDoesNotConsume：[对抗测试锚点] Sink 失败 → 去重状态不推进，
+// 重试可重新投递。原实现先 d.last[k]=f 再 next()，失败后相同 (value,ts) 被当重复
+// 跳过 → 数据永久丢失（R1#1）。删掉 dedup.go 的 `if err := next(...); err != nil { return err }`
+// 后返回前的状态推进守卫 → 本测试必红。
+func TestDedupSinkFailureDoesNotConsume(t *testing.T) {
+	ts := time.Unix(1000, 0)
+	f := testFact(fact.KindFunding, "binance", "BTC", 10.5, ts)
+	d := newDedupSet()
+	attempts, got := 0, 0
+	sink := func(_ context.Context, fs []fact.Fact) error {
+		attempts++
+		if attempts == 1 {
+			return errors.New("sink: db down")
+		}
+		got += len(fs)
+		return nil
+	}
+
+	// 第一次：Sink 失败 → 返回错误（调用方退避重试）。
+	if err := d.emit(context.Background(), []fact.Fact{f}, sink); err == nil {
+		t.Fatal("emit(1) = nil, want error（Sink 失败须返回）")
+	}
+	// 重试：相同 (value,ts) 必须重新投递（不被去重吞掉）。
+	if err := d.emit(context.Background(), []fact.Fact{f}, sink); err != nil {
+		t.Fatalf("emit(2) = %v, want nil（重试投递）", err)
+	}
+	if got != 1 {
+		t.Fatalf("sink 收到 %d 条, want 1（失败轮不得吞数据）", got)
+	}
+	// 第三次：已成功投递 → 去重生效。
+	if err := d.emit(context.Background(), []fact.Fact{f}, sink); err != nil {
+		t.Fatalf("emit(3) = %v, want nil", err)
+	}
+	if got != 1 {
+		t.Fatalf("sink 收到 %d 条, want 1（成功后去重）", got)
 	}
 }
 

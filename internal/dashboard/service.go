@@ -61,6 +61,8 @@ func (s *Service) Handler() (string, http.Handler) {
 }
 
 // ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
+// 排除 heartbeat 内部遥测（R4#1 裁定：与 ListFacts/exporter 同语义——快照 = 市场事实，
+// 心跳行不得混进机会面板被当市场数据渲染；F1 只修了 ListFacts，本 RPC 是主快照漏网）。
 func (s *Service) ListLatestFacts(ctx context.Context, req *connect.Request[dashboardv1.ListLatestFactsRequest]) (*connect.Response[dashboardv1.ListLatestFactsResponse], error) {
 	facts, err := s.st.LatestFacts(ctx, req.Msg.Kind, req.Msg.Venue, req.Msg.Symbol)
 	if err != nil {
@@ -68,6 +70,9 @@ func (s *Service) ListLatestFacts(ctx context.Context, req *connect.Request[dash
 	}
 	out := make([]*dashboardv1.Fact, 0, len(facts))
 	for _, f := range facts {
+		if f.Kind == fact.KindHeartbeat {
+			continue
+		}
 		out = append(out, toFact(f))
 	}
 	return connect.NewResponse(&dashboardv1.ListLatestFactsResponse{Facts: out}), nil
@@ -178,7 +183,7 @@ func (s *Service) AckAll(ctx context.Context, _ *connect.Request[dashboardv1.Ack
 // ListSourceHealth 返回各启用源 freshness 状态（M2-a §2.1/§2.2）。
 // 数据面：heartbeat 最新 fact 反推 last_poll_at；该源 kind 最新 fact ts 作 last_fact_at。
 func (s *Service) ListSourceHealth(ctx context.Context, _ *connect.Request[dashboardv1.ListSourceHealthRequest]) (*connect.Response[dashboardv1.ListSourceHealthResponse], error) {
-	now := time.Now()
+	now := s.now() // 注入时钟（R4#7：原 time.Now 与测试注入的 now 漂移 → 边界断言 flake）
 	items := make([]*dashboardv1.SourceHealth, 0, len(s.sources))
 	for _, src := range s.sources {
 		status, lastPoll, lastFact, err := s.sourceHealth(ctx, src, now)
@@ -204,8 +209,15 @@ func (s *Service) ListSourceHealth(ctx context.Context, _ *connect.Request[dashb
 // sourceHealth 按 03-m2-spec §2.1 判定单源状态：
 //   - last_poll_at：heartbeat fact（kind=heartbeat, symbol=源名）的 value = 错过的窗口数，
 //     反推 lastOK ≈ emit_ts − value×interval_sec；
-//   - last_fact_at：该源 kind 最新 fact ts（LatestFacts 每键最新，取最大 ts）；
+//   - last_fact_at：该源 kind 最新 fact ts（LatestFacts 每键最新，取最大 ts）。
+//     已知限制（R1#3 接受）：跨 venue 取最大 ts 保守偏 live——crypto 永续基本 24/7
+//     同步交易，单所冻结罕见，不值得为罕见场景扩展 venue 接口；
 //   - 无 heartbeat 记录 → 无法确认存活，视为 down（含注释说明）。
+//
+// 阈值（R4#2 裁定）：stale 判定用 2×interval 而非 1×interval——Scheduler.nextWait 抖动
+// ±10%（0.9–1.1×iv），健康源事实间距可达 1.1×iv，原阈值导致健康源在每轮尾期周期性
+// 误报 stale（"闭市"假信号）。2×iv 与 down 的 last_poll 阈值对齐"错过 2 窗口"语义；
+// 真闭市（周末 fx）last_fact 年龄达小时级 >> 2×iv，仍即时判 stale，不受影响。
 func (s *Service) sourceHealth(ctx context.Context, src SourceInfo, now time.Time) (status string, lastPoll, lastFact time.Time, err error) {
 	hb, err := s.st.LatestFacts(ctx, fact.KindHeartbeat, "", src.Name)
 	if err != nil {
@@ -230,7 +242,7 @@ func (s *Service) sourceHealth(ctx context.Context, src SourceInfo, now time.Tim
 	switch {
 	case now.Sub(lastPoll) > 2*iv:
 		return StatusDown, lastPoll, lastFact, nil
-	case lastFact.IsZero() || now.Sub(lastFact) > iv:
+	case lastFact.IsZero() || now.Sub(lastFact) > 2*iv:
 		return StatusStale, lastPoll, lastFact, nil
 	default:
 		return StatusLive, lastPoll, lastFact, nil

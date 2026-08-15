@@ -187,3 +187,19 @@
   ⑥ **顺序**：**M2-b 先**（RMB 折算 + facts.md 导出 + 台账），给 M3 提供 RMB 对账基准；M3 在 M2-b 后开工。
   ⑦ **细化设计先于动工**：本方向先写详细 spec（docs/design/04-m3-spec.md：风险门禁口径、对账基准、testnet 隔离实现、验收标准），**动工前再确认一次**。
 - **理由**：业主判断"理论需实证"正确且是套利系统的必经之路；但自动执行是所有风险源中最大的，模拟盘是唯一既验证理论又不触真金风险的路径；无密钥铁律保护的是真钱，testnet 隔离豁免不扩大真钱风险面；先 spec 后施工保持 讨论→决定→执行 顺序不跳。
+
+## D-035 M1/M2-a 追溯深审 + M3-a 施工复审（2026-08-15）
+- **背景**：业主指示——"所有文件，你做了审计吗？你要负责分派 agent 上交过来的代码复审工作"。决策层派 6 路只读 review agent（R1–R6）并行审全部 M1/M2-a 代码，逐条亲手验证（读代码确认）按实际影响定价；M3-a 施工交付另派独立 review agent 复审。
+- **追溯深审修复（M1/M2-a，全部闭环）**：
+  - **高危 5**：R6#1 rmb 刻度混用（`AnnualizedRMBAppreciation` 改回返回百分点点数）；R1#1 dedup 吞 sink 失败（next 成功后统一记 last，失败不推进）；R2#1 Seed 覆盖 DB 人工编辑（`ON CONFLICT DO NOTHING` + 回退 SELECT）；R3-H1 fx `parseQuote` 越界（<18 拒）；R5#1 healthz 启动失败谎报（`BootErr` → 503）。
+  - **中危 6**：R4#1 heartbeat 泄漏进快照投影（ListFacts 排除）；R4#2 stale 阈值抖动（2×interval，±10% 抖动余量）；R5#2 pre-commit 整文件删除绕过守卫；R6#2 ack 竞态（前端 `ackVersion` 丢弃在途旧 poll）；R3-M2 sched 超时 10s→35s（≥ collector http client 超时）；R3-M3 manual 单位口径（`kindDefaultUnit` 缺省填充 + 冲突 400）。
+  - **低危 3**：R5#6 http.Server 读写超时；R6#4/R4#3 ledger 金额校验（Amount==0 / FeeRate 有限拒绝）；R4#7 ListSourceHealth 时钟注入（`s.now()` + 测试注入）。
+  - **接受/记录 12**：R1#3 venue 跨源、R4#4 SMTP TLS、R4#5 degraded 面欠账、R4#6 fx 序列、R4#9 heartbeat 内存、R5#4 maxFacts、R5#5 chg+offset、R5#7 cwd、R5#8 dist、R3-L1 bankrate、R3-L2 manual 无鉴权、R3-L3 thursday（待业主决策）。
+- **M3-a 施工复审（独立 review agent，修复后达验收线）**：
+  - **H1 修复（阻断）**：结算 PnL **100 倍放大**——`Per8hRate` 与 `RMBDayEnd` 把 pct_annualized 百分点点数当分数费率（缺 ÷100）；模拟盈亏失真，M3 验证目标失效。修：两处 ÷100 + 锚点测试改正确数值 + spec 标注刻度约定。
+  - **M1 修复**：`ConfirmAndFill` 非原子（先置 filled 后逐条建腿，插腿失败留"filled 但缺腿"半对冲裸敞口 = D-019 违反 + 不可自愈）→ store 新增 `FillSimOrder` 单事务（`WHERE status='confirmed'` RowsAffected 守卫 + INSERT 全腿原子），顺带消除并发双插（L6）。
+  - **M3 修复**：NaN/±Inf 绕过数值门禁（Go `NaN<x` 恒 false）→ `SignalToOrder` 有限性守卫 + 新标记 `INVALID_INPUT`；同批 L1 未知 kind 拒单、L2 负价差不被 FundingAnn 掩盖、L3 负日累计拒单（门禁加固）。
+  - **M2/L4 接受**：`CarryWhite` 是驱动层信任边界，非可验证门禁（M3-b 接 testnet 前落显式白名单配置，spec 已标注）；迁移 CHECK/状态机跳转留 M3-c 加固。
+  - **合规复核通过**：sim 包零网络、零密钥、纯本地（D-010 无密钥铁律）；六道风险门禁结构对诚实输入有效；RMB 刻度与 R6#1 兼容。
+- **验证**：全量 `go test -race ./internal/...` 绿 + `go vet` + `npm run build` 绿 + PG 集成测试（含 FillSimOrder 原子性/状态守卫 4 场景）；线上部署（SIGKILL 重启，PID 2328862）healthz ok + migration 0005 applied。
+- **结论**：M1/M2-a 追溯深审全部闭环（任务 #11/#12/#13/#14）；M3-a 修复后进入部署验证（任务 #15）。

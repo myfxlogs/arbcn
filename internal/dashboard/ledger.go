@@ -32,6 +32,16 @@ func (s *Service) AddLedgerEntry(ctx context.Context, req *connect.Request[dashb
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			fmt.Errorf("dashboard: ledger: amount must be finite"))
 	}
+	// 追溯复审 R6#4/R4#3：零金额流水无归因意义（Inflow/Outflow 判定由符号决定）；
+	// fee_rate 非有限（NaN/±Inf）会污染费率展示与后续计算——一并拒绝。
+	if m.Amount == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("dashboard: ledger: amount must be non-zero"))
+	}
+	if math.IsNaN(m.FeeRate) || math.IsInf(m.FeeRate, 0) {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("dashboard: ledger: fee_rate must be finite"))
+	}
 	id, err := s.st.InsertLedgerEntry(ctx, store.LedgerEntry{
 		Date:     m.Date.AsTime(),
 		Channel:  m.Channel,

@@ -112,6 +112,62 @@ type TierSummary struct {
 	EntryCount int     // 笔数
 }
 
+// SimOrder 是 sim_orders 表的持久化记录（04-m3-spec §1.1 建议订单）。
+// 生成时风险门禁已执行（risk_flags 落库）；拒单保留为负样本（status=rejected + note）。
+type SimOrder struct {
+	ID             int64     // 主键（读取时回填）
+	Ts             time.Time // 生成时刻
+	SrcRule        string    // 触发规则名（funding_warn / defi_* 等）
+	Kind           string    // 套利类型（SimKind*）
+	Venue          string    // sim_local / binance_testnet / okx_demo
+	Symbol         string    // 标的（如 BTCUSDT）
+	Side           string    // SimSide*（long / short / hedge）
+	Qty            float64   // 名义数量（quote 币种，模拟 USD）
+	RefPrice       float64   // 生成时参考价
+	ExpectedSpread float64   // 预期年化价差 %
+	RiskFlags      []string  // 门禁未过标记（Risk*；空 = 全过）
+	Status         string    // SimStatus*
+	Note           string    // 拒单原因 / 结算备注
+}
+
+// SimPosition 是 sim_positions 表的持久化记录（04-m3-spec §1.2 模拟成交腿）。
+// hedge = 两行（现货 long + 永续 short），carry/repo = 一行。pnl 按 funding 周期累计。
+type SimPosition struct {
+	ID        int64     // 主键（读取时回填）
+	OrderID   int64     // 来源订单（sim_orders.id）
+	Ts        time.Time // 建仓时刻
+	Kind      string    // SimKind*
+	Venue     string
+	Symbol    string
+	Side      string // 腿方向（long / short）
+	Qty       float64
+	RefPrice  float64
+	Funding   bool      // 资金费率结算腿（funding_hedge 永续腿 / carry 生息腿）
+	PnL       float64   // 累计已结算 PnL（模拟 USD）
+	Status    string    // SimPosStatus*
+	UpdatedAt time.Time // 最近结算时刻（读取时回填）
+}
+
+// SimOrder 值域（与 DB CHECK / spec 一致）。
+const (
+	SimStatusSuggested = "suggested" // 生成时默认（门禁全过）
+	SimStatusConfirmed = "confirmed" // 人工确认（M3-c UI 流）
+	SimStatusFilled    = "filled"    // 本地模拟成交
+	SimStatusRejected  = "rejected"  // 门禁未过（负样本）
+	SimStatusExpired   = "expired"
+
+	SimKindFundingHedge = "funding_hedge" // 现货+永续对冲（cash-and-carry）
+	SimKindCarryAsset   = "carry_asset"   // 白名单生息资产（sUSDe/USDe 等）
+	SimKindRepo         = "repo"          // 逆回购/现金等价（天然无方向敞口）
+
+	SimSideLong  = "long"
+	SimSideShort = "short"
+	SimSideHedge = "hedge" // 对冲结构（订单级；sim_positions 腿级用 long/short）
+
+	SimPosStatusOpen    = "open"
+	SimPosStatusSettled = "settled"
+)
+
 // Store 是监控管线的持久化抽象（facts/rules/trigger_states）。
 type Store interface {
 	// InsertFacts 批量写入；空切片无操作；含非法 Fact 整批拒绝。
@@ -121,7 +177,7 @@ type Store interface {
 	// LatestFacts 每 (kind, venue, symbol) 返回一条最新事实（按 ts 取最大）；
 	// 空参数 = 不过滤（M1-g 仪表盘机会面板快照）。
 	LatestFacts(ctx context.Context, kind, venue, symbol string) ([]fact.Fact, error)
-	// UpsertRule 按 Name 幂等写入，返回 id。
+	// UpsertRule 按 Name 确保规则存在并返回 id；已存在不覆盖（保留 DB 人工编辑，02 §4）。
 	UpsertRule(ctx context.Context, r Rule) (int64, error)
 	ListRules(ctx context.Context) ([]Rule, error)
 	// GetTriggerState 无记录时返回 ErrNotFound。
@@ -156,4 +212,32 @@ type Store interface {
 	ListLedgerEntries(ctx context.Context, limit, offset int) ([]LedgerEntry, error)
 	// LedgerSummary 按 tier 分组归因汇总（GROUP BY tier；空 tier 归入 ""）。
 	LedgerSummary(ctx context.Context) ([]TierSummary, error)
+
+	// InsertSimOrder 追加建议订单（sim_orders）；返回新行 id。ts 零值 = now。
+	// kind/symbol/side 必填；qty ≤ 0 拒绝（M3-a §3）。
+	InsertSimOrder(ctx context.Context, o SimOrder) (int64, error)
+	// ListSimOrders 按 ts DESC, id DESC 分页返回建议订单（稳定排序）。
+	// limit ≤ 0 = 默认 100，offset < 0 = 0。
+	ListSimOrders(ctx context.Context, limit, offset int) ([]SimOrder, error)
+	// GetSimOrder 按 id 取单条订单；未知 id 返回 ErrNotFound。
+	GetSimOrder(ctx context.Context, id int64) (SimOrder, error)
+	// UpdateSimOrderStatus 更新订单状态（suggested→confirmed→filled/rejected/expired）；
+	// note 非空时覆盖备注。未知 id 无操作。
+	UpdateSimOrderStatus(ctx context.Context, id int64, status, note string) error
+	// FillSimOrder 原子成交（M3-a 复审 M1）：单事务内「订单 confirmed→filled + 建全部
+	// sim_positions 腿」，任一失败整体回滚——不留"filled 但缺腿"的半对冲状态（D-019）。
+	// 订单不存在或非 confirmed → 拒绝（防状态漂移/并发双插）。legs 的 OrderID 缺省回填 id。
+	FillSimOrder(ctx context.Context, id int64, note string, legs []SimPosition) error
+	// TodaySimNotional 当日（[当日 00:00, now) 本地日）活跃订单
+	// （suggested/confirmed/filled）名义和——DAILY_OVER 门禁数据面（04-m3-spec §4）。
+	TodaySimNotional(ctx context.Context, now time.Time) (float64, error)
+	// InsertSimPosition 追加模拟成交腿；返回新行 id。order_id 必填，qty ≤ 0 拒绝。
+	InsertSimPosition(ctx context.Context, p SimPosition) (int64, error)
+	// ListSimPositions 按 ts DESC, id DESC 分页返回持仓腿（稳定排序）。
+	ListSimPositions(ctx context.Context, limit, offset int) ([]SimPosition, error)
+	// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；ts ASC 建仓序）。
+	ListOpenSimPositions(ctx context.Context, symbol string) ([]SimPosition, error)
+	// SettleSimPosition 结算更新持仓腿：pnl += addPnl，status 覆盖（settled 关闭），
+	// updated_at = now。未知 id 无操作。
+	SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error
 }

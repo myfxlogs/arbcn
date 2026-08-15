@@ -162,6 +162,38 @@ func (m *memStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
 	panic("memStore: LedgerSummary not used")
 }
 
+// —— M3-a 模拟盘面（04-m3-spec §3）：alert 测试不经过，误用即红 ——
+func (m *memStore) InsertSimOrder(context.Context, store.SimOrder) (int64, error) {
+	panic("memStore: InsertSimOrder not used")
+}
+func (m *memStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
+	panic("memStore: ListSimOrders not used")
+}
+func (m *memStore) GetSimOrder(context.Context, int64) (store.SimOrder, error) {
+	panic("memStore: GetSimOrder not used")
+}
+func (m *memStore) UpdateSimOrderStatus(context.Context, int64, string, string) error {
+	panic("memStore: UpdateSimOrderStatus not used")
+}
+func (m *memStore) FillSimOrder(context.Context, int64, string, []store.SimPosition) error {
+	panic("memStore: FillSimOrder not used")
+}
+func (m *memStore) TodaySimNotional(context.Context, time.Time) (float64, error) {
+	panic("memStore: TodaySimNotional not used")
+}
+func (m *memStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
+	panic("memStore: InsertSimPosition not used")
+}
+func (m *memStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
+	panic("memStore: ListSimPositions not used")
+}
+func (m *memStore) ListOpenSimPositions(context.Context, string) ([]store.SimPosition, error) {
+	panic("memStore: ListOpenSimPositions not used")
+}
+func (m *memStore) SettleSimPosition(context.Context, int64, float64, string) error {
+	panic("memStore: SettleSimPosition not used")
+}
+
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }
 

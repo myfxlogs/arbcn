@@ -18,6 +18,20 @@ func TestHealthzNoDB(t *testing.T) {
 	assertStatus(t, h, http.StatusOK)
 }
 
+// TestHealthzBootErr：[对抗测试锚点] 装配期致命错误（DSN 非法）→ 恒报 degraded
+//（boot_error），不得谎报 ok（R5#1）。删掉 healthz.go 的 BootErr 分支 → 本测试必红。
+func TestHealthzBootErr(t *testing.T) {
+	h := &Healthz{BootErr: errors.New("invalid DSN")}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503（DSN 非法 → 管线死亡必须可见）", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "boot_error") {
+		t.Fatalf("body = %q, want boot_error reason", rec.Body.String())
+	}
+}
+
 func TestHealthzDBOK(t *testing.T) {
 	h := &Healthz{DB: pingerStub{}}
 	assertStatus(t, h, http.StatusOK)

@@ -257,8 +257,10 @@ func TestRulesAndTriggerStateRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListRules: %v", err)
 	}
-	if len(rules) != 1 || rules[0].Cond != "avg_30d > 20" || rules[0].Level != store.LevelCritical {
-		t.Fatalf("ListRules = %+v, want 1 updated rule", rules)
+	// [对抗测试锚点] R2#1 裁定：UpsertRule 不覆盖已存在规则（保留 DB 编辑）——
+	// 第二次调用 cond/level 不同也不得覆盖。原实现 DO UPDATE 全字段覆盖 → 本断言红。
+	if len(rules) != 1 || rules[0].Cond != "avg_30d > 15" || rules[0].Level != store.LevelWarn {
+		t.Fatalf("ListRules = %+v, want 1 条且保留首次值（不覆盖）", rules)
 	}
 	// scope/间隔字段随 upsert 往返（M1-e 迁移 0002）。
 	if rules[0].Symbol != "BTC,ETH" || rules[0].IntervalSec != 300 {

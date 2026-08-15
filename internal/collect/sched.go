@@ -117,7 +117,10 @@ func (s *Scheduler) pollTimeout() time.Duration {
 	if s.PollTimeout > 0 {
 		return s.PollTimeout
 	}
-	return 10 * time.Second
+	// 默认 35s：必须 ≥ 各 collector 的 http.Client 超时，否则 sched ctx 先断、client
+	// 超时形同虚设（R3-M2 裁定：原 10s 压过了 defirate 30s 的 /pools 全表 ~10MB 放宽，
+	// 慢链路 >10s 下载每周期失败 → 源长期 down）。35s 只保护卡死请求，不影响快速源。
+	return 35 * time.Second
 }
 
 func (s *Scheduler) backoff(attempt int) time.Duration {

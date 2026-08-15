@@ -204,6 +204,39 @@ func (f *fakeStore) LedgerSummary(_ context.Context) ([]store.TierSummary, error
 	return out, nil
 }
 
+// —— M3-a 模拟盘面（04-m3-spec §3）：dashboard 服务不经过（RPC 延后 M3-c），误用即红 ——
+
+func (f *fakeStore) InsertSimOrder(context.Context, store.SimOrder) (int64, error) {
+	panic("fakeStore: InsertSimOrder not used")
+}
+func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
+	panic("fakeStore: ListSimOrders not used")
+}
+func (f *fakeStore) GetSimOrder(context.Context, int64) (store.SimOrder, error) {
+	panic("fakeStore: GetSimOrder not used")
+}
+func (f *fakeStore) UpdateSimOrderStatus(context.Context, int64, string, string) error {
+	panic("fakeStore: UpdateSimOrderStatus not used")
+}
+func (f *fakeStore) FillSimOrder(context.Context, int64, string, []store.SimPosition) error {
+	panic("fakeStore: FillSimOrder not used")
+}
+func (f *fakeStore) TodaySimNotional(context.Context, time.Time) (float64, error) {
+	panic("fakeStore: TodaySimNotional not used")
+}
+func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
+	panic("fakeStore: InsertSimPosition not used")
+}
+func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
+	panic("fakeStore: ListSimPositions not used")
+}
+func (f *fakeStore) ListOpenSimPositions(context.Context, string) ([]store.SimPosition, error) {
+	panic("fakeStore: ListOpenSimPositions not used")
+}
+func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
+	panic("fakeStore: SettleSimPosition not used")
+}
+
 // —— 其余写路径：dashboard 服务不经过（只读 + ack），误用即红 ——
 
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {

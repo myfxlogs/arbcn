@@ -14,8 +14,8 @@ func fxFact(value float64, ts time.Time) *fact.Fact {
 	return &fact.Fact{Kind: fact.KindFX, Venue: "sina", Symbol: "USDCNH", Value: value, Unit: fact.UnitPrice, Ts: ts}
 }
 
-// TestConvertCoveredWithFX：覆盖 kind + 汇率可用 → RMBValue = Value − 年化升值，
-// FXRate/FXAvailable 回填；原始 Fact 不被改写（不污染，02 §8）。
+// TestConvertCoveredWithFX：覆盖 kind + 汇率可用 → RMBValue = Value − 年化升值（**点数**，
+// R6#1 刻度：6% − 3 点升值 = 3% 净），FXRate/FXAvailable 回填；原始 Fact 不被改写。
 func TestConvertCoveredWithFX(t *testing.T) {
 	facts := []fact.Fact{
 		{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Value: 6.0, Unit: fact.UnitPctAnnualized, Ts: testNow},
@@ -23,12 +23,12 @@ func TestConvertCoveredWithFX(t *testing.T) {
 		{Kind: fact.KindDepositRate, Venue: "manual", Symbol: "USD_3M", Value: 3.1, Unit: fact.UnitPctAnnualized, Ts: testNow},
 	}
 	fx := fxFact(7.25, testNow)
-	got := Convert(facts, fx, 0.03)
+	got := Convert(facts, fx, 3.0)
 
 	if len(got) != 3 {
 		t.Fatalf("Convert len = %d, want 3", len(got))
 	}
-	for i, want := range []float64{5.97, 4.47, 3.07} {
+	for i, want := range []float64{3.0, 1.5, 0.1} {
 		if math.Abs(got[i].RMBValue-want) > 1e-9 {
 			t.Errorf("got[%d].RMBValue = %v, want %v", i, got[i].RMBValue, want)
 		}
@@ -70,7 +70,7 @@ func TestConvertNonCoveredUnchanged(t *testing.T) {
 		{Kind: fact.KindHeartbeat, Venue: "collector", Symbol: "fx", Value: 1.0},
 	}
 	fx := fxFact(7.25, testNow)
-	got := Convert(facts, fx, 0.03)
+	got := Convert(facts, fx, 3.0)
 	for i, c := range got {
 		if c.RMBValue != facts[i].Value {
 			t.Errorf("got[%d].RMBValue = %v, want 原样 %v", i, c.RMBValue, facts[i].Value)
@@ -81,22 +81,22 @@ func TestConvertNonCoveredUnchanged(t *testing.T) {
 	}
 }
 
-// TestAnnualizedRMBAppreciation：年化人民币升值率口径——
-// 一年跨度 7.25→7.03（USDCNH 贬 3.03%）→ 年化升值 ≈ +3.03%。
+// TestAnnualizedRMBAppreciation：年化人民币升值率口径——**返回百分点点数**（R6#1，
+// 与 Value 同刻度）——一年跨度 7.25→7.03（USDCNH 贬 3.03%）→ 年化升值 ≈ +3.03 点。
 func TestAnnualizedRMBAppreciation(t *testing.T) {
 	series := []fact.Fact{
 		{Kind: fact.KindFX, Value: 7.25, Ts: testNow.Add(-365 * 24 * time.Hour)},
 		{Kind: fact.KindFX, Value: 7.03, Ts: testNow},
 	}
 	got := AnnualizedRMBAppreciation(series)
-	if math.Abs(got-0.0303) > 1e-3 {
-		t.Errorf("appreciation = %v, want ≈ 0.0303（RMB 年化升值）", got)
+	if math.Abs(got-3.03) > 1e-2 {
+		t.Errorf("appreciation = %v, want ≈ 3.03（点数，RMB 年化升值）", got)
 	}
 
 	// 反向：USDCNH 走强（USD 升值）→ 负升值（RMB 贬值）。
 	series[1].Value = 7.47
-	if got := AnnualizedRMBAppreciation(series); got < -0.031 || got > -0.029 {
-		t.Errorf("appreciation(USD 走强) = %v, want ≈ −0.0303", got)
+	if got := AnnualizedRMBAppreciation(series); got < -3.1 || got > -2.9 {
+		t.Errorf("appreciation(USD 走强) = %v, want ≈ −3.03", got)
 	}
 }
 
