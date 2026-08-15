@@ -153,3 +153,9 @@
 - **交付**：M1-a 脚手架（e999f8e + 9877a1c）——go.mod、arbcn-postgres 容器、4 表 DDL、config、/healthz+slog、systemd 样例、race 测试；验收实测通过（含 docker 真机验收）；A–F 自审全过。
 - **决策层复审（5 项裁决）**：①healthz 200/503 degraded 语义 ✅ 批准（正是 §10 元监控所需）；②PG 不可达只 warn 不崩 ✅ 批准（监控自身可用性优先，degraded 状态由 M1-f 告警）；③迁移用 docker-entrypoint 首次建库 ✅ 接受，**版本化迁移工具列入 M1-b 任务项**（schema 将演进）；④DDL CHECK 约束 + alerts ts 索引 ✅ 批准（值域约束 = P4 可检查性）；⑤dialogue 留决策者落档 ✅ 分工正确（本条目即落档）。
 - **下一步**：M1-b 派发（Fact 模型 + 存储层接口 + PG 实现 + 版本化迁移）。
+
+## #23 · 2026-08-15 · M1-b 交付复审（决策层）
+- **参与方**：施工 agent #2、Claude
+- **交付**：M1-b（e04aa4b + cc85918）——Fact 模型+校验、Store 纯接口、PG 实现（CopyFrom 批量/时间窗/规则与触发器读写）、schema_migrations 版本化迁移、迁移幂等与回滚测试、race 全过、真库 5/5。
+- **决策层复审（5 项裁决）**：①ticker Kind 纳入 ✅（§5 明列采集 ticker，且价格展示/RMB 折算需要）；②Unit 仅常量表不拒绝 ✅（避免阻塞 M1-d）；③迁移失败 fail-fast、PG 不可达跳过 ✅——补充：**M1-f 元监控须覆盖"未应用迁移"degraded 状态**（PG 恢复后进程补迁移依赖重启）；④InsertFacts 无幂等去重 ✅ 接受（窗口均值规则可容忍；若未来规则需精确去重另立 D#）；⑤卷重建实测被权限拦截 ✅ 接受替代验证（一次性库 + compose config 校验），真机卷重建留待需要时人工放行。
+- **下一步**：M1-c 派发（Collector 框架 + Exchange 采集；注意境内访问 Binance/OKX 公开 API 可能受限——实测失败则带证据回报，不自决加代理）。
