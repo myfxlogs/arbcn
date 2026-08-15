@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # arbcn pre-commit gate（AGENTS.md §7）。禁 --no-verify 绕过。
+# D-014 细化：只拦历史标记行（✅/⬜/🔄/决策头/纪要头），计数制（净减少才拦）；
+# AGENTS.md 不在此守卫范围（其变更控制 = decisions.md + git）。
 set -euo pipefail
 
 ROOT="$(git rev-parse --show-toplevel)"
-PROTECTED="AGENTS.md docs/handoff/STATE.md docs/handoff/decisions.md docs/handoff/practices.md docs/handoff/dialogue.md docs/handoff/LOG.md"
+MARKER='✅|⬜|🔄|^##[[:space:]]+(D-[0-9]{3}|#[0-9]+)'
+PROTECTED="docs/handoff/STATE.md docs/handoff/decisions.md docs/handoff/practices.md docs/handoff/dialogue.md docs/handoff/LOG.md"
 
 echo "── arbcn pre-commit ──"
 
@@ -26,14 +29,15 @@ if [ -n "$code_changed" ] && [ "$state_changed" -eq 0 ]; then
   exit 1
 fi
 
-# 2) 保护文件历史标记删除守卫（归档轮转豁免：同 commit 新增 LOG.md）
+# 2) 历史标记删除守卫（计数制；归档轮转豁免：同 commit 新增 LOG.md）
 for f in $PROTECTED; do
   [ -f "$ROOT/$f" ] || continue
-  deleted="$(git diff --cached -U0 -- "$f" | grep -E '^-[^-]' || true)"
-  if [ -n "$deleted" ]; then
+  del_n="$(git diff --cached -U0 -- "$f" | grep -E '^-[^-]' | sed 's/^-//' | grep -cE "$MARKER" || true)"
+  add_n="$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | sed 's/^\+//' | grep -cE "$MARKER" || true)"
+  if [ "$del_n" -gt "$add_n" ]; then
     archive_added="$(git diff --cached --name-status -- docs/handoff/LOG.md | grep -c '^A' || true)"
     if [ "$archive_added" -eq 0 ]; then
-      echo "❌ 保护文件 $f 有删除行。历史标记只能经归档轮转（同 commit 新增 LOG.md）或文档化裁剪删除。"
+      echo "❌ $f 历史标记净减少（-$del_n +$add_n）。历史标记只能经归档轮转（同 commit 新增 LOG.md）移除。"
       exit 1
     fi
   fi
