@@ -31,7 +31,7 @@
   | **M1-g Web 仪表盘最小集 → 施工 agent #7** | ✅ | bb8c399 |
   | **M1-h 全链路联调+A-F 自审 → 施工 agent #8** | ✅ | 6cefbea |
   | **M1 验收（决策层）** | ✅ | dialogue #29 |
-  | **M1-i SMTP 降级补丁 → 施工 agent #9** | 🔄 | 本会话派发 |
+  | **M1-i SMTP 降级补丁 → 施工 agent #9** | ✅ | 0d740b7 |
   | 部署（systemd + SMTP 授权码） | ⬜ | 待业主两动作 |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
   | M2：RMB 折算 + facts.md 自动导出 + 台账 | ⬜ | M1-i 后 |
