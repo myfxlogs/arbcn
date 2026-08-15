@@ -89,7 +89,8 @@ func run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", &httpapi.Healthz{DB: pool, Migrations: migrations})
 	if st != nil {
-		path, h := dashboard.New(st, pool, migrations).Handler()
+		// 源健康信息（name/interval_sec/kind）供 ListSourceHealth 数据面（M2-a §2.2）。
+		path, h := dashboard.New(st, pool, migrations, sourceInfos(enabled)).Handler()
 		mux.Handle(path, h)
 	}
 	mux.Handle("/manual/fact", manual.NewHandler(st)) // 人工录入降级通道（store 未接线时 503）
@@ -136,6 +137,7 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 		Sources:   sources,
 		Sink:      st.InsertFacts,
 		OnSuccess: hb.Record, // 心跳契约：登记源最近成功轮询（alert.Heartbeat）
+		Dedup:     true,      // M2-a §3.1：连续重复事实去重（相同 value+ts 跳过落库）
 	}
 	go func() { errCh <- sched.Run(ctx) }()
 	go func() { errCh <- hb.Run(ctx) }()
@@ -188,4 +190,18 @@ func sourceNames(srcs []collect.Named) []string {
 		names = append(names, s.Name)
 	}
 	return names
+}
+
+// sourceInfos 把启用源清单投影为 dashboard.SourceInfo（ListSourceHealth 数据面，
+// M2-a §2.2：Name / Interval / Collector.Kind()）。
+func sourceInfos(srcs []collect.Named) []dashboard.SourceInfo {
+	out := make([]dashboard.SourceInfo, 0, len(srcs))
+	for _, s := range srcs {
+		out = append(out, dashboard.SourceInfo{
+			Name:        s.Name,
+			IntervalSec: int64(s.Interval.Seconds()),
+			Kind:        s.Collector.Kind(),
+		})
+	}
+	return out
 }

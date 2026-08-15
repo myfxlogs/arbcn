@@ -143,6 +143,14 @@ func (m *memStore) ListTriggerStates(context.Context) ([]store.RuleState, error)
 	panic("memStore: ListTriggerStates not used")
 }
 
+func (m *memStore) ListUnacked(context.Context) ([]store.Alert, error) {
+	panic("memStore: ListUnacked not used")
+}
+
+func (m *memStore) AckAll(context.Context) (int64, error) {
+	panic("memStore: AckAll not used")
+}
+
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }
 

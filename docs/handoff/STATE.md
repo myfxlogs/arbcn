@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **M2-a 规格定稿（D-033）**——systemd 常驻部署完成（mluser，实测 active）；SMTP 业主待办移除（业主确认不做邮件推送，通知通道改**浏览器铃铛**）；今日生产实证两项缺口（闭市 vs 源死无区分、周末噪声行）入 M2-a。
+- 现状: **M2-a 后端交付（施工 agent #1）**——proto 3 新 RPC（ListUnacked/AckAll/ListSourceHealth）+ DashboardService 实现 + 源 freshness 判定（heartbeat 反推 last_poll）+ Scheduler 连续重复事实去重（dedup wrapper，多源互斥安全）。前端（铃铛 UI + freshness 徽标）待后端后派发；M2-a 后 M2-b（RMB 折算 + facts.md 导出 + 台账）。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -34,10 +34,11 @@
   | **M1-i SMTP 降级补丁 → 施工 agent #9** | ✅ | 0d740b7 |
   | 部署 systemd 常驻（mluser 运行） | ✅ | 2026-08-15 实测 active |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
-  | **M2-a：通知中心（铃铛）+ freshness 徽标 + 去重** | ⬜ | D-033 / 03-m2-spec.md |
+  | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | 🔄 | 本提交 |
+  | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ⬜ | D-033 / 03-m2-spec.md |
   | M2-b：RMB 折算 + facts.md 导出 + 台账 | ⬜ | M2-a 后 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
-- 下一步: M2-a 派发施工（通知中心铃铛 → freshness 徽标 → 连续重复事实去重；规格 03-m2-spec.md）。
-- 清扫上翻: 今日生产实证入共享层——周六闭市 fx/repo 报价冻结但采集器健康、心跳用轮询时刻故元监控不误报、展示层需 freshness 区分"闭市/源死"（已入 D-033 + 03-m2-spec.md）；systemd 部署决策（mluser 非 arbcn 用户）已同步 unit 模板；仪表盘布局（告警流与机会面板同行，dialogue #32）已交付。
+- 下一步: M2-a 前端施工（铃铛通知中心 + freshness 徽标；复用本次生成的 web/src/gen 客户端，3 新 RPC 已就绪）。
+- 清扫上翻: 今日生产实证入共享层——周六闭市 fx/repo 报价冻结但采集器健康、心跳用轮询时刻故元监控不误报、展示层需 freshness 区分"闭市/源死"（已入 D-033 + 03-m2-spec.md）；systemd 部署决策（mluser 非 arbcn 用户）已同步 unit 模板；仪表盘布局（告警流与机会面板同行，dialogue #32）已交付；M2-a 后端施工心得入 practices.md（time.Time 比较用 .Equal 不用 ==——PG TZ=+0800 读回带时区的坑，兼修 pgstore/dashboard_test.go 既有断言）。

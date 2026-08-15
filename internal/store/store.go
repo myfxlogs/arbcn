@@ -112,4 +112,10 @@ type Store interface {
 	// ListTriggerStates 返回全部规则的触发器视图（未评估规则 = armed）
 	// （M1-g 仪表盘）。
 	ListTriggerStates(ctx context.Context) ([]RuleState, error)
+	// ListUnacked 返回全部未读告警（acked=false；ts DESC, id DESC）。
+	// 未读数小，一次拉全（M2-a §1.1 铃铛）。
+	ListUnacked(ctx context.Context) ([]Alert, error)
+	// AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false），
+	// 返回本次确认的告警数（M2-a §1.2）。
+	AckAll(ctx context.Context) (int64, error)
 }

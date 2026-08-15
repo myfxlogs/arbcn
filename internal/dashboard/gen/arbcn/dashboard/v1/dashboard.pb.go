@@ -727,6 +727,408 @@ func (x *HealthResponse) GetReason() string {
 	return ""
 }
 
+// UnackedAlert 未读告警行（铃铛抽屉条目；M2-a §1.2）。
+type UnackedAlert struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Rule          string                 `protobuf:"bytes,2,opt,name=rule,proto3" json:"rule,omitempty"`   // 规则名（alerts JOIN rules）
+	Level         string                 `protobuf:"bytes,3,opt,name=level,proto3" json:"level,omitempty"` // info / warn / critical
+	Message       string                 `protobuf:"bytes,4,opt,name=message,proto3" json:"message,omitempty"`
+	Ts            *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=ts,proto3" json:"ts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnackedAlert) Reset() {
+	*x = UnackedAlert{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnackedAlert) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnackedAlert) ProtoMessage() {}
+
+func (x *UnackedAlert) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnackedAlert.ProtoReflect.Descriptor instead.
+func (*UnackedAlert) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *UnackedAlert) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *UnackedAlert) GetRule() string {
+	if x != nil {
+		return x.Rule
+	}
+	return ""
+}
+
+func (x *UnackedAlert) GetLevel() string {
+	if x != nil {
+		return x.Level
+	}
+	return ""
+}
+
+func (x *UnackedAlert) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *UnackedAlert) GetTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Ts
+	}
+	return nil
+}
+
+type ListUnackedRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUnackedRequest) Reset() {
+	*x = ListUnackedRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUnackedRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUnackedRequest) ProtoMessage() {}
+
+func (x *ListUnackedRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnackedRequest.ProtoReflect.Descriptor instead.
+func (*ListUnackedRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{14}
+}
+
+type ListUnackedResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*UnackedAlert        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Total         int32                  `protobuf:"varint,2,opt,name=total,proto3" json:"total,omitempty"` // 未读总数（= len(items)；未读数小，一次拉全）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUnackedResponse) Reset() {
+	*x = ListUnackedResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUnackedResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUnackedResponse) ProtoMessage() {}
+
+func (x *ListUnackedResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnackedResponse.ProtoReflect.Descriptor instead.
+func (*ListUnackedResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ListUnackedResponse) GetItems() []*UnackedAlert {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+func (x *ListUnackedResponse) GetTotal() int32 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+type AckAllRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AckAllRequest) Reset() {
+	*x = AckAllRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckAllRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckAllRequest) ProtoMessage() {}
+
+func (x *AckAllRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckAllRequest.ProtoReflect.Descriptor instead.
+func (*AckAllRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{16}
+}
+
+type AckAllResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AckedCount    int32                  `protobuf:"varint,1,opt,name=acked_count,json=ackedCount,proto3" json:"acked_count,omitempty"` // 本次标记已读的告警数
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AckAllResponse) Reset() {
+	*x = AckAllResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AckAllResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AckAllResponse) ProtoMessage() {}
+
+func (x *AckAllResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AckAllResponse.ProtoReflect.Descriptor instead.
+func (*AckAllResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *AckAllResponse) GetAckedCount() int32 {
+	if x != nil {
+		return x.AckedCount
+	}
+	return 0
+}
+
+// SourceHealth 单个启用源的 freshness 视图（M2-a §2.2）。
+type SourceHealth struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	IntervalSec   int64                  `protobuf:"varint,2,opt,name=interval_sec,json=intervalSec,proto3" json:"interval_sec,omitempty"` // 源轮询间隔（sched 配置）
+	LastPollAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_poll_at,json=lastPollAt,proto3" json:"last_poll_at,omitempty"`   // 最近一次成功轮询时刻（heartbeat 反推）
+	LastFactAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_fact_at,json=lastFactAt,proto3" json:"last_fact_at,omitempty"`   // 该源 kind 最新 fact ts；缺省 = 从未产出
+	Status        string                 `protobuf:"bytes,5,opt,name=status,proto3" json:"status,omitempty"`                               // live / stale / down（§2.1 判定）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SourceHealth) Reset() {
+	*x = SourceHealth{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SourceHealth) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SourceHealth) ProtoMessage() {}
+
+func (x *SourceHealth) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SourceHealth.ProtoReflect.Descriptor instead.
+func (*SourceHealth) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *SourceHealth) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *SourceHealth) GetIntervalSec() int64 {
+	if x != nil {
+		return x.IntervalSec
+	}
+	return 0
+}
+
+func (x *SourceHealth) GetLastPollAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastPollAt
+	}
+	return nil
+}
+
+func (x *SourceHealth) GetLastFactAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastFactAt
+	}
+	return nil
+}
+
+func (x *SourceHealth) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+type ListSourceHealthRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSourceHealthRequest) Reset() {
+	*x = ListSourceHealthRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSourceHealthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSourceHealthRequest) ProtoMessage() {}
+
+func (x *ListSourceHealthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSourceHealthRequest.ProtoReflect.Descriptor instead.
+func (*ListSourceHealthRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{19}
+}
+
+type ListSourceHealthResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*SourceHealth        `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListSourceHealthResponse) Reset() {
+	*x = ListSourceHealthResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListSourceHealthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListSourceHealthResponse) ProtoMessage() {}
+
+func (x *ListSourceHealthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListSourceHealthResponse.ProtoReflect.Descriptor instead.
+func (*ListSourceHealthResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *ListSourceHealthResponse) GetItems() []*SourceHealth {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 var File_arbcn_dashboard_v1_dashboard_proto protoreflect.FileDescriptor
 
 const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
@@ -775,14 +1177,42 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\rHealthRequest\"@\n" +
 	"\x0eHealthResponse\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x16\n" +
-	"\x06reason\x18\x02 \x01(\tR\x06reason2\xf5\x03\n" +
+	"\x06reason\x18\x02 \x01(\tR\x06reason\"\x8e\x01\n" +
+	"\fUnackedAlert\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
+	"\x04rule\x18\x02 \x01(\tR\x04rule\x12\x14\n" +
+	"\x05level\x18\x03 \x01(\tR\x05level\x12\x18\n" +
+	"\amessage\x18\x04 \x01(\tR\amessage\x12*\n" +
+	"\x02ts\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\"\x14\n" +
+	"\x12ListUnackedRequest\"c\n" +
+	"\x13ListUnackedResponse\x126\n" +
+	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.UnackedAlertR\x05items\x12\x14\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\x0f\n" +
+	"\rAckAllRequest\"1\n" +
+	"\x0eAckAllResponse\x12\x1f\n" +
+	"\vacked_count\x18\x01 \x01(\x05R\n" +
+	"ackedCount\"\xd9\x01\n" +
+	"\fSourceHealth\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\finterval_sec\x18\x02 \x01(\x03R\vintervalSec\x12<\n" +
+	"\flast_poll_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastPollAt\x12<\n" +
+	"\flast_fact_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"lastFactAt\x12\x16\n" +
+	"\x06status\x18\x05 \x01(\tR\x06status\"\x19\n" +
+	"\x17ListSourceHealthRequest\"R\n" +
+	"\x18ListSourceHealthResponse\x126\n" +
+	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.SourceHealthR\x05items2\x95\x06\n" +
 	"\x10DashboardService\x12j\n" +
 	"\x0fListLatestFacts\x12*.arbcn.dashboard.v1.ListLatestFactsRequest\x1a+.arbcn.dashboard.v1.ListLatestFactsResponse\x12[\n" +
 	"\n" +
 	"ListAlerts\x12%.arbcn.dashboard.v1.ListAlertsRequest\x1a&.arbcn.dashboard.v1.ListAlertsResponse\x12U\n" +
 	"\bAckAlert\x12#.arbcn.dashboard.v1.AckAlertRequest\x1a$.arbcn.dashboard.v1.AckAlertResponse\x12p\n" +
 	"\x11ListTriggerStates\x12,.arbcn.dashboard.v1.ListTriggerStatesRequest\x1a-.arbcn.dashboard.v1.ListTriggerStatesResponse\x12O\n" +
-	"\x06Health\x12!.arbcn.dashboard.v1.HealthRequest\x1a\".arbcn.dashboard.v1.HealthResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
+	"\x06Health\x12!.arbcn.dashboard.v1.HealthRequest\x1a\".arbcn.dashboard.v1.HealthResponse\x12^\n" +
+	"\vListUnacked\x12&.arbcn.dashboard.v1.ListUnackedRequest\x1a'.arbcn.dashboard.v1.ListUnackedResponse\x12O\n" +
+	"\x06AckAll\x12!.arbcn.dashboard.v1.AckAllRequest\x1a\".arbcn.dashboard.v1.AckAllResponse\x12m\n" +
+	"\x10ListSourceHealth\x12+.arbcn.dashboard.v1.ListSourceHealthRequest\x1a,.arbcn.dashboard.v1.ListSourceHealthResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
 
 var (
 	file_arbcn_dashboard_v1_dashboard_proto_rawDescOnce sync.Once
@@ -796,7 +1226,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 	return file_arbcn_dashboard_v1_dashboard_proto_rawDescData
 }
 
-var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*Fact)(nil),                      // 0: arbcn.dashboard.v1.Fact
 	(*ListLatestFactsRequest)(nil),    // 1: arbcn.dashboard.v1.ListLatestFactsRequest
@@ -811,30 +1241,49 @@ var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*ListTriggerStatesResponse)(nil), // 10: arbcn.dashboard.v1.ListTriggerStatesResponse
 	(*HealthRequest)(nil),             // 11: arbcn.dashboard.v1.HealthRequest
 	(*HealthResponse)(nil),            // 12: arbcn.dashboard.v1.HealthResponse
-	(*timestamppb.Timestamp)(nil),     // 13: google.protobuf.Timestamp
+	(*UnackedAlert)(nil),              // 13: arbcn.dashboard.v1.UnackedAlert
+	(*ListUnackedRequest)(nil),        // 14: arbcn.dashboard.v1.ListUnackedRequest
+	(*ListUnackedResponse)(nil),       // 15: arbcn.dashboard.v1.ListUnackedResponse
+	(*AckAllRequest)(nil),             // 16: arbcn.dashboard.v1.AckAllRequest
+	(*AckAllResponse)(nil),            // 17: arbcn.dashboard.v1.AckAllResponse
+	(*SourceHealth)(nil),              // 18: arbcn.dashboard.v1.SourceHealth
+	(*ListSourceHealthRequest)(nil),   // 19: arbcn.dashboard.v1.ListSourceHealthRequest
+	(*ListSourceHealthResponse)(nil),  // 20: arbcn.dashboard.v1.ListSourceHealthResponse
+	(*timestamppb.Timestamp)(nil),     // 21: google.protobuf.Timestamp
 }
 var file_arbcn_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	13, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
+	21, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
 	0,  // 1: arbcn.dashboard.v1.ListLatestFactsResponse.facts:type_name -> arbcn.dashboard.v1.Fact
-	13, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
+	21, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
 	3,  // 3: arbcn.dashboard.v1.ListAlertsResponse.alerts:type_name -> arbcn.dashboard.v1.Alert
-	13, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
+	21, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
 	8,  // 5: arbcn.dashboard.v1.ListTriggerStatesResponse.states:type_name -> arbcn.dashboard.v1.TriggerState
-	1,  // 6: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
-	4,  // 7: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
-	6,  // 8: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
-	9,  // 9: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
-	11, // 10: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
-	2,  // 11: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
-	5,  // 12: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
-	7,  // 13: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
-	10, // 14: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
-	12, // 15: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	21, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
+	13, // 7: arbcn.dashboard.v1.ListUnackedResponse.items:type_name -> arbcn.dashboard.v1.UnackedAlert
+	21, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
+	21, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
+	18, // 10: arbcn.dashboard.v1.ListSourceHealthResponse.items:type_name -> arbcn.dashboard.v1.SourceHealth
+	1,  // 11: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
+	4,  // 12: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
+	6,  // 13: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
+	9,  // 14: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
+	11, // 15: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
+	14, // 16: arbcn.dashboard.v1.DashboardService.ListUnacked:input_type -> arbcn.dashboard.v1.ListUnackedRequest
+	16, // 17: arbcn.dashboard.v1.DashboardService.AckAll:input_type -> arbcn.dashboard.v1.AckAllRequest
+	19, // 18: arbcn.dashboard.v1.DashboardService.ListSourceHealth:input_type -> arbcn.dashboard.v1.ListSourceHealthRequest
+	2,  // 19: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
+	5,  // 20: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
+	7,  // 21: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
+	10, // 22: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
+	12, // 23: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
+	15, // 24: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
+	17, // 25: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
+	20, // 26: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
+	19, // [19:27] is the sub-list for method output_type
+	11, // [11:19] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_arbcn_dashboard_v1_dashboard_proto_init() }
@@ -849,7 +1298,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_dashboard_v1_dashboard_proto_rawDesc), len(file_arbcn_dashboard_v1_dashboard_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

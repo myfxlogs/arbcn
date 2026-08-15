@@ -72,6 +72,40 @@ func (s *Store) AckAlert(ctx context.Context, id int64) error {
 	return err
 }
 
+// ListUnacked 返回全部未读告警（acked=false；ts DESC, id DESC 稳定排序，M2-a §1.1）。
+// 未读数小，一次拉全（不设 LIMIT）；JOIN rules 取规则名与 ListAlerts 同型。
+func (s *Store) ListUnacked(ctx context.Context) ([]store.Alert, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT a.id, a.rule_id, r.name, a.ts, a.level, a.message, a.delivered, a.acked
+		FROM alerts a JOIN rules r ON r.id = a.rule_id
+		WHERE a.acked = FALSE
+		ORDER BY a.ts DESC, a.id DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []store.Alert{}
+	for rows.Next() {
+		var a store.Alert
+		if err := rows.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.Ts, &a.Level, &a.Message,
+			&a.Delivered, &a.Acked); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// AckAll 全部已读：单条 UPDATE = 单事务（原子），返回 RowsAffected = 确认数。
+func (s *Store) AckAll(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE alerts SET acked = TRUE WHERE acked = FALSE`)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
 // ListTriggerStates 触发器视图：全部规则 LEFT JOIN 状态行；
 // 未评估规则投影为 armed、Since 零值、LastValue nil。
 func (s *Store) ListTriggerStates(ctx context.Context) ([]store.RuleState, error) {

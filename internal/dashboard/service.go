@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"connectrpc.com/connect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -23,16 +24,33 @@ const (
 	maxAlertLimit     = 500
 )
 
-// Service 实现 dashboardv1connect.DashboardServiceHandler；四 RPC 直读 Store。
+// 源 freshness 状态值域（与 proto SourceHealth.status、03-m2-spec §2.1 一致）。
+const (
+	StatusLive  = "live"  // now - last_poll ≤ 2×interval（采集器正常）
+	StatusStale = "stale" // last_poll 新但 now - last_fact > interval（闭市/报价冻结）
+	StatusDown  = "down"  // now - last_poll > 2×interval（采集器失联）
+)
+
+// SourceInfo 是源健康视图需要的启用源元数据（main.go 从 collect.Named 提取：
+// Name / Interval / Collector.Kind()）。
+type SourceInfo struct {
+	Name        string
+	IntervalSec int64
+	Kind        string
+}
+
+// Service 实现 dashboardv1connect.DashboardServiceHandler；RPC 直读 Store。
 type Service struct {
 	st         store.Store
 	db         httpapi.Pinger            // nil = 只报进程存活
 	migrations httpapi.PendingMigrations // nil = 不检查迁移
+	sources    []SourceInfo              // 启用源清单（ListSourceHealth 数据面）
 }
 
-// New 构造服务；db/migrations 与 /healthz 同源（复用 httpapi.Healthz 的依赖类型）。
-func New(st store.Store, db httpapi.Pinger, migrations httpapi.PendingMigrations) *Service {
-	return &Service{st: st, db: db, migrations: migrations}
+// New 构造服务；db/migrations 与 /healthz 同源（复用 httpapi.Healthz 的依赖类型）；
+// sources 是启用源健康信息（M2-a §2.2：每源 name/interval_sec/kind），可为空。
+func New(st store.Store, db httpapi.Pinger, migrations httpapi.PendingMigrations, sources []SourceInfo) *Service {
+	return &Service{st: st, db: db, migrations: migrations, sources: sources}
 }
 
 // Handler 返回 ConnectRPC 挂载路径与处理器（M1-h：mux.Handle(path, h)）。
@@ -124,6 +142,97 @@ func (s *Service) Health(ctx context.Context, _ *connect.Request[dashboardv1.Hea
 		}
 	}
 	return connect.NewResponse(resp), nil
+}
+
+// ListUnacked 返回未读告警列表 + 计数（未读 = acked=false；M2-a §1.2 铃铛）。
+// 未读数小一次拉全；total = len(items)（存储层 ListUnacked 返回全量未读）。
+func (s *Service) ListUnacked(ctx context.Context, _ *connect.Request[dashboardv1.ListUnackedRequest]) (*connect.Response[dashboardv1.ListUnackedResponse], error) {
+	alerts, err := s.st.ListUnacked(ctx)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	items := make([]*dashboardv1.UnackedAlert, 0, len(alerts))
+	for _, a := range alerts {
+		items = append(items, &dashboardv1.UnackedAlert{
+			Id:      a.ID,
+			Rule:    a.RuleName,
+			Level:   a.Level,
+			Message: a.Message,
+			Ts:      timestamppb.New(a.Ts),
+		})
+	}
+	return connect.NewResponse(&dashboardv1.ListUnackedResponse{Items: items, Total: int32(len(items))}), nil
+}
+
+// AckAll 全部已读（单事务 UPDATE，M2-a §1.2）；返回本次确认的告警数。
+func (s *Service) AckAll(ctx context.Context, _ *connect.Request[dashboardv1.AckAllRequest]) (*connect.Response[dashboardv1.AckAllResponse], error) {
+	n, err := s.st.AckAll(ctx)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	return connect.NewResponse(&dashboardv1.AckAllResponse{AckedCount: int32(n)}), nil
+}
+
+// ListSourceHealth 返回各启用源 freshness 状态（M2-a §2.1/§2.2）。
+// 数据面：heartbeat 最新 fact 反推 last_poll_at；该源 kind 最新 fact ts 作 last_fact_at。
+func (s *Service) ListSourceHealth(ctx context.Context, _ *connect.Request[dashboardv1.ListSourceHealthRequest]) (*connect.Response[dashboardv1.ListSourceHealthResponse], error) {
+	now := time.Now()
+	items := make([]*dashboardv1.SourceHealth, 0, len(s.sources))
+	for _, src := range s.sources {
+		status, lastPoll, lastFact, err := s.sourceHealth(ctx, src, now)
+		if err != nil {
+			return nil, storeErr(err)
+		}
+		item := &dashboardv1.SourceHealth{
+			Name:        src.Name,
+			IntervalSec: src.IntervalSec,
+			Status:      status,
+		}
+		if !lastPoll.IsZero() {
+			item.LastPollAt = timestamppb.New(lastPoll)
+		}
+		if !lastFact.IsZero() {
+			item.LastFactAt = timestamppb.New(lastFact)
+		}
+		items = append(items, item)
+	}
+	return connect.NewResponse(&dashboardv1.ListSourceHealthResponse{Items: items}), nil
+}
+
+// sourceHealth 按 03-m2-spec §2.1 判定单源状态：
+//   - last_poll_at：heartbeat fact（kind=heartbeat, symbol=源名）的 value = 错过的窗口数，
+//     反推 lastOK ≈ emit_ts − value×interval_sec；
+//   - last_fact_at：该源 kind 最新 fact ts（LatestFacts 每键最新，取最大 ts）；
+//   - 无 heartbeat 记录 → 无法确认存活，视为 down（含注释说明）。
+func (s *Service) sourceHealth(ctx context.Context, src SourceInfo, now time.Time) (status string, lastPoll, lastFact time.Time, err error) {
+	hb, err := s.st.LatestFacts(ctx, fact.KindHeartbeat, "", src.Name)
+	if err != nil {
+		return "", time.Time{}, time.Time{}, err
+	}
+	if len(hb) == 0 {
+		// 无 heartbeat 记录：源从未成功轮询或心跳未落库 → 语义等同失联（down）。
+		return StatusDown, time.Time{}, time.Time{}, nil
+	}
+	iv := time.Duration(src.IntervalSec) * time.Second
+	lastPoll = hb[0].Ts.Add(-time.Duration(hb[0].Value * float64(iv.Seconds()) * float64(time.Second)))
+
+	latest, err := s.st.LatestFacts(ctx, src.Kind, "", "")
+	if err != nil {
+		return "", time.Time{}, time.Time{}, err
+	}
+	for _, f := range latest {
+		if f.Ts.After(lastFact) {
+			lastFact = f.Ts
+		}
+	}
+	switch {
+	case now.Sub(lastPoll) > 2*iv:
+		return StatusDown, lastPoll, lastFact, nil
+	case lastFact.IsZero() || now.Sub(lastFact) > iv:
+		return StatusStale, lastPoll, lastFact, nil
+	default:
+		return StatusLive, lastPoll, lastFact, nil
+	}
 }
 
 // toFact 映射 internal/fact.Fact → proto。

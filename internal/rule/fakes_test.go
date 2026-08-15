@@ -163,6 +163,14 @@ func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error
 	panic("fakeStore: ListTriggerStates not used")
 }
 
+func (f *fakeStore) ListUnacked(context.Context) ([]store.Alert, error) {
+	panic("fakeStore: ListUnacked not used")
+}
+
+func (f *fakeStore) AckAll(context.Context) (int64, error) {
+	panic("fakeStore: AckAll not used")
+}
+
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()

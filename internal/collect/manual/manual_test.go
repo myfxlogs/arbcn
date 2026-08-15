@@ -49,6 +49,8 @@ func (f *fakeStore) LatestFacts(context.Context, string, string, string) ([]fact
 }
 func (f *fakeStore) ListAlerts(context.Context, int, int) ([]store.Alert, error) { return nil, nil }
 func (f *fakeStore) AckAlert(context.Context, int64) error                       { return nil }
+func (f *fakeStore) ListUnacked(context.Context) ([]store.Alert, error)          { return nil, nil }
+func (f *fakeStore) AckAll(context.Context) (int64, error)                       { return 0, nil }
 func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
 	return nil, nil
 }

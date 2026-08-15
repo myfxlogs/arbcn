@@ -98,6 +98,39 @@ func (f *fakeStore) AckAlert(_ context.Context, id int64) error {
 	return nil
 }
 
+func (f *fakeStore) ListUnacked(_ context.Context) ([]store.Alert, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := []store.Alert{}
+	for _, a := range f.alerts {
+		if !a.Acked {
+			out = append(out, a)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Ts.Equal(out[j].Ts) {
+			return out[i].Ts.After(out[j].Ts)
+		}
+		return out[i].ID > out[j].ID
+	})
+	return out, nil
+}
+
+func (f *fakeStore) AckAll(_ context.Context) (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	n := int64(0)
+	for i := range f.alerts {
+		if !f.alerts[i].Acked {
+			f.alerts[i].Acked = true
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
 	if f.err != nil {
 		return nil, f.err

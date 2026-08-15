@@ -216,3 +216,10 @@
 - **需求**：业主提出"告警流，我想放到跟机会面板同一行"。
 - **结论**：App.tsx 用 `.row` 双栏 grid（机会面板 2fr + 告警流 1fr），窄屏 ≤860px 回退单栏；触发器保持独立一行。web 重建 + 二进制更新（22.0M）→ SIGKILL 触发 systemd `Restart=on-failure` 自动拉新（sudo 不可用时无密码重启路径，进程无本地状态故安全）。
 - **决策号**：无（纯布局，无方向变更）。
+
+## #33 · 2026-08-15 · M2-a 后端交付（施工 agent #1）
+- **参与方**：施工 agent #1、Claude
+- **交付**：M2-a 后端——① proto 3 新 RPC（ListUnacked/AckAll/ListSourceHealth）+ buf generate 双份入仓（Go→internal/dashboard/gen、TS→web/src/gen），buf lint 过；② Store 接口最小扩展 ListUnacked/AckAll（pgstore 实现：未读 JOIN rules 降序、单条 UPDATE 原子全清返 RowsAffected），DashboardService 复用 LatestFacts 取 heartbeat lastOK（value×interval 反推）与该源 kind 最新 fact；③ dashboard.New 签名扩展接收 []SourceInfo（main.go 从 collect.Named 投影），main.go Scheduler 开启 Dedup。
+- **对抗测试**：ListUnacked/AckAll/ListSourceHealth + dedup 全覆盖；删关键行实测必红（去重 continue 分支 / down 判定分支 / acked WHERE 过滤 ×3 处）。go vet + go test -race 全过（含真库 pgstore/rule 集成）、buf lint 过、check-lines 过、`go build -o bin/arbcn` 成功。
+- **决策层裁决点**：无偏离。附带修一处既有坑（pgstore/dashboard_test.go 用 `!=` 比 time.Time，PG TZ=+0800 时恒真误报，HEAD 已复现）——改用 .Equal，心得入 practices.md。
+- **下一步**：M2-a 前端施工（铃铛 + freshness 徽标，3 新 RPC 客户端已就绪）。

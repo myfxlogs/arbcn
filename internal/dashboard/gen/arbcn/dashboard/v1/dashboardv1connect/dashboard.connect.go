@@ -50,6 +50,14 @@ const (
 	DashboardServiceListTriggerStatesProcedure = "/arbcn.dashboard.v1.DashboardService/ListTriggerStates"
 	// DashboardServiceHealthProcedure is the fully-qualified name of the DashboardService's Health RPC.
 	DashboardServiceHealthProcedure = "/arbcn.dashboard.v1.DashboardService/Health"
+	// DashboardServiceListUnackedProcedure is the fully-qualified name of the DashboardService's
+	// ListUnacked RPC.
+	DashboardServiceListUnackedProcedure = "/arbcn.dashboard.v1.DashboardService/ListUnacked"
+	// DashboardServiceAckAllProcedure is the fully-qualified name of the DashboardService's AckAll RPC.
+	DashboardServiceAckAllProcedure = "/arbcn.dashboard.v1.DashboardService/AckAll"
+	// DashboardServiceListSourceHealthProcedure is the fully-qualified name of the DashboardService's
+	// ListSourceHealth RPC.
+	DashboardServiceListSourceHealthProcedure = "/arbcn.dashboard.v1.DashboardService/ListSourceHealth"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -64,6 +72,12 @@ type DashboardServiceClient interface {
 	ListTriggerStates(context.Context, *connect.Request[v1.ListTriggerStatesRequest]) (*connect.Response[v1.ListTriggerStatesResponse], error)
 	// Health 与 /healthz 同源：进程存活 + DB 可达 + 迁移应用状态。
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
+	// ListUnacked 返回未读告警列表 + 计数（未读 = acked=false；M2-a §1.2 铃铛）。
+	ListUnacked(context.Context, *connect.Request[v1.ListUnackedRequest]) (*connect.Response[v1.ListUnackedResponse], error)
+	// AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false；M2-a §1.2）。
+	AckAll(context.Context, *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error)
+	// ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
+	ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -107,6 +121,24 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("Health")),
 			connect.WithClientOptions(opts...),
 		),
+		listUnacked: connect.NewClient[v1.ListUnackedRequest, v1.ListUnackedResponse](
+			httpClient,
+			baseURL+DashboardServiceListUnackedProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListUnacked")),
+			connect.WithClientOptions(opts...),
+		),
+		ackAll: connect.NewClient[v1.AckAllRequest, v1.AckAllResponse](
+			httpClient,
+			baseURL+DashboardServiceAckAllProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("AckAll")),
+			connect.WithClientOptions(opts...),
+		),
+		listSourceHealth: connect.NewClient[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse](
+			httpClient,
+			baseURL+DashboardServiceListSourceHealthProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListSourceHealth")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -117,6 +149,9 @@ type dashboardServiceClient struct {
 	ackAlert          *connect.Client[v1.AckAlertRequest, v1.AckAlertResponse]
 	listTriggerStates *connect.Client[v1.ListTriggerStatesRequest, v1.ListTriggerStatesResponse]
 	health            *connect.Client[v1.HealthRequest, v1.HealthResponse]
+	listUnacked       *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
+	ackAll            *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
+	listSourceHealth  *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -144,6 +179,21 @@ func (c *dashboardServiceClient) Health(ctx context.Context, req *connect.Reques
 	return c.health.CallUnary(ctx, req)
 }
 
+// ListUnacked calls arbcn.dashboard.v1.DashboardService.ListUnacked.
+func (c *dashboardServiceClient) ListUnacked(ctx context.Context, req *connect.Request[v1.ListUnackedRequest]) (*connect.Response[v1.ListUnackedResponse], error) {
+	return c.listUnacked.CallUnary(ctx, req)
+}
+
+// AckAll calls arbcn.dashboard.v1.DashboardService.AckAll.
+func (c *dashboardServiceClient) AckAll(ctx context.Context, req *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error) {
+	return c.ackAll.CallUnary(ctx, req)
+}
+
+// ListSourceHealth calls arbcn.dashboard.v1.DashboardService.ListSourceHealth.
+func (c *dashboardServiceClient) ListSourceHealth(ctx context.Context, req *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error) {
+	return c.listSourceHealth.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -156,6 +206,12 @@ type DashboardServiceHandler interface {
 	ListTriggerStates(context.Context, *connect.Request[v1.ListTriggerStatesRequest]) (*connect.Response[v1.ListTriggerStatesResponse], error)
 	// Health 与 /healthz 同源：进程存活 + DB 可达 + 迁移应用状态。
 	Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error)
+	// ListUnacked 返回未读告警列表 + 计数（未读 = acked=false；M2-a §1.2 铃铛）。
+	ListUnacked(context.Context, *connect.Request[v1.ListUnackedRequest]) (*connect.Response[v1.ListUnackedResponse], error)
+	// AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false；M2-a §1.2）。
+	AckAll(context.Context, *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error)
+	// ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
+	ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -195,6 +251,24 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("Health")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceListUnackedHandler := connect.NewUnaryHandler(
+		DashboardServiceListUnackedProcedure,
+		svc.ListUnacked,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListUnacked")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceAckAllHandler := connect.NewUnaryHandler(
+		DashboardServiceAckAllProcedure,
+		svc.AckAll,
+		connect.WithSchema(dashboardServiceMethods.ByName("AckAll")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceListSourceHealthHandler := connect.NewUnaryHandler(
+		DashboardServiceListSourceHealthProcedure,
+		svc.ListSourceHealth,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListSourceHealth")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -207,6 +281,12 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceListTriggerStatesHandler.ServeHTTP(w, r)
 		case DashboardServiceHealthProcedure:
 			dashboardServiceHealthHandler.ServeHTTP(w, r)
+		case DashboardServiceListUnackedProcedure:
+			dashboardServiceListUnackedHandler.ServeHTTP(w, r)
+		case DashboardServiceAckAllProcedure:
+			dashboardServiceAckAllHandler.ServeHTTP(w, r)
+		case DashboardServiceListSourceHealthProcedure:
+			dashboardServiceListSourceHealthHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -234,4 +314,16 @@ func (UnimplementedDashboardServiceHandler) ListTriggerStates(context.Context, *
 
 func (UnimplementedDashboardServiceHandler) Health(context.Context, *connect.Request[v1.HealthRequest]) (*connect.Response[v1.HealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.Health is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListUnacked(context.Context, *connect.Request[v1.ListUnackedRequest]) (*connect.Response[v1.ListUnackedResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListUnacked is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) AckAll(context.Context, *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.AckAll is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListSourceHealth is not implemented"))
 }

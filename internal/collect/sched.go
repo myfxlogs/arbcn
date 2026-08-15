@@ -27,6 +27,11 @@ type Scheduler struct {
 	// OnSuccess 在每次轮询成功（Poll+Sink 均无错）后回调（源名, 成功时刻）。
 	// 心跳元监控（internal/alert.Heartbeat.Record）挂接此处，只读不干预调度。
 	OnSuccess func(name string, at time.Time)
+	// Dedup 为 true 时按 (kind, venue, symbol) 去重：与上条 (value, ts) 相同 → 跳过
+	// 落库（M2-a §3.1）。共享 map + 互斥，对全部源统一生效；Collector 无感。
+	Dedup bool
+
+	dedup *dedupSet // 惰性装配（Run 前置，避免 goroutine 竞态）
 }
 
 // Run 启动全部源并阻塞直至 ctx 取消。装配错误（nil Sink / 空源）直接返回；
@@ -39,6 +44,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 		if src.Name == "" || src.Collector == nil {
 			return fmt.Errorf("collect: scheduler: invalid source %q", src.Name)
 		}
+	}
+	if s.Dedup {
+		s.dedup = newDedupSet()
 	}
 	var wg sync.WaitGroup
 	for _, src := range s.Sources {
@@ -91,10 +99,18 @@ func (s *Scheduler) pollOnce(ctx context.Context, src Named) error {
 	if err != nil {
 		return fmt.Errorf("poll: %w", err)
 	}
-	if err := s.Sink(ctx, fs); err != nil {
+	if err := s.sinkFacts(ctx, fs); err != nil {
 		return fmt.Errorf("sink: %w", err)
 	}
 	return nil
+}
+
+// sinkFacts 落库入口：Dedup 开启时经去重包装（M2-a §3.1），否则直通 Sink。
+func (s *Scheduler) sinkFacts(ctx context.Context, fs []fact.Fact) error {
+	if !s.Dedup {
+		return s.Sink(ctx, fs)
+	}
+	return s.dedup.emit(ctx, fs, s.Sink)
 }
 
 func (s *Scheduler) pollTimeout() time.Duration {

@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file arbcn/dashboard/v1/dashboard.proto.
  */
 export const file_arbcn_dashboard_v1_dashboard: GenFile = /*@__PURE__*/
-  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCTL1AwoQRGFzaGJvYXJkU2VydmljZRJqCg9MaXN0TGF0ZXN0RmFjdHMSKi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVxdWVzdBorLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGF0ZXN0RmFjdHNSZXNwb25zZRJbCgpMaXN0QWxlcnRzEiUuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXF1ZXN0GiYuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXNwb25zZRJVCghBY2tBbGVydBIjLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGVydFJlcXVlc3QaJC5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXNwb25zZRJwChFMaXN0VHJpZ2dlclN0YXRlcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRJPCgZIZWFsdGgSIS5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5IZWFsdGhSZXNwb25zZUI9WjthcmJjbi9pbnRlcm5hbC9kYXNoYm9hcmQvZ2VuL2FyYmNuL2Rhc2hib2FyZC92MTtkYXNoYm9hcmR2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJwCgxVbmFja2VkQWxlcnQSCgoCaWQYASABKAMSDAoEcnVsZRgCIAEoCRINCgVsZXZlbBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEiYKAnRzGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJMaXN0VW5hY2tlZFJlcXVlc3QiVQoTTGlzdFVuYWNrZWRSZXNwb25zZRIvCgVpdGVtcxgBIAMoCzIgLmFyYmNuLmRhc2hib2FyZC52MS5VbmFja2VkQWxlcnQSDQoFdG90YWwYAiABKAUiDwoNQWNrQWxsUmVxdWVzdCIlCg5BY2tBbGxSZXNwb25zZRITCgthY2tlZF9jb3VudBgBIAEoBSKmAQoMU291cmNlSGVhbHRoEgwKBG5hbWUYASABKAkSFAoMaW50ZXJ2YWxfc2VjGAIgASgDEjAKDGxhc3RfcG9sbF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF9mYWN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYBSABKAkiGQoXTGlzdFNvdXJjZUhlYWx0aFJlcXVlc3QiSwoYTGlzdFNvdXJjZUhlYWx0aFJlc3BvbnNlEi8KBWl0ZW1zGAEgAygLMiAuYXJiY24uZGFzaGJvYXJkLnYxLlNvdXJjZUhlYWx0aDKVBgoQRGFzaGJvYXJkU2VydmljZRJqCg9MaXN0TGF0ZXN0RmFjdHMSKi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVxdWVzdBorLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGF0ZXN0RmFjdHNSZXNwb25zZRJbCgpMaXN0QWxlcnRzEiUuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXF1ZXN0GiYuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXNwb25zZRJVCghBY2tBbGVydBIjLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGVydFJlcXVlc3QaJC5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXNwb25zZRJwChFMaXN0VHJpZ2dlclN0YXRlcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRJPCgZIZWFsdGgSIS5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5IZWFsdGhSZXNwb25zZRJeCgtMaXN0VW5hY2tlZBImLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VW5hY2tlZFJlcXVlc3QaJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFVuYWNrZWRSZXNwb25zZRJPCgZBY2tBbGwSIS5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxsUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGxSZXNwb25zZRJtChBMaXN0U291cmNlSGVhbHRoEisuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXF1ZXN0GiwuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXNwb25zZUI9WjthcmJjbi9pbnRlcm5hbC9kYXNoYm9hcmQvZ2VuL2FyYmNuL2Rhc2hib2FyZC92MTtkYXNoYm9hcmR2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -354,6 +354,195 @@ export const HealthResponseSchema: GenMessage<HealthResponse> = /*@__PURE__*/
   messageDesc(file_arbcn_dashboard_v1_dashboard, 12);
 
 /**
+ * UnackedAlert 未读告警行（铃铛抽屉条目；M2-a §1.2）。
+ *
+ * @generated from message arbcn.dashboard.v1.UnackedAlert
+ */
+export type UnackedAlert = Message<"arbcn.dashboard.v1.UnackedAlert"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * 规则名（alerts JOIN rules）
+   *
+   * @generated from field: string rule = 2;
+   */
+  rule: string;
+
+  /**
+   * info / warn / critical
+   *
+   * @generated from field: string level = 3;
+   */
+  level: string;
+
+  /**
+   * @generated from field: string message = 4;
+   */
+  message: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp ts = 5;
+   */
+  ts?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.UnackedAlert.
+ * Use `create(UnackedAlertSchema)` to create a new message.
+ */
+export const UnackedAlertSchema: GenMessage<UnackedAlert> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 13);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListUnackedRequest
+ */
+export type ListUnackedRequest = Message<"arbcn.dashboard.v1.ListUnackedRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListUnackedRequest.
+ * Use `create(ListUnackedRequestSchema)` to create a new message.
+ */
+export const ListUnackedRequestSchema: GenMessage<ListUnackedRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 14);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListUnackedResponse
+ */
+export type ListUnackedResponse = Message<"arbcn.dashboard.v1.ListUnackedResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.UnackedAlert items = 1;
+   */
+  items: UnackedAlert[];
+
+  /**
+   * 未读总数（= len(items)；未读数小，一次拉全）
+   *
+   * @generated from field: int32 total = 2;
+   */
+  total: number;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListUnackedResponse.
+ * Use `create(ListUnackedResponseSchema)` to create a new message.
+ */
+export const ListUnackedResponseSchema: GenMessage<ListUnackedResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 15);
+
+/**
+ * @generated from message arbcn.dashboard.v1.AckAllRequest
+ */
+export type AckAllRequest = Message<"arbcn.dashboard.v1.AckAllRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.AckAllRequest.
+ * Use `create(AckAllRequestSchema)` to create a new message.
+ */
+export const AckAllRequestSchema: GenMessage<AckAllRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 16);
+
+/**
+ * @generated from message arbcn.dashboard.v1.AckAllResponse
+ */
+export type AckAllResponse = Message<"arbcn.dashboard.v1.AckAllResponse"> & {
+  /**
+   * 本次标记已读的告警数
+   *
+   * @generated from field: int32 acked_count = 1;
+   */
+  ackedCount: number;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.AckAllResponse.
+ * Use `create(AckAllResponseSchema)` to create a new message.
+ */
+export const AckAllResponseSchema: GenMessage<AckAllResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 17);
+
+/**
+ * SourceHealth 单个启用源的 freshness 视图（M2-a §2.2）。
+ *
+ * @generated from message arbcn.dashboard.v1.SourceHealth
+ */
+export type SourceHealth = Message<"arbcn.dashboard.v1.SourceHealth"> & {
+  /**
+   * @generated from field: string name = 1;
+   */
+  name: string;
+
+  /**
+   * 源轮询间隔（sched 配置）
+   *
+   * @generated from field: int64 interval_sec = 2;
+   */
+  intervalSec: bigint;
+
+  /**
+   * 最近一次成功轮询时刻（heartbeat 反推）
+   *
+   * @generated from field: google.protobuf.Timestamp last_poll_at = 3;
+   */
+  lastPollAt?: Timestamp | undefined;
+
+  /**
+   * 该源 kind 最新 fact ts；缺省 = 从未产出
+   *
+   * @generated from field: google.protobuf.Timestamp last_fact_at = 4;
+   */
+  lastFactAt?: Timestamp | undefined;
+
+  /**
+   * live / stale / down（§2.1 判定）
+   *
+   * @generated from field: string status = 5;
+   */
+  status: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.SourceHealth.
+ * Use `create(SourceHealthSchema)` to create a new message.
+ */
+export const SourceHealthSchema: GenMessage<SourceHealth> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 18);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListSourceHealthRequest
+ */
+export type ListSourceHealthRequest = Message<"arbcn.dashboard.v1.ListSourceHealthRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListSourceHealthRequest.
+ * Use `create(ListSourceHealthRequestSchema)` to create a new message.
+ */
+export const ListSourceHealthRequestSchema: GenMessage<ListSourceHealthRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 19);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListSourceHealthResponse
+ */
+export type ListSourceHealthResponse = Message<"arbcn.dashboard.v1.ListSourceHealthResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.SourceHealth items = 1;
+   */
+  items: SourceHealth[];
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListSourceHealthResponse.
+ * Use `create(ListSourceHealthResponseSchema)` to create a new message.
+ */
+export const ListSourceHealthResponseSchema: GenMessage<ListSourceHealthResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 20);
+
+/**
  * DashboardService 为 Web 仪表盘提供数据查询与告警确认接口。
  * 除 AckAlert 外全部只读；无任何资金/交易能力。
  *
@@ -409,6 +598,36 @@ export const DashboardService: GenService<{
     methodKind: "unary";
     input: typeof HealthRequestSchema;
     output: typeof HealthResponseSchema;
+  },
+  /**
+   * ListUnacked 返回未读告警列表 + 计数（未读 = acked=false；M2-a §1.2 铃铛）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListUnacked
+   */
+  listUnacked: {
+    methodKind: "unary";
+    input: typeof ListUnackedRequestSchema;
+    output: typeof ListUnackedResponseSchema;
+  },
+  /**
+   * AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false；M2-a §1.2）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.AckAll
+   */
+  ackAll: {
+    methodKind: "unary";
+    input: typeof AckAllRequestSchema;
+    output: typeof AckAllResponseSchema;
+  },
+  /**
+   * ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListSourceHealth
+   */
+  listSourceHealth: {
+    methodKind: "unary";
+    input: typeof ListSourceHealthRequestSchema;
+    output: typeof ListSourceHealthResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_arbcn_dashboard_v1_dashboard, 0);

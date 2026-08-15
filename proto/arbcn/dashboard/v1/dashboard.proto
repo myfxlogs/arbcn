@@ -21,6 +21,12 @@ service DashboardService {
   rpc ListTriggerStates(ListTriggerStatesRequest) returns (ListTriggerStatesResponse);
   // Health 与 /healthz 同源：进程存活 + DB 可达 + 迁移应用状态。
   rpc Health(HealthRequest) returns (HealthResponse);
+  // ListUnacked 返回未读告警列表 + 计数（未读 = acked=false；M2-a §1.2 铃铛）。
+  rpc ListUnacked(ListUnackedRequest) returns (ListUnackedResponse);
+  // AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false；M2-a §1.2）。
+  rpc AckAll(AckAllRequest) returns (AckAllResponse);
+  // ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
+  rpc ListSourceHealth(ListSourceHealthRequest) returns (ListSourceHealthResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -88,4 +94,41 @@ message HealthRequest {}
 message HealthResponse {
   string status = 1;  // ok / degraded
   string reason = 2;  // 空 = ok；db_unreachable / pending_migrations / migrations_check_failed
+}
+
+// UnackedAlert 未读告警行（铃铛抽屉条目；M2-a §1.2）。
+message UnackedAlert {
+  int64 id = 1;
+  string rule = 2;  // 规则名（alerts JOIN rules）
+  string level = 3; // info / warn / critical
+  string message = 4;
+  google.protobuf.Timestamp ts = 5;
+}
+
+message ListUnackedRequest {}
+
+message ListUnackedResponse {
+  repeated UnackedAlert items = 1;
+  int32 total = 2; // 未读总数（= len(items)；未读数小，一次拉全）
+}
+
+message AckAllRequest {}
+
+message AckAllResponse {
+  int32 acked_count = 1; // 本次标记已读的告警数
+}
+
+// SourceHealth 单个启用源的 freshness 视图（M2-a §2.2）。
+message SourceHealth {
+  string name = 1;
+  int64 interval_sec = 2;                     // 源轮询间隔（sched 配置）
+  google.protobuf.Timestamp last_poll_at = 3; // 最近一次成功轮询时刻（heartbeat 反推）
+  google.protobuf.Timestamp last_fact_at = 4; // 该源 kind 最新 fact ts；缺省 = 从未产出
+  string status = 5;                          // live / stale / down（§2.1 判定）
+}
+
+message ListSourceHealthRequest {}
+
+message ListSourceHealthResponse {
+  repeated SourceHealth items = 1;
 }
