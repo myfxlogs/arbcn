@@ -1,0 +1,4 @@
+{
+  "code":"0","msg":"",
+  "data":[{"instId":"TRX-USDT-SWAP","fundingRate":"-0.00003000","nextFundingRate":"-0.00002000","fundingTime":"1755288000000","nextFundingTime":"1755316800000","maxFundingRate":"0.00375","minFundingRate":"-0.00375","settleState":"settled","state":"live"}]
+}

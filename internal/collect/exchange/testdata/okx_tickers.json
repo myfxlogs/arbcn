@@ -1,0 +1,9 @@
+{
+  "code":"0","msg":"",
+  "data":[
+    {"instType":"SWAP","instId":"BTC-USDT-SWAP","last":"65012.4","lastSz":"1","askPx":"65012.5","bidPx":"65012.3","open24h":"64000","high24h":"66000","low24h":"63500","volCcy24h":"12345.6","vol24h":"23456.7","ts":"1755288000000"},
+    {"instType":"SWAP","instId":"ETH-USDT-SWAP","last":"3123.5","lastSz":"2","askPx":"3123.6","bidPx":"3123.4","open24h":"3100","high24h":"3200","low24h":"3050","volCcy24h":"9876.5","vol24h":"34567.8","ts":"1755288000000"},
+    {"instType":"SWAP","instId":"TRX-USDT-SWAP","last":"0.2462","lastSz":"1000","askPx":"0.2463","bidPx":"0.2461","open24h":"0.25","high24h":"0.26","low24h":"0.24","volCcy24h":"111111.1","vol24h":"222222.2","ts":"1755288000000"},
+    {"instType":"SWAP","instId":"SOL-USDT-SWAP","last":"142.2","lastSz":"3","askPx":"142.3","bidPx":"142.1","open24h":"140","high24h":"145","low24h":"138","volCcy24h":"5555.5","vol24h":"6666.6","ts":"1755288000000"}
+  ]
+}

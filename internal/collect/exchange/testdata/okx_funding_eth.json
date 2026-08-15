@@ -1,0 +1,4 @@
+{
+  "code":"0","msg":"",
+  "data":[{"instId":"ETH-USDT-SWAP","fundingRate":"0.00005000","nextFundingRate":"0.00004000","fundingTime":"1755288000000","nextFundingTime":"1755302400000","maxFundingRate":"0.00375","minFundingRate":"-0.00375","settleState":"settled","state":"live"}]
+}

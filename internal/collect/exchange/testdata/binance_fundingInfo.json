@@ -1,0 +1,6 @@
+[
+  {"symbol":"BTCUSDT","adjustedFundingRateCap":"0.03000000","adjustedFundingRateFloor":"-0.03000000","fundingIntervalHours":8,"disclaimer":false},
+  {"symbol":"ETHUSDT","adjustedFundingRateCap":"0.03000000","adjustedFundingRateFloor":"-0.03000000","fundingIntervalHours":8,"disclaimer":false},
+  {"symbol":"TRXUSDT","adjustedFundingRateCap":"0.03000000","adjustedFundingRateFloor":"-0.03000000","fundingIntervalHours":4,"disclaimer":false},
+  {"symbol":"SOLUSDT","adjustedFundingRateCap":"0.03000000","adjustedFundingRateFloor":"-0.03000000","fundingIntervalHours":8,"disclaimer":false}
+]
