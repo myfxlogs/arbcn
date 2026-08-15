@@ -10,14 +10,14 @@
 - **真金执行不在 M3 范围**（D-034 ⑥）。M3 结束产出的是"模拟盘实证结论 + 可审计的模拟对账"，真金执行另立决策。
 - **两条铁律全程生效**：
   - **无密钥铁律（D-010）**：真金路径零密钥不变。testnet key 按 D-034 豁免条款隔离使用（§2）。
-  - **不赌原则（D-019）**：执行器只建议套利/息差类动作；无对冲的方向性建议**拒单**（白名单生息资产除外，§4.3）。
+  - **不赌原则（D-019）**：执行器只建议套利/息差类动作；无对冲的方向性建议**拒单**（白名单生息资产除外，见 §4 白名单行）。
 
 ## 0.1 M3 阶段划分
 
 | 阶段 | 内容 | 验证目标 | 依赖 |
 |------|------|---------|------|
 | M3-a | 订单生成器（信号→建议订单）+ 本地模拟盘回填 | 信号→订单转换逻辑、盈亏计算、风险门禁 | M2-b |
-| M3-b | testnet 只读接入 + 模拟持仓跑息差收敛 | 执行连通性 + 套利理论在模拟盘的真实收敛 | M3-a |
+| M3-b | testnet 只读接入 + 模拟持仓跑息差收敛 | 执行连通性 + **机制收敛**（结算管线 + 双边价差行为观察）；统计性收敛结论由历史数据出（§5.3，D-036） | M3-a |
 | M3-c | 一键确认 UI + 风险门禁闭环 | 人工审价差后确认的完整流程 | M3-b |
 
 > 顺序依赖明确：a → b → c。M3-a 纯本地（零外部接入），M3-b 引入 testnet 只读，M3-c 收口为 UI 流程。
@@ -46,7 +46,7 @@
 | note | text | 拒单原因 / 结算备注 |
 
 ### 1.2 模拟持仓（SimPosition）
-新表 `sim_positions`：记录模拟成交的腿（hedge = 两行，carry = 一行），按 funding 周期结算息差到 `sim_pnl` 累计；结算逻辑 = 实际资金费率 × 名义 × 持有天数（RMB 折算后入账，依赖 M2-b）。
+新表 `sim_positions`：记录模拟成交的腿（hedge = 两行，carry = 一行），按 funding 周期结算息差累计到每腿 `sim_positions.pnl` 列（0005 迁移实现；早期文档稿的 `sim_pnl` 表已废弃，实现以迁移为准——P3 单一真相源）。结算逻辑 = 实际资金费率 × 名义 × 持有天数（RMB 折算后入账，依赖 M2-b）。
 
 ### 1.3 命名空间
 - 模拟盘表统一 `sim_` 前缀；模拟配置独立文件（§2）；不混入主 facts/rules/alerts 表。
@@ -68,11 +68,32 @@
 
 ### 3.1 输入
 - 监控信号：规则命中（funding_* / defi_* / repo 等）+ 机会面板当前快照。
-- 转换器 `signalToOrder(rule, snapshot)`：信号 → 建议订单结构。**转换逻辑是 M3-a 核心，须纯函数、可单测。**
+- 转换器 `signalToOrder(rule, snapshot)`：信号 → 建议订单结构。**转换逻辑是 M3-a 核心，须纯函数、可单测。**（实现签名：`SignalToOrder(sig, cfg)`，`Signal` 由驱动层组装，见 §3.1.2。）
+
+### 3.1.1 规则 → Signal 映射（D-036 G1 补齐 · M3-b 集成前必读）
+规则命中**不自动**产生模拟单；只有可映射为套利/息差动作的规则才组装 Signal（宁缺毋滥：无法映射的规则不建单）。映射为 sim 包内不可变常量表 + 对抗测试（未知规则名 → 断言不建单）：
+
+| 触发规则（defaults.go 首版规则名） | Signal.Kind | Signal 填充 |
+|------|------|------|
+| `funding_warn` / `funding_critical` / `trx_funding_positive` | `funding_hedge` | Symbol=规则 scope 命中实体；RefPrice=现货最新价；FundingAnn=命中时年化 funding（规则 cond 的 avg_30d 口径）；SpotPrice / PerpPrice=现货 / 永续最新价；Notional=默认（capital×20%） |
+| `reverse_repo_timing` | `repo` | RefPrice=面值；ExpectedSpread=当日回购年化（manual 补录事实）；天然无方向敞口（§4 已对冲） |
+| carry 信号（白名单生息资产 sUSDe/USDe，D-021 档位） | `carry_asset` | RefPrice=资产价值；ExpectedSpread=生息年化；CarryWhite=白名单命中（驱动层信任边界，M2 接受项；白名单显式配置在 M3-b 接 testnet 前落，`ARBCN_SIM_CARRY_WHITELIST`） |
+| `defi_large_tier_change` / `ladder_trap` / `iv_opportunity` / `usdcnh_buy_line` / `collector_heartbeat` | — | **不产生模拟单**（信息类 / IV 非 M3 范围 / 遥测） |
+
+组装发生在驱动层（§3.1.2），从 facts 快照（LatestFacts）取数；`SignalToOrder` 保持纯函数、零 I/O。
+
+### 3.1.2 运行驱动（M3-b 集成时接线 · M3-a 交付为纯库有测试）
+- **触发器**：挂钩 `rule.Engine.OnActive`（armed→active 转变 = "机会出现"时刻；避免持续满足时每评估周期重复建单的噪声）。M3-b 集成时把 `OnActive` 签名扩展为携带命中实体（symbol）列表——规则引擎本就逐实体独立聚合，传命中实体是自然小改（engine.go）。
+- **流程**：`OnActive(rule, entities)` → 对每个命中实体查 LatestFacts（spot / perp / funding）→ 按 §3.1.1 组装 Signal → `SignalToOrder` → `InsertSimOrder`（生成时落库 `suggested` + risk_flags）。
+- **结算调度**：按 8h 周期对 open 腿 `SettleFunding`（复用 collect.Scheduler 骨架）。
+- **驱动层独立单测**：OnActive 回调 → 断言 InsertSimOrder 落库；映射表未知规则 → 断言不建单。
+- **降级**：sim 配置缺失 → sim 驱动禁用（§7 warn 不退出），监控主循环不受影响。
 
 ### 3.2 本地模拟盘回填
 - 无 testnet 也运行：成交 = 按 `ref_price` 全额即时成交（简化：忽略滑点/深度，标注为模拟假设）。
 - `filled` + 建 `sim_positions` 原子完成（store 单事务 `FillSimOrder`，复审 M1：不留"filled 但缺腿"的半对冲状态，D-019）；按 funding 周期（8h，三班）结算：`pnl = funding_rate × notional`，其中 `funding_rate` 为**分数费率** = 年化点数 ÷100 ÷1095（复审 H1：facts 的 pct_annualized 是百分点点数，先 ÷100 转分数再乘名义；原实现缺 ÷100 使模拟 PnL 虚高 100 倍）；日终 RMB 折算复用 M2-b 折算函数，RMBValue（点数）同样 ÷100 转分数。
+- **资金基数口径（D-036 G3）**：模拟资金基数 `Capital`（默认 100_000，模拟 USD，`ARBCN_SIM_CAPITAL`）是**独立模拟量纲**，不映射真实组合规模（真实 20 万 RMB ≈ 2.8 万 USD，且为 50/50 结构性配置）。模拟对账报告以**比例口径（PnL / Capital %）**为主列、绝对模拟数值为次列，明示"不直接映射真实组合"。
+- **确认价时刻（D-036 G5）**：M3-c 确认时成交价取**确认时刻最新 ref_price**（重新查行情），不沿用生成时 ref_price；生成 → 确认窗口内 ref_price 漂移 > 2%（或预期年化变化 > 20%）→ 确认时二次门禁拒单（新标记 `SPREAD_DRIFT`，M3-c 实现）。
 
 ### 3.3 对抗测试锚点
 - 转换器：删"无对冲拒单"分支 → 测试必红；删"预期价差 < 阈值拒单" → 必红。
@@ -105,9 +126,18 @@
 - 已知限制（spec 标注）：testnet 资金费率/深度与真实市场**存在偏差**；模拟盘验证的是**机制收敛**（持仓按规则收付 funding），数值口径以 testnet 为准，结论需标注偏差。
 
 ### 5.2 对账
-- 模拟持仓的真实 funding 由 testnet 行情喂入 → 按 §3.2 结算 → 息差收敛曲线（周视图）。
-- 对账输出 `sim_report`（周频）：模拟净值 vs 理论净值（无摩擦理想曲线），差异 = 摩擦 + testnet 偏差 → 归因。
-- 收敛结论是 M3 的主要交付物之一：**funding 套利在模拟盘是否真收敛、收敛速度、与理论差多少**。
+- 模拟持仓的真实 funding 由 testnet 行情喂入 → 按 §3.2 结算 → 息差曲线（周视图）。
+- 对账输出 `sim_report`（周频）：模拟净值 vs **理论净值（无摩擦理想曲线）**，差异 = 摩擦 + testnet 偏差 → 归因。
+- **理论曲线定义（D-036 G4）**：cash-and-carry 定价下永续价收敛于现货（价差 → 0）；理想 funding 累计 = 建仓时预期年化 × 名义 × 持有天数 ÷ 365（每 8h 结算）；摩擦模型 = 手续费（双边）+ 滑点（按 testnet 深度差）+ 现货腿资金占用成本。差异 = 实测 − 理论 = 摩擦 + testnet 偏差。
+- **验证目标分层（D-036 收敛口径修正）**：
+  - M3-b 前向模拟**只验证机制收敛**：结算管线正确（每 8h 收付、双边价差在 testnet 数据下的行为观察）——这是前向模拟能证明的。
+  - **统计性结论**（是否真收敛、收敛速度、残差分布）由**历史数据**出（§5.3）：testnet 周级前向小样本量 + testnet 费率偏差，回答不了统计问题且污染结论。
+
+### 5.3 历史收敛分析（收敛统计的唯一证据 · D-036）
+- **数据**：Binance funding 历史（`data-api.binance.vision/fapi/v1/fundingRate`，D-031 公开数据域）+ OKX funding 历史（`/api/v5/public/funding-history`）+ 现货/永续价差历史。公开只读 API，无密钥（D-010）。
+- **分析**（周频报告）：实际累计 funding vs 理论累计、价差残差分布、收敛半衰期（价差回落到 X% 的时间）、摩擦后净收益 vs 5% 门槛。
+- **定位**：收敛统计的唯一证据来源；前向模拟（§5.2）只给机制证据。两者结论可对照，不互替。
+- **实现**：M3-b 前置小任务（历史回填 + 统计报告），不另立阶段（D-034 ⑤ 的 a→b→c 顺序不变）。
 
 ---
 
@@ -130,5 +160,6 @@
 - ❌ 真金执行 / 真实交易密钥（无密钥铁律不变，D-010）
 - ❌ testnet 真实下单（M3 只读 + 本地模拟；真实成交路径验证属未来决策）
 - ❌ 自动下单免人工确认（形态 = 决策监控 + 人工一键确认，D-034 ①）
-- ❌ 回测引擎 / 历史数据回放（另立 D#）
+- ❌ 交易策略回测引擎 / 顺单历史回放（只评估策略表现、不顺单、不模拟下单执行）
+- ✔ 历史 funding / 价差数据回填 + 统计收敛分析（§5.3）是 M3 收敛验证的**数据基础，须做**——不在"不做"之列（D-036 收敛口径修正）
 - ❌ 策略自动路由 / 跨所自动撮合
