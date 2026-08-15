@@ -1,0 +1,146 @@
+package alert
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"arbcn/internal/fact"
+	"arbcn/internal/store"
+)
+
+// memStore：内存版 store.Store（alerter/heartbeat 测试用）。alerts 投递状态机
+// 与 pgstore 同语义（ts 升序、delivered 过滤）；测试不用的方法 panic（误用即红）。
+type memStore struct {
+	mu        sync.Mutex
+	facts     []fact.Fact
+	alerts    []store.Alert
+	nextID    int64
+	pendErr   error
+	pendCalls int
+}
+
+func newMemStore() *memStore { return &memStore{} }
+
+func (m *memStore) setPendErr(err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pendErr = err
+}
+
+func (m *memStore) InsertFacts(_ context.Context, fs []fact.Fact) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.facts = append(m.facts, fs...)
+	return nil
+}
+
+func (m *memStore) InsertAlert(_ context.Context, a store.Alert) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.nextID++
+	a.ID = m.nextID
+	if a.Ts.IsZero() {
+		a.Ts = time.Now()
+	}
+	m.alerts = append(m.alerts, a)
+	return nil
+}
+
+func (m *memStore) PendingAlerts(_ context.Context, limit int) ([]store.Alert, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.pendCalls++
+	if m.pendErr != nil {
+		return nil, m.pendErr
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	out := []store.Alert{}
+	for _, a := range m.alerts {
+		if a.Delivered {
+			continue
+		}
+		out = append(out, a)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (m *memStore) MarkAlertDelivered(_ context.Context, id int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.alerts {
+		if m.alerts[i].ID == id {
+			m.alerts[i].Delivered = true
+		}
+	}
+	return nil
+}
+
+func (m *memStore) factsCopy() []fact.Fact {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]fact.Fact(nil), m.facts...)
+}
+
+func (m *memStore) deliveredCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, a := range m.alerts {
+		if a.Delivered {
+			n++
+		}
+	}
+	return n
+}
+
+func (m *memStore) pendCallCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.pendCalls
+}
+
+// 以下方法本包测试不经过：误用即 panic（失败要响，不静默）。
+func (m *memStore) QueryFacts(context.Context, store.FactQuery) ([]fact.Fact, error) {
+	panic("memStore: QueryFacts not used")
+}
+
+func (m *memStore) UpsertRule(context.Context, store.Rule) (int64, error) {
+	panic("memStore: UpsertRule not used")
+}
+
+func (m *memStore) ListRules(context.Context) ([]store.Rule, error) {
+	panic("memStore: ListRules not used")
+}
+
+func (m *memStore) GetTriggerState(context.Context, int64) (store.TriggerState, error) {
+	panic("memStore: GetTriggerState not used")
+}
+
+func (m *memStore) PutTriggerState(context.Context, store.TriggerState) error {
+	panic("memStore: PutTriggerState not used")
+}
+
+// fakeClock 测试注入时钟。
+type fakeClock struct{ t time.Time }
+
+func (c *fakeClock) now() time.Time { return c.t }
+
+// waitFor 轮询等待条件成立（collect/rule 包同款）。
+func waitFor(t *testing.T, d time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("condition not met in time")
+}

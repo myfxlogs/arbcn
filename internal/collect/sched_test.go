@@ -129,6 +129,68 @@ func TestSchedulerGracefulShutdown(t *testing.T) {
 	}
 }
 
+// TestSchedulerOnSuccess：成功轮询触发 OnSuccess（心跳元监控挂接点，M1-f 契约），
+// 失败轮询不触发；回调携带源名与成功时刻。
+func TestSchedulerOnSuccess(t *testing.T) {
+	t.Run("success fires", func(t *testing.T) {
+		fc := &fakeCollector{kind: fact.KindFunding, out: []fact.Fact{{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC"}}}
+		sink := &recSink{}
+		type call struct {
+			name string
+			at   time.Time
+		}
+		calls := make(chan call, 16)
+		start := time.Now()
+		s := &Scheduler{
+			Sources:   []Named{{Name: "binance_funding", Interval: 2 * time.Millisecond, Collector: fc}},
+			Sink:      sink.emit,
+			Jitter:    func() float64 { return 0.5 },
+			OnSuccess: func(name string, at time.Time) { calls <- call{name, at} },
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { _ = s.Run(ctx); close(done) }()
+
+		waitFor(t, 200*time.Millisecond, func() bool { return fc.pollCount() >= 2 })
+		cancel()
+		<-done
+
+		if len(calls) == 0 {
+			t.Fatal("OnSuccess never called")
+		}
+		for i := 0; i < len(calls); i++ {
+			c := <-calls
+			if c.name != "binance_funding" || c.at.Before(start) || c.at.After(time.Now()) {
+				t.Errorf("OnSuccess call = %+v, want binance_funding in [start, now]", c)
+			}
+		}
+	})
+
+	t.Run("failure does not fire", func(t *testing.T) {
+		fc := &fakeCollector{kind: fact.KindFunding, failN: 1 << 30}
+		calls := make(chan string, 8)
+		s := &Scheduler{
+			Sources:   []Named{{Name: "broken", Interval: time.Hour, Collector: fc}},
+			Sink:      func(context.Context, []fact.Fact) error { return nil },
+			Jitter:    func() float64 { return 0.5 },
+			Backoff:   func(int) time.Duration { return time.Millisecond },
+			OnSuccess: func(name string, _ time.Time) { calls <- name },
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { _ = s.Run(ctx); close(done) }()
+
+		waitFor(t, 200*time.Millisecond, func() bool { return fc.pollCount() >= 3 })
+		select {
+		case n := <-calls:
+			t.Fatalf("OnSuccess fired %q after failed polls", n)
+		default:
+		}
+		cancel()
+		<-done
+	})
+}
+
 // TestSchedulerInvalidConfig：nil Sink / 空源名 / nil collector 在 Run 时 fail fast。
 func TestSchedulerInvalidConfig(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())

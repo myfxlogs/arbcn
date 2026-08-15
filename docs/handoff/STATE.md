@@ -27,12 +27,12 @@
   | **M1-c Exchange collector → 施工 agent #3** | ✅ | c1accb2 |
   | **M1-d DeFiRates/Domestic/Calendar/IV → 施工 agent #4** | ✅ | c8b912d |
   | **M1-e 规则引擎+对抗测试 → 施工 agent #5** | ✅ | 505d2af |
-  | **M1-f Alerter+元监控 → 施工 agent #6** | 🔄 | 本会话派发 |
+  | **M1-f Alerter+元监控 → 施工 agent #6** | ✅ | 本会话 |
   | M1-g Web 仪表盘最小集 | ⬜ | 待 M1-f |
   | M1-h 全链路联调+A-F 自审 | ⬜ | 待 M1-g |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
   | 台账/归因 v2 | ⬜ | M2 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
-- 下一步: ① **监控 v1 技术规格**（数据源/指标/阈值/告警/RMB 折算/计价币种陷阱识别/跨所费率差）→ 施工；② 业主执行：出入金 1 万验证 + 国内半仓建仓（民营定期 5 万 + 灵活保本 4.5 万）+ TRX 质押优化。
+- 下一步: M1-g 派发（Web 仪表盘最小集）；M1-h 接线（SMTP/心跳/迁移检查入 main.go）。
 - 清扫上翻: 本轮对话已落 dialogue.md（#16）；决策已落 decisions.md（D-026）；定稿结构已落 docs/design/01-plan.md §14。

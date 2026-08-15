@@ -151,6 +151,67 @@ func TestAlertRoundtrip(t *testing.T) {
 	}
 }
 
+// TestAlertDeliveryRoundtrip：Alerter 投递状态机数据面（M1-f）——
+// 未投递行 JOIN 规则名按 ts 升序消费；标记后不再出现。
+func TestAlertDeliveryRoundtrip(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "rules", "alerts")
+
+	s := New(pool)
+	id, err := s.UpsertRule(ctx, store.Rule{
+		Name: "r1", Kind: fact.KindFunding, Cond: "avg_30d > 15", Level: store.LevelWarn, Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("UpsertRule: %v", err)
+	}
+	ts1 := time.Now().UTC().Truncate(time.Microsecond)
+	ts2 := ts1.Add(time.Second)
+	if err := s.InsertAlert(ctx, store.Alert{RuleID: id, Ts: ts1, Level: store.LevelWarn, Message: "r1 active"}); err != nil {
+		t.Fatalf("InsertAlert(1): %v", err)
+	}
+	if err := s.InsertAlert(ctx, store.Alert{RuleID: id, Ts: ts2, Level: store.LevelInfo, Message: "r1 resolved"}); err != nil {
+		t.Fatalf("InsertAlert(2): %v", err)
+	}
+
+	pending, err := s.PendingAlerts(ctx, 0)
+	if err != nil {
+		t.Fatalf("PendingAlerts: %v", err)
+	}
+	if len(pending) != 2 {
+		t.Fatalf("pending len = %d, want 2", len(pending))
+	}
+	if pending[0].RuleID != id || pending[0].RuleName != "r1" || !pending[0].Ts.Equal(ts1) ||
+		pending[0].Level != store.LevelWarn || pending[0].Message != "r1 active" || pending[0].Delivered {
+		t.Errorf("pending[0] = %+v, want r1/warn/ts1/undelivered", pending[0])
+	}
+	if pending[0].ID <= 0 || !pending[1].Ts.Equal(ts2) {
+		t.Errorf("pending ids/order = %d/%v, want >0/ts2 second", pending[0].ID, pending[1].Ts)
+	}
+
+	if err := s.MarkAlertDelivered(ctx, pending[0].ID); err != nil {
+		t.Fatalf("MarkAlertDelivered: %v", err)
+	}
+	pending, err = s.PendingAlerts(ctx, 0)
+	if err != nil {
+		t.Fatalf("PendingAlerts(after mark): %v", err)
+	}
+	if len(pending) != 1 || pending[0].Message != "r1 resolved" {
+		t.Fatalf("pending after mark = %+v, want only r1 resolved", pending)
+	}
+	if err := s.MarkAlertDelivered(ctx, pending[0].ID); err != nil {
+		t.Fatalf("MarkAlertDelivered(2): %v", err)
+	}
+	pending, err = s.PendingAlerts(ctx, 0)
+	if err != nil {
+		t.Fatalf("PendingAlerts(empty): %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending = %+v, want empty", pending)
+	}
+}
+
 // TestInsertFactsRejectsUnknownKind：存储层兜底校验——删掉 InsertFacts 里的
 // Validate 调用本测试必红（§11 对抗测试精神）。
 func TestInsertFactsRejectsUnknownKind(t *testing.T) {

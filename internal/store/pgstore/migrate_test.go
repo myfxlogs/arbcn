@@ -29,8 +29,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
-	if n != 2 { // 0001_init.sql + 0002_rule_scope.sql
-		t.Fatalf("Migrate(first) applied = %d, want 2", n)
+	if n != 3 { // 0001_init.sql + 0002_rule_scope.sql + 0003_alerts_delivered.sql
+		t.Fatalf("Migrate(first) applied = %d, want 3", n)
 	}
 
 	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts"} {
@@ -48,8 +48,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 2 {
-		t.Fatalf("schema_migrations count = %d, want 2", versions)
+	if versions != 3 {
+		t.Fatalf("schema_migrations count = %d, want 3", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)
@@ -110,4 +110,38 @@ func TestMigrateRollsBackFailedFile(t *testing.T) {
 			t.Errorf("table %s exists = %v, want %v", tbl, exists, want)
 		}
 	}
+}
+
+// TestPendingMigrations：/healthz degraded 信号的数据面（dialogue #23）——
+// 全部应用后为空；目录多出未记账文件 → 报告；记账表缺失 → 报错。
+func TestPendingMigrations(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+
+	pending, err := PendingMigrations(ctx, pool, migrationsDir)
+	if err != nil {
+		t.Fatalf("PendingMigrations(applied): %v", err)
+	}
+	if len(pending) != 0 {
+		t.Fatalf("pending = %v, want empty", pending)
+	}
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "9999_future.sql"), []byte("SELECT 1;"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pending, err = PendingMigrations(ctx, pool, dir)
+	if err != nil {
+		t.Fatalf("PendingMigrations(extra file): %v", err)
+	}
+	if len(pending) != 1 || pending[0] != "9999_future.sql" {
+		t.Fatalf("pending = %v, want [9999_future.sql]", pending)
+	}
+
+	dropTables(t, ctx, pool, "schema_migrations")
+	if _, err := PendingMigrations(ctx, pool, migrationsDir); err == nil {
+		t.Fatal("PendingMigrations without schema_migrations = nil, want error")
+	}
+	ensureSchema(t, ctx, pool) // 恢复测试库，供后续用例
 }

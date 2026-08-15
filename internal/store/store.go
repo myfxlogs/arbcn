@@ -49,11 +49,15 @@ const (
 )
 
 // Alert 是 alerts 表的持久化记录（状态机状态转变时由规则引擎写入，§4）。
+// ID/RuleName/Delivered 是读取路径（Alerter 投递）字段：写入时忽略。
 type Alert struct {
-	RuleID  int64
-	Ts      time.Time // 零值 = 写入时刻
-	Level   string    // LevelInfo / LevelWarn / LevelCritical
-	Message string
+	ID        int64 // 主键（读取时回填）
+	RuleID    int64
+	RuleName  string    // JOIN rules.name（邮件标题用；规则存在性由外键保证）
+	Ts        time.Time // 零值 = 写入时刻
+	Level     string    // LevelInfo / LevelWarn / LevelCritical
+	Message   string
+	Delivered bool // M1-f 投递状态（迁移 0003）
 }
 
 // FactQuery 时间窗查询条件；空字段 = 不筛选。
@@ -82,4 +86,9 @@ type Store interface {
 	PutTriggerState(ctx context.Context, s TriggerState) error
 	// InsertAlert 追加告警行（acked=false；Ts 零值 = now）。
 	InsertAlert(ctx context.Context, a Alert) error
+	// PendingAlerts 返回 delivered=false 的告警（ts 升序，最多 limit 条；
+	// limit ≤ 0 = 默认 100）。Alerter 消费未投递行（M1-f）。
+	PendingAlerts(ctx context.Context, limit int) ([]Alert, error)
+	// MarkAlertDelivered 标记单条告警已投递（M1-f）。
+	MarkAlertDelivered(ctx context.Context, id int64) error
 }

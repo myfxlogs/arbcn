@@ -173,3 +173,36 @@ func (s *Store) InsertAlert(ctx context.Context, a store.Alert) error {
 	)
 	return err
 }
+
+// PendingAlerts 返回未投递告警（JOIN rules 取规则名；ts, id 升序保证投递顺序稳定）。
+func (s *Store) PendingAlerts(ctx context.Context, limit int) ([]store.Alert, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT a.id, a.rule_id, r.name, a.ts, a.level, a.message, a.delivered
+		FROM alerts a JOIN rules r ON r.id = a.rule_id
+		WHERE NOT a.delivered
+		ORDER BY a.ts ASC, a.id ASC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []store.Alert{}
+	for rows.Next() {
+		var a store.Alert
+		if err := rows.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.Ts, &a.Level, &a.Message, &a.Delivered); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// MarkAlertDelivered 标记已投递（Alerter 专用；失败会重发，至少一次语义）。
+func (s *Store) MarkAlertDelivered(ctx context.Context, id int64) error {
+	_, err := s.pool.Exec(ctx, `UPDATE alerts SET delivered = TRUE WHERE id = $1`, id)
+	return err
+}

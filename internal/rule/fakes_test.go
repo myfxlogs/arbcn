@@ -116,6 +116,35 @@ func (f *fakeStore) InsertAlert(_ context.Context, a store.Alert) error {
 	return nil
 }
 
+// PendingAlerts / MarkAlertDelivered（M1-f Store 扩展；rule 测试不涉及投递，
+// 实现对齐接口语义）。
+func (f *fakeStore) PendingAlerts(_ context.Context, limit int) ([]store.Alert, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := []store.Alert{}
+	for _, a := range f.alerts {
+		if a.Delivered {
+			continue
+		}
+		out = append(out, a)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeStore) MarkAlertDelivered(_ context.Context, id int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := range f.alerts {
+		if f.alerts[i].ID == id {
+			f.alerts[i].Delivered = true
+		}
+	}
+	return nil
+}
+
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()

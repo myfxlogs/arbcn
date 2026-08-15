@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,39 +43,13 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
 		return 0, fmt.Errorf("pgstore: ensure schema_migrations: %w", err)
 	}
 
-	applied := map[string]bool{}
-	rows, err := conn.Query(ctx, `SELECT version FROM schema_migrations`)
+	pending, err := listPending(ctx, conn, dir)
 	if err != nil {
-		return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
-	}
-	for rows.Next() {
-		var v string
-		if err := rows.Scan(&v); err != nil {
-			rows.Close()
-			return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
-		}
-		applied[v] = true
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
-	}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return 0, fmt.Errorf("pgstore: read migrations dir %s: %w", dir, err)
+		return 0, err
 	}
 
 	n := 0
-	for _, e := range entries { // ReadDir 已按文件名排序
-		name := e.Name()
-		if e.IsDir() || !strings.HasSuffix(name, ".sql") {
-			continue
-		}
-		if applied[name] {
-			continue
-		}
-
+	for _, name := range pending {
 		body, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return n, fmt.Errorf("pgstore: read migration %s: %w", name, err)
@@ -94,8 +69,55 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
 		if err := tx.Commit(ctx); err != nil {
 			return n, fmt.Errorf("pgstore: commit migration %s: %w", name, err)
 		}
-		applied[name] = true
 		n++
 	}
 	return n, nil
+}
+
+// querier 是 Migrate / PendingMigrations 共用的最小查询面。
+type querier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
+// listPending 返回 dir 下尚未在 schema_migrations 记账的 *.sql（升序，ReadDir 序）。
+// schema_migrations 表必须已存在（调用方保证）。
+func listPending(ctx context.Context, q querier, dir string) ([]string, error) {
+	applied := map[string]bool{}
+	rows, err := q.Query(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+	}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+		}
+		applied[v] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("pgstore: read migrations dir %s: %w", dir, err)
+	}
+
+	pending := []string{}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".sql") || applied[name] {
+			continue
+		}
+		pending = append(pending, name)
+	}
+	return pending, nil
+}
+
+// PendingMigrations 报告 dir 下尚未应用的迁移文件（dialogue #23：未全部应用
+// = degraded，/healthz 据此 503）。只读查询，不加 advisory 锁。
+func PendingMigrations(ctx context.Context, pool *pgxpool.Pool, dir string) ([]string, error) {
+	return listPending(ctx, pool, dir)
 }

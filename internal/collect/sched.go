@@ -24,6 +24,9 @@ type Scheduler struct {
 	Backoff     func(attempt int) time.Duration // 失败退避；0 = 1s,2s,…封顶 32s
 	Jitter      func() float64                  // [0,1) 间隔抖动因子；0 = math/rand
 	Log         *slog.Logger                    // 0 = slog.Default()
+	// OnSuccess 在每次轮询成功（Poll+Sink 均无错）后回调（源名, 成功时刻）。
+	// 心跳元监控（internal/alert.Heartbeat.Record）挂接此处，只读不干预调度。
+	OnSuccess func(name string, at time.Time)
 }
 
 // Run 启动全部源并阻塞直至 ctx 取消。装配错误（nil Sink / 空源）直接返回；
@@ -69,6 +72,9 @@ func (s *Scheduler) runSource(ctx context.Context, src Named) {
 			continue
 		}
 		attempt = 0
+		if s.OnSuccess != nil {
+			s.OnSuccess(src.Name, time.Now())
+		}
 		wait := s.nextWait(src.Interval)
 		log.Debug("poll ok", "next_in", wait.String())
 		if !sleepCtx(ctx, wait) {
