@@ -145,6 +145,24 @@ func (f *fakeStore) MarkAlertDelivered(_ context.Context, id int64) error {
 	return nil
 }
 
+// LatestFacts / ListAlerts / AckAlert / ListTriggerStates（M1-g Store 扩展；
+// rule 测试不经过仪表盘读取路径：误用即红，不静默）。
+func (f *fakeStore) LatestFacts(context.Context, string, string, string) ([]fact.Fact, error) {
+	panic("fakeStore: LatestFacts not used")
+}
+
+func (f *fakeStore) ListAlerts(context.Context, int, int) ([]store.Alert, error) {
+	panic("fakeStore: ListAlerts not used")
+}
+
+func (f *fakeStore) AckAlert(context.Context, int64) error {
+	panic("fakeStore: AckAlert not used")
+}
+
+func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
+	panic("fakeStore: ListTriggerStates not used")
+}
+
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()

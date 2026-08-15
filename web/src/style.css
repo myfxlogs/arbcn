@@ -1,0 +1,276 @@
+/* arbcn 仪表盘样式。
+   调色板：品牌中性默认实例（状态色固定不随主题；文本/表面双主题，暗色为同色阶步进）。
+   状态色永不带字面语义：徽标 = 色点 + 文字标签；数值符号由 "-" 字符本身承载。 */
+:root {
+  color-scheme: light;
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-3: #898781;
+  --line: #e1e0d9;
+  --ring: rgba(11, 11, 11, 0.1);
+  --accent: #2a78d6;
+  --delta-down: #b3382f;
+  --good: #0ca30c;
+  --warn: #fab219;
+  --critical: #d03b3b;
+  --good-ink: #006300;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-3: #898781;
+    --line: #2c2c2a;
+    --ring: rgba(255, 255, 255, 0.1);
+    --accent: #3987e5;
+    --delta-down: #e66767;
+    --good-ink: #0ca30c;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --ink: #ffffff;
+  --ink-2: #c3c2b7;
+  --ink-3: #898781;
+  --line: #2c2c2a;
+  --ring: rgba(255, 255, 255, 0.1);
+  --accent: #3987e5;
+  --delta-down: #e66767;
+  --good-ink: #0ca30c;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+/* —— 页头 —— */
+.app {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.app h1 {
+  font-size: 20px;
+  margin: 0;
+  flex: 1 1 auto;
+}
+.app .meta {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+/* —— 卡片与分区 —— */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.card h3 {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.card h3:first-of-type {
+  margin-top: 4px;
+}
+.empty {
+  color: var(--ink-3);
+}
+.banner {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  background: rgba(208, 59, 59, 0.12);
+  border: 1px solid rgba(208, 59, 59, 0.4);
+  color: var(--critical);
+}
+/* —— 表格 —— */
+.table-scroll {
+  overflow-x: auto;
+}
+table.matrix,
+table.rows {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+table.matrix th,
+table.matrix td,
+table.rows th,
+table.rows td {
+  padding: 6px 10px;
+  text-align: right;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+table.matrix th,
+table.rows th {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+table.matrix th[scope="row"],
+table.rows th[scope="row"] {
+  text-align: left;
+}
+table.matrix tr:last-child td,
+table.matrix tr:last-child th,
+table.rows tr:last-child td,
+table.rows tr:last-child th {
+  border-bottom: none;
+}
+td.neg {
+  color: var(--delta-down);
+}
+/* —— 徽标（状态色 + 点 + 标签；warn 黄底黑字、critical 红底白字两主题皆 ≥3:1） —— */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ring);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.chip .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.chip-neutral {
+  color: var(--ink-2);
+}
+.chip-good {
+  color: var(--good-ink);
+}
+.chip-good .dot {
+  background: var(--good);
+}
+.chip-warn {
+  color: #0b0b0b;
+  background: var(--warn);
+  border-color: transparent;
+}
+.chip-warn .dot {
+  background: #0b0b0b;
+}
+.chip-critical {
+  color: #ffffff;
+  background: var(--critical);
+  border-color: transparent;
+}
+.chip-critical .dot {
+  background: #ffffff;
+}
+/* —— KPI 瓦片 —— */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.stat-value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+/* —— 告警时间线 —— */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.timeline li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.timeline li:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.timeline-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.timeline-rule {
+  font-weight: 600;
+}
+.timeline-ts {
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.timeline-msg {
+  margin: 4px 0 0;
+  color: var(--ink-2);
+}
+.timeline-head .ack {
+  margin-left: auto;
+}
+/* —— 按钮 —— */
+button {
+  font: inherit;
+  cursor: pointer;
+}
+button.icon,
+button.ack {
+  background: none;
+  border: 1px solid var(--ring);
+  border-radius: 6px;
+}
+button.icon {
+  padding: 4px 10px;
+  color: var(--ink-2);
+}
+button.icon:hover {
+  color: var(--ink);
+}
+button.ack {
+  padding: 2px 10px;
+  color: var(--accent);
+}
+button.ack:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

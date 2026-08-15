@@ -127,6 +127,22 @@ func (m *memStore) PutTriggerState(context.Context, store.TriggerState) error {
 	panic("memStore: PutTriggerState not used")
 }
 
+func (m *memStore) LatestFacts(context.Context, string, string, string) ([]fact.Fact, error) {
+	panic("memStore: LatestFacts not used")
+}
+
+func (m *memStore) ListAlerts(context.Context, int, int) ([]store.Alert, error) {
+	panic("memStore: ListAlerts not used")
+}
+
+func (m *memStore) AckAlert(context.Context, int64) error {
+	panic("memStore: AckAlert not used")
+}
+
+func (m *memStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
+	panic("memStore: ListTriggerStates not used")
+}
+
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }
 

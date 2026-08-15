@@ -3,8 +3,10 @@ module arbcn
 go 1.26.5
 
 require (
+	connectrpc.com/connect v1.20.0
 	github.com/jackc/pgx/v5 v5.10.0
 	golang.org/x/text v0.29.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (

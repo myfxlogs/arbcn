@@ -28,7 +28,7 @@
   | **M1-d DeFiRates/Domestic/Calendar/IV → 施工 agent #4** | ✅ | c8b912d |
   | **M1-e 规则引擎+对抗测试 → 施工 agent #5** | ✅ | 505d2af |
   | **M1-f Alerter+元监控 → 施工 agent #6** | ✅ | 88dbf9e |
-  | **M1-g Web 仪表盘最小集 → 施工 agent #7** | 🔄 | 本会话派发 |
+  | **M1-g Web 仪表盘最小集 → 施工 agent #7** | ✅ | internal/dashboard/ + proto/arbcn/dashboard/v1/ |
   | M1-h 全链路联调+A-F 自审 | ⬜ | 待 M1-g |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
   | 台账/归因 v2 | ⬜ | M2 |

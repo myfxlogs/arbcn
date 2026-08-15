@@ -44,6 +44,14 @@ func (f *fakeStore) PutTriggerState(context.Context, store.TriggerState) error {
 func (f *fakeStore) InsertAlert(context.Context, store.Alert) error            { return nil }
 func (f *fakeStore) PendingAlerts(context.Context, int) ([]store.Alert, error) { return nil, nil }
 func (f *fakeStore) MarkAlertDelivered(context.Context, int64) error           { return nil }
+func (f *fakeStore) LatestFacts(context.Context, string, string, string) ([]fact.Fact, error) {
+	return nil, nil
+}
+func (f *fakeStore) ListAlerts(context.Context, int, int) ([]store.Alert, error) { return nil, nil }
+func (f *fakeStore) AckAlert(context.Context, int64) error                       { return nil }
+func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
+	return nil, nil
+}
 
 func (f *fakeStore) count() int {
 	f.mu.Lock()

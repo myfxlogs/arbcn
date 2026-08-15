@@ -1,0 +1,91 @@
+// arbcn 决策仪表盘 ConnectRPC 服务（docs/design/02-monitor-architecture.md §9）。
+// 最小集：只读查询 + 告警确认；无交易、无事实写入（§1 铁律：资金动作永远人工）。
+syntax = "proto3";
+
+package arbcn.dashboard.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1";
+
+// DashboardService 为 Web 仪表盘提供数据查询与告警确认接口。
+// 除 AckAlert 外全部只读；无任何资金/交易能力。
+service DashboardService {
+  // ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
+  rpc ListLatestFacts(ListLatestFactsRequest) returns (ListLatestFactsResponse);
+  // ListAlerts 时间降序分页返回告警流。
+  rpc ListAlerts(ListAlertsRequest) returns (ListAlertsResponse);
+  // AckAlert 单条确认（幂等；未知 id 无操作）。
+  rpc AckAlert(AckAlertRequest) returns (AckAlertResponse);
+  // ListTriggerStates 返回各规则状态机（armed/active/resolved + 最近转变）。
+  rpc ListTriggerStates(ListTriggerStatesRequest) returns (ListTriggerStatesResponse);
+  // Health 与 /healthz 同源：进程存活 + DB 可达 + 迁移应用状态。
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+// Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
+message Fact {
+  string kind = 1;  // funding / defi_rate / reverse_repo / iv / calendar ...
+  string venue = 2;
+  string symbol = 3;
+  double value = 4;  // 口径由 kind 约定（见 fact.Unit* 常量表）
+  string unit = 5;   // pct_annualized / price / pct / days / ratio
+  google.protobuf.Timestamp ts = 6;
+  string src = 7;
+}
+
+message ListLatestFactsRequest {
+  string kind = 1;    // 空 = 全部
+  string venue = 2;   // 空 = 全部
+  string symbol = 3;  // 空 = 全部
+}
+
+message ListLatestFactsResponse {
+  repeated Fact facts = 1;
+}
+
+// Alert 与 store.Alert 对应；acked = 用户在仪表盘确认过（独立于投递状态 delivered）。
+message Alert {
+  int64 id = 1;
+  int64 rule_id = 2;
+  string rule_name = 3;
+  google.protobuf.Timestamp ts = 4;
+  string level = 5;  // info / warn / critical
+  string message = 6;
+  bool acked = 7;
+}
+
+message ListAlertsRequest {
+  int32 limit = 1;   // 分页大小；≤0 = 默认 100，上限 500
+  int32 offset = 2;  // 分页偏移；<0 = 0
+}
+
+message ListAlertsResponse {
+  repeated Alert alerts = 1;
+}
+
+message AckAlertRequest {
+  int64 id = 1;
+}
+
+message AckAlertResponse {}
+
+message TriggerState {
+  string rule_name = 1;
+  string state = 2;                     // armed / active / resolved
+  google.protobuf.Timestamp since = 3;  // 最近一次转变时刻；零值 = 尚未转变
+  optional double last_value = 4;       // 最近评估值；从未评估 = 缺省
+}
+
+message ListTriggerStatesRequest {}
+
+message ListTriggerStatesResponse {
+  repeated TriggerState states = 1;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;  // ok / degraded
+  string reason = 2;  // 空 = ok；db_unreachable / pending_migrations / migrations_check_failed
+}

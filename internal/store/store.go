@@ -49,7 +49,7 @@ const (
 )
 
 // Alert 是 alerts 表的持久化记录（状态机状态转变时由规则引擎写入，§4）。
-// ID/RuleName/Delivered 是读取路径（Alerter 投递）字段：写入时忽略。
+// ID/RuleName/Delivered/Acked 是读取路径字段：写入时忽略。
 type Alert struct {
 	ID        int64 // 主键（读取时回填）
 	RuleID    int64
@@ -58,6 +58,16 @@ type Alert struct {
 	Level     string    // LevelInfo / LevelWarn / LevelCritical
 	Message   string
 	Delivered bool // M1-f 投递状态（迁移 0003）
+	Acked     bool // M1-g 仪表盘确认状态（0001 已建列；独立于 Delivered）
+}
+
+// RuleState 是触发器视图的联表投影（rules LEFT JOIN trigger_states）。
+// 无状态行 = 尚未评估，语义等同 armed；Since 零值 = 尚未转变。
+type RuleState struct {
+	RuleName  string
+	State     string // StateArmed / StateActive / StateResolved
+	Since     time.Time
+	LastValue *float64 // NULL = 从未评估
 }
 
 // FactQuery 时间窗查询条件；空字段 = 不筛选。
@@ -77,6 +87,9 @@ type Store interface {
 	InsertFacts(ctx context.Context, facts []fact.Fact) error
 	// QueryFacts 按 FactQuery 过滤（索引 (kind, symbol, ts) 友好）。
 	QueryFacts(ctx context.Context, q FactQuery) ([]fact.Fact, error)
+	// LatestFacts 每 (kind, venue, symbol) 返回一条最新事实（按 ts 取最大）；
+	// 空参数 = 不过滤（M1-g 仪表盘机会面板快照）。
+	LatestFacts(ctx context.Context, kind, venue, symbol string) ([]fact.Fact, error)
 	// UpsertRule 按 Name 幂等写入，返回 id。
 	UpsertRule(ctx context.Context, r Rule) (int64, error)
 	ListRules(ctx context.Context) ([]Rule, error)
@@ -91,4 +104,12 @@ type Store interface {
 	PendingAlerts(ctx context.Context, limit int) ([]Alert, error)
 	// MarkAlertDelivered 标记单条告警已投递（M1-f）。
 	MarkAlertDelivered(ctx context.Context, id int64) error
+	// ListAlerts 时间降序分页返回告警流（含 acked；ts DESC, id DESC；
+	// limit ≤ 0 = 默认 100，offset < 0 = 0）（M1-g 仪表盘）。
+	ListAlerts(ctx context.Context, limit, offset int) ([]Alert, error)
+	// AckAlert 单条确认（幂等；未知 id 无操作）（M1-g 仪表盘）。
+	AckAlert(ctx context.Context, id int64) error
+	// ListTriggerStates 返回全部规则的触发器视图（未评估规则 = armed）
+	// （M1-g 仪表盘）。
+	ListTriggerStates(ctx context.Context) ([]RuleState, error)
 }

@@ -180,7 +180,7 @@ func (s *Store) PendingAlerts(ctx context.Context, limit int) ([]store.Alert, er
 		limit = 100
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT a.id, a.rule_id, r.name, a.ts, a.level, a.message, a.delivered
+		SELECT a.id, a.rule_id, r.name, a.ts, a.level, a.message, a.delivered, a.acked
 		FROM alerts a JOIN rules r ON r.id = a.rule_id
 		WHERE NOT a.delivered
 		ORDER BY a.ts ASC, a.id ASC
@@ -193,7 +193,8 @@ func (s *Store) PendingAlerts(ctx context.Context, limit int) ([]store.Alert, er
 	out := []store.Alert{}
 	for rows.Next() {
 		var a store.Alert
-		if err := rows.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.Ts, &a.Level, &a.Message, &a.Delivered); err != nil {
+		if err := rows.Scan(&a.ID, &a.RuleID, &a.RuleName, &a.Ts, &a.Level, &a.Message,
+			&a.Delivered, &a.Acked); err != nil {
 			return nil, err
 		}
 		out = append(out, a)

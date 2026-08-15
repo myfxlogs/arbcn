@@ -1,0 +1,16 @@
+# 代码生成（本地插件，与 D-011 技术栈一致）：
+#   protoc-gen-go / protoc-gen-connect-go → internal/dashboard/gen（Go，入仓库）
+#   protoc-gen-es（web/node_modules 安装后）→ web/src/gen（TS，入仓库）
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: internal/dashboard/gen
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: internal/dashboard/gen
+    opt: paths=source_relative
+  - local: web/node_modules/.bin/protoc-gen-es
+    out: web/src/gen
+    opt: target=ts
+inputs:
+  - directory: proto
