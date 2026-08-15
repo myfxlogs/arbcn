@@ -1,0 +1,21 @@
+# Build artifacts
+out/
+dist/
+*.exe
+*.pb
+
+# Environment
+.env
+*.local
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/
+
+# Go
+bin/
+vendor/
+
+# Node
+node_modules/

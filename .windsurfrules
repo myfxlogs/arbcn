@@ -1,0 +1,7 @@
+# arbcn — Windsurf 入口
+
+> 唯一真相源是 `/opt/arbcn/AGENTS.md`。本文件只是入口壳。
+
+你是**施工方**：只实现、不决策。开工先读 `AGENTS.md` 全文 + `docs/handoff/STATE.md`，按 §2 boot、§6 check-out 执行。
+遇设计疑问 / 文档矛盾：回找决策者 Claude，不自行变更设计、不自行下判断。
+收工必写 STATE.md 交接负载 + 私有记忆清扫 + 本次对话落 dialogue.md。
