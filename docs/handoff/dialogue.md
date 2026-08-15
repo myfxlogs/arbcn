@@ -320,3 +320,12 @@
 - **部署验证**：重启后 journal 报 "funding history backfill complete days=365"；DB 实测——binance funding 3489 条 min_ts=2025-08-15（满 365d）、okx 1080 条 min_ts=2026-05-14（~90d，OKX 保留限制，部分覆盖已标注）；年化值抽查精确（0.00003722×1095×100=4.08%）；avg_30d binance BTC=6.46%（回填前 ~7d 不可靠，现为真实 30d 均值，低于 funding_warn 门槛 15% 不误报）。sim_report 周频文件需 7×8h tick（~56h）后首次渲染。
 - **决策号**：D-031 实证修订（data-api 前提否定 + fapi 回落 + OKX 端点修正）。
 - **下一步**：M3-c（一键确认 UI + SPREAD_DRIFT）；并行等业主 testnet key（S3 启用门控）。
+
+## #45 · 2026-08-15 · M3-c 细化设计定稿（D-038）· 业主 → 决策层
+- **参与方**：业主（甲方）、Claude（决策层）
+- **议题**：业主问"M3-c 有没有文档？文档审计过没有？"——核实后启动 M3-c 细化设计。
+- **核实结论**：M3-c 有规格文档（spec §6 + §5.1 G5 + §4 二次校验 + D-034⑤ + D-036 G5），但**只到规格层未到施工细化级**（对比 M3-b §9 的 D-037 粒度）；D-036 审计落点清单无 §6，G5 只是口径定义；STATE 曾误引"spec §9.9"（实为 M3-b 的依赖与阻塞小节）。附带修正：STATE 引用错误已随本 dialogue 记录，STATE 下一步字段改指 spec §10。
+- **审计发现**（摸清代码面后）：proto 源缺失（M3-c 加 RPC 须新建独立域）；SPREAD_DRIFT 标记/纯函数/拒单数据面全缺；UpdateSimOrderStatus 不改 risk_flags（拒单需新方法）；两步确认（先 confirmed 再 FillSimOrder）有并发重复建腿竞态；持仓 PnL RMB 折算若误用 RMBDayEnd 年化口径会重演 H1 刻度错位；PnL"实时"语义需裁决为已结算累计。
+- **决策（D-038）**：①独立 SimService proto 域（arbcn.sim.v1，4 RPC，不动 dashboardv1 生成物）；②SPREAD_DRIFT 二次门禁纯函数 ConfirmDriftCheck（G5 口径 + 有限性 fail-closed）；③确认成交 = store 单事务原子 AcceptSimOrder（suggested→confirmed→filled + 建腿，状态守卫防并发双插），拒单走 RejectSimOrder 追加标记；④持仓 PnL 即期汇率折算（非 RMBDayEnd 年化口径）；⑤PnL 只显示已结算累计 + 最新 funding 标注；⑥可检查性（simapi 无真实端点 grep 断言 + ConfirmSimOrder 唯一写路径 + SIMULATED 徽标固定渲染）。
+- **决策号**：D-038（spec §10 C1–C5 施工权威细化，含 proto 定义全文 + RPC 签名 + 对抗测试锚点）。
+- **下一步**：M3-c 施工派工（spec §10 C1–C5）；并行等业主 testnet key（S3 启用门控）。

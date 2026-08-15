@@ -229,3 +229,15 @@
   ⑦ **诚实标注**：系统无现货 collector，ticker 即永续价；funding_hedge 现货腿价取 ticker（basis/现货腿差留真实执行层），M3 只验证 funding 机制。
 - **理由**：先核实再采纳（D-028）——设计全部锚定现有代码面（OnActive 单点改、复用 Scheduler/Heartbeat/facts 管线/domains_test 模式），无新架构发明；结算数据源选真实市场是 D-036"前向只证机制"的直接推论（数字诚实才有验证效力）；历史回填落 facts 表 = 单一机制双收益（收敛数据 + 规则回溯富化）。
 - **结论**：M3-b 拆 S1–S5，spec 新增 §9 施工权威细化 + §5.1/§5.2 数据源修正；施工派工即按 spec §9。M3-c 后置（D-034 ⑤ 顺序不变）。testnet key 由业主提供，缺失 S3 降级不阻塞核心。
+
+## D-038 M3-c 细化设计定稿（施工权威 spec §10 + 确认流裁决）（2026-08-15）
+- **背景**：D-037 后 M3-b 全闭环（施工 + 复审 + S4 数据源修正部署验证）。业主问"M3-c 有没有文档 / 文档审计过没有"——核实：M3-c 文档只在 D-036 扫过规格缺口层（G5 口径），未到施工细化级（D-036 落点清单无 §6；STATE 曾误引不存在的 §9.9）。决策层摸清代码面（store sim 接口 / sim 包 ConfirmAndFill/状态机 / dashboard 10 RPC / 前端 3 tab / proto 工具链）后定稿 spec §10（C1–C5）。
+- **决策**：
+  ① **独立 SimService proto 域**（arbcn.sim.v1，新 `proto/` 目录 + buf.yaml）：4 RPC（ListSimOrders / ConfirmSimOrder / ListSimPositions / GetSimReport）。**不动 dashboardv1 生成物**——其 .proto 源缺失（只有 dashboard.pb.go / dashboard_pb.ts）且无 sim 域，硬改有反推风险；独立域零回归。工具链已验：protoc / protoc-gen-go / buf 在，protoc-gen-es 在 web devDeps，connect-go v1.20 / protobuf v1.36.11 对齐现有生成物。
+  ② **SPREAD_DRIFT 二次门禁（G5 落地）**：新 `RiskSpreadDrift` 标记 + 纯函数 `ConfirmDriftCheck(genRef, genSpread, curRef, curSpread)`——ref 漂移 >2% 或 年化变化 >20% 各自独立触发拒单；**有限性 fail-closed**（确认重查价 NaN/零 → 拒，practices #7）；数据面 = 确认时刻 LatestFacts(ticker/funding) 重查，查不到 → 拒（从严）。
+  ③ **确认成交 = store 层单事务原子 `AcceptSimOrder`**（suggested→confirmed→filled + INSERT 全腿，WHERE status='suggested' 守卫，RowsAffected 拦并发双确认）——替代"先置 confirmed 再 ConfirmAndFill"两步（practices #8 原子性：防"已确认未成交"悬挂 + 并发重复建腿）；confirmed 是事务内中间态，外部只见 suggested/filled。拒单走新 store 方法 `RejectSimOrder`（原子置 rejected + risk_flags 追加 SPREAD_DRIFT）。
+  ④ **RMB 口径区分**：持仓 PnL = 模拟 USD 绝对金额 → **即期汇率折算**（USDCNH 事实直接乘）；**非** RMBDayEnd 年化口径（那是费率折算，H1 刻度线）。汇率缺失 → 显示 USD 原值 + 标注。
+  ⑤ **PnL 只显示已结算累计**（settleOnce 每 8h）+ 最新 funding 年化标注；不做未结算实时估算（范围蔓延，M3 只验证机制）。
+  ⑥ **可检查性**：domains_test 增 simapi 包无真实账户/下单端点（grep 断言）；ConfirmSimOrder 是唯一写路径（无自动确认定时器）；SIMULATED 徽标前端固定渲染（可 grep）。expired 状态默认不触发（避免时间窗复杂度）。
+- **理由**：先核实再采纳（D-028）——设计全部锚定现有代码面（复用 store sim 接口 / sim legs 组装 / rmb 包 / dashboard RPC 模式 / domains_test 模式），无新架构发明；proto 独立域规避源缺失的回归风险；原子确认是 M3-a 复审 M1（成交原子）的同类不变量在人工流上的延续；RMB 即期口径避免 H1 刻度错位重演。
+- **结论**：M3-c 拆 C1–C5，spec 新增 §10 施工权威细化（含 proto 定义全文 + RPC 签名 + 门禁口径 + 对抗测试锚点）；施工派工即按 spec §10。D-036 G5 从"口径定义"升格为"可施工规格"。

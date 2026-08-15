@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿 + 施工交付 + 复审修复 + S4 数据源修正部署验证**（D-037 + D-031 实证修订 + 本 commit：spec §9 S1–S5 全落地并已部署实测）。S1 规则→Signal 驱动（rule.OnActive 携带命中实体 + sim.Driver §3.1.1 映射表，删映射必红）；S2 8h 结算（(symbol,venue) 分组取真实市场 funding，跨 venue 污染必红）；S3 testnet 只读探针 + key 隔离（新包 internal/simtestnet，SIMULATED 缺标记拒绝加载，sim 包零网络由 domains_test 把关）；S4 历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频统计）——**数据源已修正并部署验证**（fapi.binance.com 满 365d + OKX funding-rate-history ~90d，见 D-031 修订；DB 实测 binance min_ts=2025-08-15）；S5 carry 白名单默认空（宁缺毋滥）。main.go 已接线：boot 历史回填（一次性幂等）+ simDriver（OnActive compose）+ 8h 结算循环 + testnet 探针随 settle tick；H1 洪水去重（8h 桶折叠 + Limit 2M）已含。**下一步 = M3-c（一键确认 UI + SPREAD_DRIFT）或业主提供 testnet key 启用 S3**。
+- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿 + 施工交付 + 复审修复 + S4 数据源修正部署验证**（D-037 + D-031 实证修订 + 本 commit：spec §9 S1–S5 全落地并已部署实测）。S1 规则→Signal 驱动（rule.OnActive 携带命中实体 + sim.Driver §3.1.1 映射表，删映射必红）；S2 8h 结算（(symbol,venue) 分组取真实市场 funding，跨 venue 污染必红）；S3 testnet 只读探针 + key 隔离（新包 internal/simtestnet，SIMULATED 缺标记拒绝加载，sim 包零网络由 domains_test 把关）；S4 历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频统计）——**数据源已修正并部署验证**（fapi.binance.com 满 365d + OKX funding-rate-history ~90d，见 D-031 修订；DB 实测 binance min_ts=2025-08-15）；S5 carry 白名单默认空（宁缺毋滥）。main.go 已接线：boot 历史回填（一次性幂等）+ simDriver（OnActive compose）+ 8h 结算循环 + testnet 探针随 settle tick；H1 洪水去重（8h 桶折叠 + Limit 2M）已含。**M3-c 细化设计定稿**（D-038 + spec §10 C1–C5：SimService 独立 proto 域 + SPREAD_DRIFT 二次门禁 + 确认成交流原子化 + 模拟执行 UI tab + 可检查性；待派工）。**下一步 = M3-c 施工或业主提供 testnet key 启用 S3**。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13，M3-a 复审复核：sim 包零网络零密钥）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -45,7 +45,8 @@
   | **M3-b S3：testnet 只读探针 + key 隔离（新包 simtestnet，SIMULATED 门控）** | ✅ | internal/simtestnet/ + domains_test |
   | **M3-b S4：历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频）** | ✅ | collect/exchange/history.go + sim/report.go（部署验证：binance 满 365d / OKX ~90d，D-031 修订） |
   | **M3-b S5：carry 白名单 + 降级（默认空宁缺毋滥）** | ✅ | sim/config.go CarryWhitelist |
-  | M3-c：模拟执行一键确认 UI + SPREAD_DRIFT 漂移门禁 | ⬜ | D-034 ⑤ 顺序不变 · M3-b 后开工 · 下一项 |
+  | **M3-c 细化设计定稿** | ✅ | D-038 + spec §10（C1–C5，含 proto 全文/RPC/门禁/锚点） |
+  | M3-c：模拟执行一键确认 UI + SPREAD_DRIFT 漂移门禁 | ⬜ | D-038 · spec §10 · 下一步派工（C1–C5） |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
@@ -55,5 +56,5 @@
   - **M3-b 交付注**：sim 已接线进 main.go（backfill / simDriver / OnActive compose / 8h 结算循环 / 探针随 tick）；结算数据源 = 真实市场公开 funding（D-037 裁决），testnet 费率不参与结算只做 key 隔离验证。sim 包保持零网络零密钥（domains_test + TestNoNetworkImports 把关）。
   - **D-031 实证修订**：data-api.binance.vision 不镜像 /fapi/*（404）；历史回填源回落 fapi.binance.com（部署机直连 200、满 365d）；OKX 历史端点为 funding-rate-history（funding-history 404），仅保留 ~90d（OKX 部分覆盖，sim_report/avg_30d 受窗口限制，已知 degrade）。
   - 待决策观察（不阻塞）：repo 信号经 SignalToOrder 时仍受 5% 门槛（SPREAD_LOW）约束——平时逆回购 2-4% 会被拒单，仅季末/年末上冲 ≥5% 时放行；与"时点逆回购"策略意图一致（宁缺毋滥），但若业主希望 repo 绕过价差门槛须走 D# 调整。
-- 下一步: **M3-c 开工**（04-m3-spec.md §9.9：一键确认 UI + SPREAD_DRIFT 漂移门禁，D-034 ⑤ 顺序）；并行等待业主 testnet key（S3 启用门控）。
-- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；对话落 dialogue.md #39/#40/#41/#42/#43/#44。
+- 下一步: **M3-c 施工派工**（04-m3-spec.md §10 C1–C5：SimService proto + SPREAD_DRIFT 二次门禁 + 确认成交流 + 模拟执行 UI tab + 可检查性；D-038 定稿；原"§9.9"引用错误已修正）；并行等待业主 testnet key（S3 启用门控）。
+- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；对话落 dialogue.md #39/#40/#41/#42/#43/#44/#45。

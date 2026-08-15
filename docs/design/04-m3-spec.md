@@ -271,3 +271,176 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 - testnet key（业主提供）→ S3 门控，缺失降级，不阻塞 S1/S2/S4/S5。
 - 白名单默认空 → carry 先被 WHITELIST 拒单，显式配置后生效。
 - M3-c（确认 UI + SPREAD_DRIFT 漂移门禁）在 M3-b 后开工（D-034 ⑤ 顺序不变）。
+
+---
+
+## 10. M3-c 施工细化设计（D-034⑤ + D-036 G5 落地 · 施工权威 · D-038 定稿）
+
+### 10.0 范围裁决（先读）
+
+- **形态**：决策监控 + 人工一键确认（D-034 ①）。**确认后仍是模拟**（SIMULATED 徽标明示），无任何通往真实资金的按钮/路径（§6/§8）。
+- **确认流**：人工审价差 → **二次门禁（SPREAD_DRIFT，G5）** → 确认 → 本地模拟成交 → 入持仓。二次门禁是生成时六门禁的**确认时复核**（§4"确认时二次校验"落地），不是第七道生成时门禁。
+- **结算数据源不变**（D-037 裁决）：持仓 funding 结算仍取真实市场公开 funding（sim.settleLoop 每 8h），M3-c 只加人工确认触发成交 + 视图；不新增结算/喂价路径。
+- **确认成交 = store 层单事务原子**（practices #8：置状态+建从属行必须原子，防"已确认未成交"悬挂 + 并发双插重复建腿）。
+- **RMB 口径**：持仓 PnL（模拟 USD 绝对金额）→ 即期汇率折算（USDCNH 事实）；**非** RMBDayEnd 年化口径（那是费率折算，H1/R6#1 刻度线）。汇率缺失 → 显示 USD 原值 + 标注（诚实）。
+- **实时 vs 已结算 PnL**：显示**已结算累计**（settleOnce 每 8h 结算）+ 最新 funding 年化标注；**不做**未结算实时估算（范围蔓延，M3 只验证机制）。
+- **proto 域**：新建独立 `SimService`（新 proto 域 arbcn.sim.v1），**不动 dashboardv1 生成物**（其 .proto 源缺失且无 sim 域；独立域零回归）。
+- **expired 状态**：默认不触发（suggested 永续待确认，直到人工确认/拒单）；自动过期 = 可选项，本次不做（避免无人消费的时间窗复杂度）。
+
+### 10.1 子任务拆解
+
+| # | 子任务 | 内容 | 验收锚点（对抗测试） |
+|---|--------|------|----------------------|
+| C1 | SimService proto + 生成物 | 新 `proto/arbcn/sim/v1/sim.proto` + buf generate（后端 protoc-gen-go + connect-go，前端 protoc-gen-es）；4 个 RPC | 生成物编译通过；mux 挂 `/arbcn.sim.v1.SimService/`；ListSimOrders 空库返回空不报错 |
+| C2 | SPREAD_DRIFT 二次门禁 | `RiskSpreadDrift` 标记 + 纯函数 `ConfirmDriftCheck`（G5 口径：ref 漂移 >2% 或 年化变化 >20% → 拒；有限性 fail-closed）；数据面 = 确认时刻 LatestFacts(ticker/funding) | 删漂移比较 → 必红；NaN/零 ref → 拒；漂移 2.01% → 拒、1.99% → 过 |
+| C3 | 确认成交流（ConfirmSimOrder） | RPC 唯一写路径：GetSimOrder → 非 suggested 拒（防重复确认）→ 二次门禁（拒 → RejectSimOrder 追加 SPREAD_DRIFT）→ 通过 → store 原子 `AcceptSimOrder`（suggested→confirmed→filled + INSERT 全腿，WHERE status='suggested' 守卫） | 已确认/已填/已拒订单确认 → 报错；门禁拒 → rejected+SPREAD_DRIFT+note；并发双确认 → 状态守卫拦第二次（无重复建腿） |
+| C4 | 模拟执行 UI tab | App.tsx 第 4 个 tab「模拟执行」：建议订单列表（待确认/拒单负样本分组）/ 模拟持仓（PnL USD + 即期 RMB）/ 对账报告入口（GetSimReport 渲染 markdown）；SIMULATED 徽标贯穿 | 组件构建通过；SIMULATED 徽标固定渲染（可检查）；确认按钮仅 suggested 可点 → ConfirmSimOrder → 刷新 |
+| C5 | 可检查性 + main.go 接线 + 验收 | domains_test 增 simapi 无真实账户/下单端点（grep 断言）；ConfirmSimOrder 是唯一写路径（无自动确认定时器）；mux 接线；全量测试 + 部署 | simapi 包 grep 无主网交易域/真实 API 端点；go vet + test -race 全绿；部署后 tab 可用 |
+
+### 10.2 C1：SimService proto + 生成物
+
+**新 proto 文件** `proto/arbcn/sim/v1/sim.proto`（包 `arbcn.sim.v1`，独立于 dashboardv1）：
+
+```proto
+syntax = "proto3";
+package arbcn.sim.v1;
+
+message SimOrder {
+  int64 id = 1;
+  int64 ts_ms = 2;            // 毫秒时间戳（前端 bigint 承载）
+  string src_rule = 3;
+  string kind = 4;
+  string venue = 5;
+  string symbol = 6;
+  string side = 7;
+  double qty = 8;
+  double ref_price = 9;
+  double expected_spread = 10;
+  repeated string risk_flags = 11;
+  string status = 12;
+  string note = 13;
+}
+
+message SimPosition {
+  int64 id = 1;
+  int64 order_id = 2;
+  int64 ts_ms = 3;
+  string kind = 4;
+  string venue = 5;
+  string symbol = 6;
+  string side = 7;
+  double qty = 8;
+  double ref_price = 9;
+  bool funding = 10;
+  double pnl = 11;            // 已结算累计（模拟 USD）
+  double pnl_rmb = 12;        // 即期折算（汇率缺失 = 0，前端标注）
+  string status = 13;
+}
+
+message ListSimOrdersRequest  { string status = 1; }        // 空 = 全部
+message ListSimOrdersResponse { repeated SimOrder orders = 1; }
+message ConfirmSimOrderRequest  { int64 id = 1; }
+message ConfirmSimOrderResponse {
+  SimOrder order = 1;         // 确认后（filled 或 rejected+SPREAD_DRIFT）
+  bool accepted = 2;          // true = 成交；false = 二次门禁拒单
+}
+message ListSimPositionsRequest  {}
+message ListSimPositionsResponse { repeated SimPosition positions = 1; }
+message GetSimReportRequest {}
+message GetSimReportResponse {
+  string markdown = 1;        // 报告内容（文件不存在 = 空 + note 说明）
+  bool exists = 2;
+  string note = 3;            // 未生成时说明"周频报告每 7×8h tick 渲染"
+}
+
+service SimService {
+  rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
+  rpc ConfirmSimOrder(ConfirmSimOrderRequest) returns (ConfirmSimOrderResponse);
+  rpc ListSimPositions(ListSimPositionsRequest) returns (ListSimPositionsResponse);
+  rpc GetSimReport(GetSimReportRequest) returns (GetSimReportResponse);
+}
+```
+
+**生成**（对齐现有生成物版本：后端 connect v1.20 / protobuf v1.36.11，前端 protoc-gen-es v2）：
+- 建 `buf.yaml`（现有缺失，补）；后端输出 `internal/simapi/gen/...`（protoc-gen-go + protoc-gen-connect-go），前端输出 `web/src/gen/arbcn/sim/v1/`（protoc-gen-es）。
+- main.go mux 挂新 handler：`simapi.NewService(st, cfg).Handler()` → `mux.Handle("/arbcn.sim.v1.SimService/", h)`（ConnectRPC 同源托管，vite dev 代理加同名路径）。
+- **不新增端口**（§6 同源单端口）；**不动 dashboardv1**（其源缺失，硬改有反推风险——C1 关键边界）。
+
+**验收锚点**：空库 ListSimOrders → `[]` 不报错；proto 字段与 store.SimOrder 逐一对齐（id/ts/src_rule/kind/venue/symbol/side/qty/ref_price/expected_spread/risk_flags/status/note）。
+
+### 10.3 C2：SPREAD_DRIFT 二次门禁
+
+**新常量**（`internal/sim/order.go` Risk 值域追加）：
+```go
+const RiskSpreadDrift = "SPREAD_DRIFT" // 确认时刻 ref_price 漂移 >2% 或 年化变化 >20%（D-036 G5）
+```
+
+**新纯函数**（`internal/sim/confirm.go`，零 I/O、可注入输入）：
+```go
+// ConfirmDriftCheck 确认时二次门禁（D-036 G5）：生成 vs 确认时刻的 ref_price 漂移
+// >2%（或 预期年化变化 >20%）→ 拒单。genRef==0/非有限 → fail-closed 拒（practices #7：
+// 确认重查的价可能是 NaN/缺，不得静默放行）。
+func ConfirmDriftCheck(genRef, genSpread, curRef, curSpread float64) (reject bool, reason string)
+```
+
+G5 口径逐字落地：
+- `|curRef-genRef|/genRef > 0.02` → 拒：`SPREAD_DRIFT: ref_price 漂移 X%`
+- `|curSpread-genSpread|/genSpread > 0.20` → 拒：`SPREAD_DRIFT: 预期年化变化 X%`
+- 两条件**各自独立触发**（任一过线即拒，note 记具体原因；G5"或"关系）
+- 有限性守卫：`genRef==0 || IsNaN(genRef|curRef|genSpread|curSpread) || IsInf` → 拒（fail-closed）
+
+**数据面**（RPC handler 层，C3 内）：确认时刻 `LatestFacts(kind=ticker, venue, symbol)` 最新价 → curRef；`LatestFacts(kind=funding, venue, symbol)` 最新年化 → curSpread。查不到 ticker/funding → fail-closed 拒（无数据不确认，§4"任一操作数无数据 → 不告警"同哲学，确认流从严）。
+
+**[对抗测试锚点]**：删 `> 0.02` 漂移比较 → TestConfirmDriftRejectsDrift 必红；`ConfirmDriftCheck(100, 5, 100, 5)` → 过；`(100, 5, 102.01, 5)` → 拒；`(0, 5, 100, 5)` → 拒（零 ref fail-closed）；`(100, 5, NaN, 5)` → 拒。
+
+### 10.4 C3：确认成交流（ConfirmSimOrder RPC）
+
+**流程**（handler 层，唯一写路径）：
+1. `GetSimOrder(id)` → ErrNotFound 报错；`status != suggested` → 报错（已确认/已填/已拒/过期 → 防重复确认）。
+2. 二次门禁（§10.3）：确认时刻重查 ticker/funding → `ConfirmDriftCheck`。
+   - **拒** → 调新 store 方法 `RejectSimOrder(id, reason, "SPREAD_DRIFT")`（原子：status=rejected + risk_flags 追加标记 + note 覆盖）→ 返回 `{accepted:false, order}`。拒单 = 负样本保留（§4）。
+   - **过** → 组 legs（funding_hedge = 两腿 现货 long + 永续 short；carry/repo = 单生息腿）→ 调新 store 原子方法。
+3. **新 store 原子方法 `AcceptSimOrder(id, note, legs)`**（替代"先置 confirmed 再 ConfirmAndFill"两步——practices #8 原子性）：
+   ```
+   单事务：
+     UPDATE sim_orders SET status='confirmed' WHERE id=$1 AND status='suggested'  -- 守卫 1
+     UPDATE sim_orders SET status='filled', note=$2 WHERE id=$1 AND status='confirmed' -- 守卫 2
+     INSERT 全部 sim_positions 腿
+     COMMIT
+   ```
+   `RowsAffected` 任一步为 0 → 整体回滚 + 报错。事务内 confirmed 是中间态，外部永远看到 suggested 或 filled（无"已确认未成交"悬挂态）；并发双确认 → 守卫 1 拦第二次（无重复建腿）。
+   - 语义与 M3-b 的 `FillSimOrder`（confirmed→filled）互补：FillSimOrder 供内部/测试从 confirmed 成交；AcceptSimOrder 是 M3-c 人工流从 suggested 一次性确认成交。**共享建腿逻辑**（组 legs 复用 sim.ConfirmAndFill 的 legs 组装，提取公共函数）。
+
+**[对抗测试锚点]**：`ConfirmSimOrder` 对 confirmed/filled/rejected 订单 → 报错（删非 suggested 检查 → 必红）；门禁拒 → 订单 rejected + risk_flags 含 SPREAD_DRIFT + note 记漂移原因；并发双确认 → 第二次失败（删 WHERE status='suggested' 守卫 → 重复建腿断言必红）；拒单后不建腿（ListSimPositions 空）。
+
+### 10.5 C4：模拟执行 UI tab
+
+**App.tsx**：`Tab` 加 `"sim"`，TABS 加 `{ key: "sim", label: "模拟执行" }`（第 4 个 tab，与机会面板平级，§6）。新组件 `web/src/components/SimExec.tsx`。
+
+**SimExec 三区**（仿现有组件模式：`hooks.ts` 加 `useSim()` 快照，调 SimService）：
+1. **建议订单列表**：`ListSimOrders(status="")` → 分组——待确认（suggested）/ 拒单负样本（rejected，含 SPREAD_DRIFT 原因徽标）/ 已成交（filled）。行：标的/venue/方向/数量/预期年化/risk_flags 徽标/状态。**确认按钮仅 suggested 行渲染**（防误点 + 二次点击确认交互）→ `ConfirmSimOrder(id)` → 刷新。
+2. **模拟持仓**：`ListSimPositions()` → 行：标的/venue/腿方向/数量/pnl（USD）/pnl_rmb（即期折算，汇率缺失标注 "USD 原值"）/funding 年化标注（最新）。PnL = 已结算累计（诚实标注"每 8h 结算"）。
+3. **对账报告入口**：`GetSimReport()` → 渲染 markdown（或 "周频报告每 7×8h tick 渲染" note）。
+4. **SIMULATED 徽标**：tab 顶部固定渲染 + 每个订单/持仓行明示（"模拟"）。**永不出现真金按钮/路径**（§6/§8）。
+
+**RMB 折算实现**（C4 关键口径）：RPC handler 层用 `LatestFacts(kind=fx, venue=sina, symbol=usdcnh)` 即期价 × pnl（绝对金额用即期，**非** RMBDayEnd 年化口径——spec 明示避免 H1 刻度错位重演）；汇率缺失 → pnl_rmb=0 + 前端标注。
+
+**[验收锚点]**：前端 `tsc --noEmit && vite build` 过；SimExec 组件含 `SIMULATED`/「模拟」常量（可 grep）；确认按钮渲染条件 `status==='suggested'`；后端 RPC 锚点测试为主（C2/C3），前端构建通过 + 手动冒烟。
+
+### 10.6 C5：可检查性 + main.go 接线 + 验收
+
+**可检查性（对抗测试）**：
+- **domains_test 增**：`internal/simapi` 包 grep 断言——无真实账户端点（无 `account`、无 `withdraw`、无 `transfer`、无 `order` 下单路径）、无主网交易域名（fapi/www.okx 的真实交易端点不在 handler 路径）。**ConfirmSimOrder 是唯一写路径**：包内无定时器/自动确认（grep 无 `time.Ticker`）。
+- **SIMULATED 徽标可检查**：SimExec.tsx 含固定 SIMULATED 渲染（grep）。
+- **go vet + go test -race 全绿**；行数门禁（gen/ + *_test 豁免）。
+
+**main.go 接线**（C1 内）：`simapi.NewService(st, simCfg).Handler()` → mux。**降级**：sim 配置缺失（simOK=false）→ SimService 仍挂载但返回说明（或 store 无 sim 表不可用时 ListSimOrders 报 degraded），不退出（D-032 同口径）。
+
+**部署验收**：SIGKILL 重启 healthz ok；前端「模拟执行」tab 打开；建议订单列表/持仓/报告入口可用；手动触发一次 funding 命中 → 订单出现在待确认 → 确认 → 持仓出现 → 8h 结算后 PnL 更新；SPREAD_DRIFT 拒单路径手动验证（人工改确认窗口价差大）。
+
+### 10.7 依赖与阻塞
+
+- 无新外部依赖：复用 store（sim 接口）/ sim（SignalToOrder/ConfirmAndFill legs 组装）/ rmb / dashboard 模式；新增 store 原子方法 AcceptSimOrder + RejectSimOrder（pgstore 单事务，照 FillSimOrder 模式）。
+- proto 工具链：protoc / protoc-gen-go / buf 已装，protoc-gen-es 在 web devDeps（connect-go v1.20 / protobuf v1.36.11 对齐现有生成物）。
+- **不阻塞**：testnet key 缺失不影响 M3-c（确认流走本地模拟成交，与 S3 探针正交）。
+- M3-c 验收依赖 M3-b 已部署（sim 表/驱动/settle 已在线上，D-037 commit 后）。
