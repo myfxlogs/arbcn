@@ -1,5 +1,6 @@
 // Package simapi：模拟执行 ConnectRPC 服务（04-m3-spec §10 M3-c，独立域 arbcn.sim.v1）。
-// 4 个 RPC：ListSimOrders / ConfirmSimOrder / ListSimPositions / GetSimReport。
+// 5 个 RPC：ListSimOrders / ConfirmSimOrder / ListSimPositions / GetSimReport /
+// GetTestnetAccounts（D-040 测试网账户区）。
 // **ConfirmSimOrder 是本包唯一写路径**（无自动确认定时器、无其他改单状态入口，§10.6 C5）；
 // 确认后仍是模拟（SIMULATED），无任何通往真实资金的按钮/路径（§6/§8，不赌原则 D-019）。
 // 本包零网络零密钥（D-010）：只读 store + 纯函数门禁，无任何真实账户/下单端点。
