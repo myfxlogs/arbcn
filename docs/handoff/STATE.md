@@ -37,5 +37,5 @@
   | M2：RMB 折算 + facts.md 自动导出 + 台账 | ⬜ | M1-i 后 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
-- 下一步: 业主部署两动作（SMTP 授权码 + systemd 安装）→ M2 规格。
-- 清扫上翻: D-031 实测证据（data-api.binance.vision 仅 spot /api/v3，fapi 路径 404；fapi.binance.com 451 已恢复 200）已入 M1-h 回报，待决策层落 decisions/dialogue；armed 状态为投影不落库（dialogue #28 裁决）实测再确认。
+- 下一步: 业主部署两动作（SMTP 授权码 + systemd 安装）→ M2 规格（含 D-032 遗留两条：SMTP 状态入 degraded 面 + smtp_configured 字段语义）。
+- 清扫上翻: D-031 实测证据已落 decisions/dialogue；armed 投影裁决已确认；M1 全部收口（dialogue #30）。

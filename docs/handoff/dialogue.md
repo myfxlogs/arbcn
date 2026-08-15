@@ -196,3 +196,9 @@
 - **决策层复审**：①armed 投影不落库 ✅（dialogue #28 裁决，双证据覆盖）；②SMTP 配置非法退出 → **D-032 裁决：降级禁用不崩进程**（与 PG 降级同口径）；③D-031 换域结论 ✅——data-api.binance.vision 无 fapi 路径（404 证据），fapi.binance.com 451 为间歇性已恢复 200 → 保留原域，Bybit/HTX 补源留待需要时另派。
 - **M1 验收结论**：**通过**（功能全链路达标；挂起项 = SMTP 真实投递待业主授权码、systemd 安装待业主）。
 - **下一步**：M1-i 补丁（SMTP 降级行为）→ 部署（业主两动作：SMTP 授权码 + systemd）→ M2。
+
+## #30 · 2026-08-15 · M1-i 收口（决策层）
+- **参与方**：施工 agent #9、Claude
+- **交付**：M1-i（0d740b7 + bc2dd34）——SMTP 非法配置 → warn + Alerter 禁用 + 进程存活（非法/合法配置双进程实测）；端口校验补强（Go SplitHostPort 不拦 h:abc/h:99999 的坑）；race 全过。
+- **决策层裁决**：①D-032"SMTP 状态入元监控 degraded 面"条款 → **并入 M2**（需动 healthz.go，超出本补丁范围；warn 日志暂作信号）；②smtp_configured 日志字段语义（非法时仍 true）→ M2 顺带修正。
+- **状态**：**M1 全部收口**（a~i + 验收）。剩业主两动作：SMTP 授权码 + systemd 安装。M2 规格为下一项。
