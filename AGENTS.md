@@ -47,7 +47,7 @@
 | 层 | 文档 | 读取 | 预算 |
 |----|------|------|------|
 | **T0 契约** | `AGENTS.md` + `STATE.md` | 每次开工必读 | ≤ 20KB / 文件（≈5K token） |
-| **T1 知识** | `decisions.md` / `practices.md` / `dialogue.md` / `docs/README.md` | 按需读 | ≤ 450 行；超量滚动归档 |
+| **T1 知识** | `decisions.md` / `practices.md` / `facts.md` / `dialogue.md` / `docs/README.md` | 按需读 | ≤ 450 行；超量滚动归档 |
 | **T2 归档** | `LOG.md` | 永不进上下文，git 追溯 | 不限 |
 
 - **STATE 滑动窗口**：只存「施工表 + 阻塞/待决策 + 交接负载」；每完成一任务，最旧 ✅ 机械移 `LOG.md`。
@@ -113,6 +113,7 @@
 | `docs/handoff/STATE.md` | T0 | 当前状态 + 交接负载（开工读 / 收工写） |
 | `docs/handoff/decisions.md` | T1 | 决策记录（D#，ADR-lite） |
 | `docs/handoff/practices.md` | T1 | 共享实践记忆（高频打回模式 + 风格约定） |
+| `docs/handoff/facts.md` | T1 | 市场事实库（值/核实时间/来源/状态；决策前先查库，D-028） |
 | `docs/handoff/dialogue.md` | T1 | 对话纪要（有痕可阅） |
 | `docs/handoff/LOG.md` | T2 | 历史归档（只存不读，git 追溯） |
 | `docs/README.md` | T1 | 文档地图 + 阅读顺序 |
