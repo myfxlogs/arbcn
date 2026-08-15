@@ -1,7 +1,10 @@
+import type { FreshDot } from "./freshness";
+
 export interface MatrixCell {
   value: string;
   title?: string;
   neg?: boolean;
+  dot?: FreshDot;
 }
 
 // MatrixTable 行×列矩阵（funding 币×所、稳定币档位项目×币种共用）。
@@ -38,7 +41,20 @@ export function MatrixTable({
                 const v = cell(r, c);
                 return (
                   <td key={c} title={v?.title} className={v?.neg ? "neg" : undefined}>
-                    {v ? v.value : "—"}
+                    {v ? (
+                      <>
+                        {v.dot ? (
+                          <i
+                            className={`fresh-dot fresh-dot-${v.dot.status}`}
+                            title={v.dot.title}
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {v.value}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </td>
                 );
               })}

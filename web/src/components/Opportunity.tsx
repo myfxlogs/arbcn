@@ -1,5 +1,6 @@
 import { days, fmtTs, pct } from "../format";
-import type { Fact } from "../gen/arbcn/dashboard/v1/dashboard_pb";
+import type { Fact, SourceHealth } from "../gen/arbcn/dashboard/v1/dashboard_pb";
+import { dotFor, healthMap } from "./freshness";
 import { MatrixTable, type MatrixCell } from "./Matrix";
 import { StatTile } from "./StatTile";
 
@@ -14,8 +15,13 @@ function uniq(xs: string[]): string[] {
   return [...new Set(xs)];
 }
 
-// buildMatrix 按 rows=Symbol / cols=Venue 组装矩阵（每格取该键最新事实）。
-function buildMatrix(facts: Fact[]): {
+// buildMatrix 按 rows=Symbol / cols=Venue 组装矩阵（每格取该键最新事实；
+// 单元格附该列 venue 对应的源 freshness 点，映射不到则静默）。
+function buildMatrix(
+  facts: Fact[],
+  kind: string,
+  health: Map<string, SourceHealth>,
+): {
   rows: string[];
   cols: string[];
   get: (row: string, col: string) => MatrixCell | null;
@@ -30,7 +36,12 @@ function buildMatrix(facts: Fact[]): {
     get: (row, col) => {
       const f = byKey.get(`${row}/${col}`);
       if (!f) return null;
-      return { value: pct(f.value), title: `更新 ${fmtTs(f.ts)}`, neg: f.value < 0 };
+      return {
+        value: pct(f.value),
+        title: `更新 ${fmtTs(f.ts)}`,
+        neg: f.value < 0,
+        dot: dotFor(kind, col, health) ?? undefined,
+      };
     },
   };
 }
@@ -50,9 +61,10 @@ function calLabel(symbol: string): string {
 }
 
 // Opportunity 机会面板：funding 矩阵 + 稳定币利率表 + IV + 逆回购/时点倒计时。
-export function Opportunity({ facts }: { facts: Fact[] }) {
-  const funding = buildMatrix(facts.filter((f) => f.kind === KIND_FUNDING));
-  const defi = buildMatrix(facts.filter((f) => f.kind === KIND_DEFI));
+export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHealth: SourceHealth[] }) {
+  const health = healthMap(sourceHealth);
+  const funding = buildMatrix(facts.filter((f) => f.kind === KIND_FUNDING), KIND_FUNDING, health);
+  const defi = buildMatrix(facts.filter((f) => f.kind === KIND_DEFI), KIND_DEFI, health);
   const iv = facts.filter((f) => f.kind === KIND_IV);
   const repo = facts.filter((f) => f.kind === KIND_REPO);
   const cal = facts.filter((f) => f.kind === KIND_CALENDAR).sort((a, b) => a.value - b.value);
@@ -79,6 +91,7 @@ export function Opportunity({ facts }: { facts: Fact[] }) {
               value={pct(f.value, 1)}
               sub={`更新 ${fmtTs(f.ts)}`}
               title={f.src}
+              dot={dotFor(KIND_IV, f.venue, health) ?? undefined}
             />
           ))
         )}
@@ -96,6 +109,7 @@ export function Opportunity({ facts }: { facts: Fact[] }) {
               value={pct(f.value)}
               sub={`更新 ${fmtTs(f.ts)}`}
               title={f.src}
+              dot={dotFor(KIND_REPO, f.venue, health) ?? undefined}
             />
           ))
         )}
@@ -106,6 +120,7 @@ export function Opportunity({ facts }: { facts: Fact[] }) {
             value={days(f.value)}
             sub={`来源 ${f.venue}`}
             title={f.src}
+            dot={dotFor(KIND_CALENDAR, f.venue, health) ?? undefined}
           />
         ))}
       </div>

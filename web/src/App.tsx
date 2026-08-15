@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { useSnapshot } from "./hooks";
 import { fmtClock } from "./format";
+import { Bell } from "./components/Bell";
 import { Chip } from "./components/Chip";
 import { Opportunity } from "./components/Opportunity";
 import { Triggers } from "./components/Triggers";
@@ -15,7 +16,7 @@ function initTheme(): "light" | "dark" {
 }
 
 export default function App() {
-  const { snap, error, reload, ackAlert } = useSnapshot();
+  const { snap, error, reload, ackAlert, ackAll } = useSnapshot();
   const [theme, setTheme] = useState<"light" | "dark">(initTheme);
   const [ackBusy, setAckBusy] = useState<ReadonlySet<string>>(new Set());
 
@@ -50,6 +51,9 @@ export default function App() {
           </Chip>
         ) : null}
         <span className="meta">{snap ? `更新于 ${fmtClock(snap.at)}` : "加载中…"}</span>
+        {snap ? (
+          <Bell unacked={snap.unacked} ackBusy={ackBusy} onAck={ack} onAckAll={ackAll} />
+        ) : null}
         <button type="button" className="icon" onClick={reload}>
           刷新
         </button>
@@ -72,7 +76,7 @@ export default function App() {
         <>
           {/* 双栏：机会面板 + 告警流（对话 #32 布局要求） */}
           <div className="row">
-            <Opportunity facts={snap.facts} />
+            <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
             <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
           </div>
           <Triggers states={snap.states} />

@@ -223,3 +223,10 @@
 - **对抗测试**：ListUnacked/AckAll/ListSourceHealth + dedup 全覆盖；删关键行实测必红（去重 continue 分支 / down 判定分支 / acked WHERE 过滤 ×3 处）。go vet + go test -race 全过（含真库 pgstore/rule 集成）、buf lint 过、check-lines 过、`go build -o bin/arbcn` 成功。
 - **决策层裁决点**：无偏离。附带修一处既有坑（pgstore/dashboard_test.go 用 `!=` 比 time.Time，PG TZ=+0800 时恒真误报，HEAD 已复现）——改用 .Equal，心得入 practices.md。
 - **下一步**：M2-a 前端施工（铃铛 + freshness 徽标，3 新 RPC 客户端已就绪）。
+
+## #34 · 2026-08-15 · M2-a 前端交付（施工 agent #2）
+- **参与方**：施工 agent #2、Claude
+- **交付**：M2-a 前端（本提交）——① 铃铛通知中心：header 铃铛 + 未读红徽标（>99 显示 99+），下拉抽屉未读告警列表（LevelChip + 规则名 + 相对时间 + 逐条 ✓确认）+ 底部"全部标记已读"按钮，空态"暂无新通知"，移动端抽屉全屏；② freshness 状态点：机会面板 funding/defi 矩阵格 + IV/repo/日历瓦片加 live/stale/down 色点，悬停 tooltip"最近更新 X 前 · 源间隔 Y · 状态 Z"（stale=市场闭市/冻结、down=采集器失联）；`sourceForTile(kind,venue)` 纯函数（funding→`${venue}_funding`，其余固定映射 defi_rates/deribit_iv/repo/calendar/fx/bank_rate，映射不到 null 静默）；③ 轮询并入 useSnapshot 六 RPC 并行，无新定时器；ackAlert/ackAll 本地即时更新未读数不重拉。
+- **验证**：`npm run build`（tsc + vite）过；check-lines 过；`go build -o bin/arbcn ./cmd/arbcn` 成功（dist 嵌入 22.5M）；**真传输冒烟**（临时实例 :50053 不触 systemd）——ListUnacked 返回未读 + total、ListSourceHealth 返回 10 源（binance_funding/okx_funding/defi_rates/deribit_iv/repo/calendar/fx/bank_rate 与 sourceForTile 映射逐名对上；周六 repo/fx/deribit_iv 判 stale = 闭市/冻结，印证 D-033 实证）、AckAll ackedCount=2 后 ListUnacked 归零。
+- **决策层注意**：当前 systemd 二进制（19:40 启动）早于 M2-a 后端，新 RPC 404；重建 bin/arbcn + 重启服务即带新功能（前端 dist 已嵌入，无需单独部署 web）。冒烟中的 AckAll 已把生产 2 条 resolved 心跳告警标记已读（仅读取状态，无资金面影响）。
+- **下一步**：M2-b 施工（RMB 折算 + facts.md 自动导出 + 台账）。
