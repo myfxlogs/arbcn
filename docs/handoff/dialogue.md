@@ -171,3 +171,9 @@
 - **交付**：M1-d（c8b912d + 43e5bb5）——DeFiRates（DefiLlama 5 池）、Domestic（逆回购新浪 + BOC 挂牌爬取）、FX（USDCNH）、Calendar（规则+人工表）、Manual（人工录入端点）、OptionsIV（Deribit DVOL）；5 源真机全通；突变测试；race 全过。活数据：USDCNH 6.7443 / GC001 0.865% / BTC IV 34.82 / ETH IV 47.27。
 - **复审**：5 项全批（deposit_rate Kind / bank_rate 1h 礼貌频 / 新浪代东财 / calendar venue 值域 / x-text 直依赖）。Binance fapi 451 地域封锁 → D-031 处置（data-api.binance.vision 试修折入 M1-h；补 Bybit/HTX；Earn 利率人工补录；代理需另立 D#）。
 - **下一步**：M1-e 派发（规则引擎 + 状态机 + 对抗测试）。
+
+## #26 · 2026-08-15 · M1-e 交付复审（决策层）
+- **参与方**：施工 agent #5、Claude
+- **交付**：M1-e（505d2af）——声明式 Cond 文法（avg/last/p25/chg + 窗口前移 @ + 缩放聚合 + 逻辑组合）、状态机（armed→active→resolved，转变才写 alerts）、首版 10 规则全落 + 幂等 Seed、每规则独立调度、对抗测试（删状态机关键行实测必红 + 生命周期全路径）、advisory 迁移锁修复（并行测试撞车）。race 全过。
+- **决策层复审（5 项全批）**：①阶梯陷阱用条件内显式 scope 聚合（更简等价）✅，数据源 = binance_ear 人工补录；②逆回购时点简化为 last_24h<=1 近似 ✅；③**元监控心跳契约定稿**（M1-f 必须遵守：kind=heartbeat、value=错过窗口数、发射方 = 独立定时器持续发射且值随停摆增长、阈值 >2）✅；④计价币种陷阱白名单 ETH/WBTC/BTC/WETH + chg ±0.5% ✅；⑤funding 预警 BTC,ETH 逐实体、TRX 不混入 ✅。
+- **下一步**：M1-f 派发（SMTP Alerter + 元监控，含未应用迁移 degraded 状态）。
