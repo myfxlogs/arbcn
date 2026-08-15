@@ -329,3 +329,17 @@
 - **决策（D-038）**：①独立 SimService proto 域（arbcn.sim.v1，4 RPC，不动 dashboardv1 生成物）；②SPREAD_DRIFT 二次门禁纯函数 ConfirmDriftCheck（G5 口径 + 有限性 fail-closed）；③确认成交 = store 单事务原子 AcceptSimOrder（suggested→confirmed→filled + 建腿，状态守卫防并发双插），拒单走 RejectSimOrder 追加标记；④持仓 PnL 即期汇率折算（非 RMBDayEnd 年化口径）；⑤PnL 只显示已结算累计 + 最新 funding 标注；⑥可检查性（simapi 无真实端点 grep 断言 + ConfirmSimOrder 唯一写路径 + SIMULATED 徽标固定渲染）。
 - **决策号**：D-038（spec §10 C1–C5 施工权威细化，含 proto 定义全文 + RPC 签名 + 对抗测试锚点）。
 - **下一步**：M3-c 施工派工（spec §10 C1–C5）；并行等业主 testnet key（S3 启用门控）。
+
+## #46 · 2026-08-15 · M3-c 施工交付（C1–C5）· 施工方 → 决策层
+- **参与方**：施工方（M3-c 施工 agent）、Claude（决策层，待验收）
+- **议题**：M3-c（04-m3-spec §10 C1–C5）落地交付——SimService 独立域 + SPREAD_DRIFT 二次门禁 + 确认成交流原子化 + 模拟执行 UI tab + 可检查性。
+- **交付**：
+  - **C1**：`proto/arbcn/sim/v1/sim.proto`（4 RPC 全文按 §10.2）+ buf v2 双模板（buf.gen.yaml 收窄 dashboard 域 + 新增 buf.gen.sim.yaml，input 级 paths 过滤）；生成物 sim.pb.go / simv1connect / sim_pb.ts；dashboardv1 生成物 byte-identical 零回归；check-lines 豁免 internal/simapi/gen/。
+  - **C2**：RiskSpreadDrift 标记 + 纯函数 ConfirmDriftCheck（ref 漂移 >2% 或 年化变化 >20% 独立触发；NaN/±Inf/零值 fail-closed 拒；对抗锚点：删漂移比较/删 fail-closed → 必红）。
+  - **C3**：store 原子 AcceptSimOrder（suggested→confirmed→filled + INSERT 全腿单事务，WHERE status='suggested' 守卫 + RowsAffected，拦并发双确认）/ RejectSimOrder（rejected + note 覆盖 + risk_flags 去重追加）；simapi 4 RPC（ConfirmSimOrder 唯一写路径，二次门禁数据面 LatestFacts ticker/funding，查不到 → fail-closed 拒；ListSimPositions pnl_rmb=pnl×即期 USDCNH，缺汇率 → 0；GetSimReport 三态）；sim.BuildLegs 抽共享（M3-b 确认流 / M3-c 人工流建腿口径一致）；时钟注入 Now 覆盖全路径。
+  - **C4**：App.tsx 第 4 tab「模拟执行」+ SimExec.tsx 三区（建议订单分组 / 模拟持仓即期 RMB / 对账报告入口）+ SIMULATED/「模拟」徽标固定渲染 + vite 代理。
+  - **C5**：simapi domains_test（grep 无 account/withdraw/transfer/下单端点/主网域、无 time.Ticker、SimExec.tsx 含 SIMULATED/模拟）；main.go 接线（st 非 nil 即挂载，sim 配置缺失降级不退出）；go vet + go test -race ./... 全绿；前端 tsc + vite build 过。
+- **已知设计问题（须 Claude 裁决，施工方不自行决定）**：repo 订单（venue=domestic, symbol=GC001）无 ticker/funding 事实 → ConfirmSimOrder 二次门禁查不到数据 → **fail-closed 恒拒单**（§10.3「查不到 ticker/funding → 拒」的直接推论）。当前行为符合 spec，但 repo 确认流永远走拒单路径——是否允许 repo 类订单跳过二次门禁（repo 无市场行情可查，天然无方向敞口）需决策层裁决（D# 或本 dialogue）。
+- **决策号**：无新 D#（沿用 D-038 施工权威；repo 门禁例外待裁决）。
+- **验证**：go build / go vet / go test -race ./... 全绿（PG 集成 ARBCN_TEST_PG_DSN）；前端 npm run build 过；对抗锚点（suggested 守卫 / 漂移比较 / SIMULATED 渲染 / 真实端点 grep）逐一覆盖。
+- **下一步**：①部署验收（spec §10.6 清单：重启 healthz ok → tab 打开 → 确认流冒烟）；②repo 二次门禁设计裁决；③等业主 testnet key 启用 S3。

@@ -35,6 +35,7 @@ import (
 	"arbcn/internal/httpapi"
 	"arbcn/internal/rule"
 	"arbcn/internal/sim"
+	"arbcn/internal/simapi"
 	"arbcn/internal/simtestnet"
 	"arbcn/internal/store"
 	"arbcn/internal/store/pgstore"
@@ -111,6 +112,11 @@ func run() error {
 		}
 		path, h := dashboard.New(st, pool, migrations, srcInfos).Handler()
 		mux.Handle(path, h)
+		// M3-c §10.6：SimService 独立域（arbcn.sim.v1）挂载。sim 配置缺失（simOK=false）
+		// → 仍挂载：GetSimReport 返回未启用说明，其余 RPC 照常读 store（sim 表由迁移
+		// 0005 建好，不依赖 sim 驱动），不退出（D-032 同口径）。
+		simPath, simH := simapi.NewService(st, simCfg).Handler()
+		mux.Handle(simPath, simH)
 	}
 	mux.Handle("/manual/fact", manual.NewHandler(st)) // 人工录入降级通道（store 未接线时 503）
 	mux.Handle("/", web.Handler(cfg.WebDir))
