@@ -41,7 +41,8 @@
 | 事实 | 值 | 核实 | 来源 | 状态 |
 |------|-----|------|------|------|
 | BTC/ETH funding 年化 | +5~11%，情绪中性 | 2026-08-15 | skyemeta/CoinGlass | 监控中（门禁 >20%） |
-| TRX funding | 负费率 ~−12%（曾 −46%）；负费率 = 多头收钱 | 2026-08-15 | Perpfinder/Loris | 监控中（转正触发器） |
+| BTC/ETH/TRX funding 实测（arbcn M1-c 冒烟） | Binance：BTC 7.01% / ETH 5.42% / TRX **+5.46%**；OKX：BTC 8.63% | 2026-08-15 | arbcn 监控系统 live 采集 | 现行（活数据口径） |
+| TRX funding | 曾负费率 ~−12%（Perpfinder 快照，已过期）；**今日实测转正 +5.46%**——波动极大，以实时监控为准 | 2026-08-15 | Perpfinder（过期）/ arbcn live | 已过期（被 live 取代） |
 | CEX 稳定币阶梯陷阱 | 头条 8–10% 仅 200–300 USDT 小档；超额档 1.6–2.2% | 2026-08-15 | BlockBeats | 现行（金额档原则） |
 | 稳定币大额档 | Binance Earn 定期 USDT 5.8%/USDC 4.5%；Bybit 4.8–5.5%；OKX USDT 5.0% | 2026-08-15 | StableLens | 现行（执行前复核） |
 | DeFi 稳定币 | Aave USDC 4.67%；Morpho 4–6.5%；sDAI 5–8%；sUSDe 8–11.8%（高风险档） | 2026-06/07 | StableLens 类 | 监控中（均衡卫星） |

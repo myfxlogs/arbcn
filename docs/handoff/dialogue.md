@@ -159,3 +159,9 @@
 - **交付**：M1-b（e04aa4b + cc85918）——Fact 模型+校验、Store 纯接口、PG 实现（CopyFrom 批量/时间窗/规则与触发器读写）、schema_migrations 版本化迁移、迁移幂等与回滚测试、race 全过、真库 5/5。
 - **决策层复审（5 项裁决）**：①ticker Kind 纳入 ✅（§5 明列采集 ticker，且价格展示/RMB 折算需要）；②Unit 仅常量表不拒绝 ✅（避免阻塞 M1-d）；③迁移失败 fail-fast、PG 不可达跳过 ✅——补充：**M1-f 元监控须覆盖"未应用迁移"degraded 状态**（PG 恢复后进程补迁移依赖重启）；④InsertFacts 无幂等去重 ✅ 接受（窗口均值规则可容忍；若未来规则需精确去重另立 D#）；⑤卷重建实测被权限拦截 ✅ 接受替代验证（一次性库 + compose config 校验），真机卷重建留待需要时人工放行。
 - **下一步**：M1-c 派发（Collector 框架 + Exchange 采集；注意境内访问 Binance/OKX 公开 API 可能受限——实测失败则带证据回报，不自决加代理）。
+
+## #24 · 2026-08-15 · M1-c 交付复审（决策层）
+- **参与方**：施工 agent #3、Claude
+- **交付**：M1-c（c1accb2 + e2ab7cf）——Collector 接口+注册表、调度器（独立 goroutine/间隔/抖动/退避/优雅退出）、Binance/OKX 四源（funding 年化折算+ticker）、7 个离线 fixture、调度器假源测试、突变测试。真机实测**通过**（无墙风险，无代理无降级）：BTC 7.01%/ETH 5.42%/TRX +5.46%（Binance）、BTC 8.63%（OKX）。
+- **决策层复审**：①命名 ARBCN_COLLECT_SOURCES（间隔+启停一变量）✅ 批准（更简）；②活数据回流事实库——TRX funding 旧快照 −12% 被今日实测 +5.46% 取代（facts.md 更新，D-028 闭环第一圈）；③`-tags=live` 冒烟入口 ✅ 保留（常规测试不触发外网）。
+- **下一步**：M1-d 派发（DeFiRates/ Domestic/FX/Calendar/IV + 人工录入降级通道）。
