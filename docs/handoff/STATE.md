@@ -47,7 +47,7 @@
   | **M3-b S5：carry 白名单 + 降级（默认空宁缺毋滥）** | ✅ | sim/config.go CarryWhitelist |
   | **M3-c 细化设计定稿** | ✅ | D-038 + spec §10（C1–C5，含 proto 全文/RPC/门禁/锚点） |
   | **M3-c C1：SimService proto + 生成物** | ✅ | proto/arbcn/sim/v1/sim.proto + buf.gen.sim.yaml（独立域；dashboardv1 生成物 byte-identical 未动） |
-  | **M3-c C2：SPREAD_DRIFT 二次门禁** | ⬜ | sim/order.go RiskSpreadDrift + sim/confirm.go ConfirmDriftCheck（G5 口径 + fail-closed） |
+  | **M3-c C2：SPREAD_DRIFT 二次门禁** | ✅ | sim/order.go RiskSpreadDrift + sim/confirm.go ConfirmDriftCheck（G5 口径 + fail-closed） |
   | **M3-c C3：确认成交流（ConfirmSimOrder 唯一写路径）** | ⬜ | simapi/service.go + pgstore Accept/RejectSimOrder（suggested 守卫原子） |
   | **M3-c C4：模拟执行 UI tab** | ⬜ | App.tsx 第 4 tab + SimExec.tsx（SIMULATED 徽标 + 即期 RMB） |
   | **M3-c C5：可检查性 + main.go 接线 + 验收** | ⬜ | domains_test simapi grep 断言 + mux 接线 + go vet/test -race |

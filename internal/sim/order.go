@@ -18,6 +18,10 @@ const (
 	RiskDailyOver = "DAILY_OVER" // 当日新增名义 > 模拟资金 50%
 	RiskWhitelist = "WHITELIST"  // carry_asset 标的未在白名单（sUSDe/USDe 等）
 	RiskInvalid   = "INVALID_INPUT" // 非有限值 / 未知 kind / 负日累计：门禁不可静默绕过的兜底
+	// RiskSpreadDrift 确认时刻二次门禁（04-m3-spec §10.3 C2 / D-036 G5）：生成 vs 确认
+	// 时刻 ref_price 漂移 >2% 或 预期年化变化 >20%（任一独立触发）→ 拒单。确认时刻重查
+	// 行情（LatestFacts ticker/funding），查不到/非有限 → fail-closed 拒（practices #7）。
+	RiskSpreadDrift = "SPREAD_DRIFT"
 )
 
 // Signal 是订单生成器的信号输入（04-m3-spec §3.1）：规则命中 + 机会面板快照。
