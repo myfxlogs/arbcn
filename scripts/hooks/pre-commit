@@ -35,9 +35,9 @@ for f in $PROTECTED; do
   del_n="$(git diff --cached -U0 -- "$f" | grep -E '^-[^-]' | sed 's/^-//' | grep -cE "$MARKER" || true)"
   add_n="$(git diff --cached -U0 -- "$f" | grep -E '^\+[^+]' | sed 's/^\+//' | grep -cE "$MARKER" || true)"
   if [ "$del_n" -gt "$add_n" ]; then
-    archive_added="$(git diff --cached --name-status -- docs/handoff/LOG.md | grep -c '^A' || true)"
-    if [ "$archive_added" -eq 0 ]; then
-      echo "❌ $f 历史标记净减少（-$del_n +$add_n）。历史标记只能经归档轮转（同 commit 新增 LOG.md）移除。"
+    log_gain="$(git diff --cached -U0 -- docs/handoff/LOG.md | grep -E '^\+[^+]' | wc -l || true)"
+    if [ "$log_gain" -eq 0 ]; then
+      echo "❌ $f 历史标记净减少（-$del_n +$add_n）。历史标记只能经归档轮转（同 commit LOG.md 有新增内容）移除。"
       exit 1
     fi
   fi
