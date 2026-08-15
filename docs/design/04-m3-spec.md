@@ -177,8 +177,8 @@
 |---|--------|------|----------------------|
 | S1 | 规则→Signal 驱动接线（G1 落地） | rule.OnActive 携带命中实体 → sim.Driver 按 §3.1.1 映射组装 Signal → Generate 落库 | OnActive(funding_warn, BTC@binance 命中) → sim_orders 落 funding_hedge；未知规则 → 不建单（删映射 → 必红） |
 | S2 | 8h 结算调度 | 对 open funding 腿按 (symbol,venue) 取真实 funding 结算 | 结算 pnl 正确；BTC@binance 与 BTC@okx 隔离（错 rate / 串 venue → 必红） |
-| S3 | testnet 只读 + key 隔离验证（key 门控） | SIMULATED 标记加载校验 + 只读查询 + 零下单路径 | 缺 SIMULATED 标记 → 拒绝加载；sim 包无主网交易域/下单端点域（domains_test） |
-| S4 | 历史收敛分析（§5.3 落地） | funding 历史回填（facts 表）+ 周频统计报告 | 回填幂等（跑两遍不重复）；年化折算正确（删 annualize → 必红） |
+| S3 | testnet 只读 + key 隔离验证（key 门控） | 新包 `internal/simtestnet`（key 承载层）：SIMULATED 标记加载校验 + 只读查询 + 零下单路径 | 缺 SIMULATED 标记 → 拒绝加载；sim 包无任何网络域名 / simtestnet 仅 testnet-demo 域无下单域（domains_test） |
+| S4 | 历史收敛分析（§5.3 落地） | exchange 包历史 collector（无 key）+ boot 一次性回填（facts 表）+ 周频统计报告 | 回填幂等（跑两遍不重复）；年化折算正确（删 annualize → 必红） |
 | S5 | 白名单 + 降级 | ARBCN_SIM_CARRY_WHITELIST 显式配置；sim 配置缺失 → 禁用 warn | 白名单解析；carry 未白名单 → WHITELIST 拒单 |
 
 ### 9.2 S1 规则→Signal 驱动
@@ -219,16 +219,19 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 
 ### 9.4 S3 testnet 只读 + key 隔离（key 门控）
 
-- 配置：`/etc/arbcn/arbcn-sim.env` `SIM_*`（独立文件 root:root 0600，D-034 ② 物理隔离）；加载器在 sim 包（config.go 扩展 `TestnetConfig`）：每 key 显式 `SIMULATED=true`，**缺标记拒绝加载**（对抗测试：删校验 → 必红）。
+- **包拆分（D-037 补充·派工前设计修正）**：key 承载层与 sim 核心**物理隔离**——
+  - `internal/sim`：**保持零网络零密钥**（M3-a 复审验证的 D-010 属性不变，纵深防御：即使 sim 核心配置错误也碰不到网络/key）——纯计算：Driver 组装、结算数学、报告数学、Capital/白名单配置。
+  - `internal/simtestnet`（新包）：**key 承载层**（S3 探针）——加载 `/etc/arbcn/arbcn-sim.env` `SIM_*`（独立文件 root:root 0600，D-034 ② 物理隔离），每 key 显式 `SIMULATED=true`，**缺标记拒绝加载**（对抗测试：删校验 → 必红）。
 - 只读探针（随 settle tick，key 可用时）：对 binance_testnet / okx_demo：
   - 公共行情 + 账户只读查询（余额/费率）验证 key 连通；
   - 成功后经 `alert.Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx", now)` 登记 → 出现在 ListSourceHealth（复用 M2-a freshness 面，D-032 降级同口径：失败 warn 不退出）。
-  - **零下单路径**：sim 包不含任何下单端点代码；domains_test 断言无主网交易域、无 order/place 域。
+  - **零下单路径**：simtestnet 不含任何下单端点代码；domains_test：sim 包**无任何网络域名**，simtestnet **仅 testnet/demo 域、无主网交易域、无 order/place 下单域**。
 - 依赖：testnet key 由业主提供（缺失 → S3 降级禁用 + degraded 提示，**不阻塞 S1/S2/S4/S5**）。
 
 ### 9.5 S4 历史收敛分析（§5.3 落地）
 
 **历史回填（一次性，幂等）**：
+- **包归属**：历史收集器放 `internal/collect/exchange`（公开数据层，无 key，复用既有 getJSON/annualize 骨架）——`NewBinanceFundingHistory` / `NewOKXFundingHistory` 实现 `collect.Collector`（Kind=funding），Poll 内翻页拉满窗口；main.go boot **一次性调用**（不进 Scheduler 常驻循环）。
 - Binance：`data-api.binance.vision/fapi/v1/fundingRate?symbol=BTCUSDT&startTime&endTime&limit=1000`（D-031 公开数据域；翻页拉满窗口）→ 每行 {fundingTime, fundingRate} → annualize（×1095 / ×2190，按 fundingInfo interval）→ fact{Kind=funding, Venue=binance, Symbol=BTC, Ts=fundingTime, Unit=pct_annualized}。
 - OKX：`/api/v5/public/funding-history?instId=BTC-USDT-SWAP&limit=100&after=` 分页 → 同口径。
 - 窗口默认 365d（`ARBCN_SIM_HISTORY_DAYS`，0 = 禁用）。
