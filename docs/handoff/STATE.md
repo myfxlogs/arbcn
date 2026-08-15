@@ -52,7 +52,7 @@
   | **M3-c C4：模拟执行 UI tab** | ✅ | App.tsx 第 4 tab + SimExec.tsx（SIMULATED 徽标 + 即期 RMB） |
   | **M3-c C5：可检查性 + main.go 接线 + 验收** | ✅ | domains_test simapi grep 断言 + mux 接线 + go vet/test -race |
   | **M3-c 复审修复：repo/carry 二次门禁恒拒（D-039 kind 分派）** | ✅ | D-039 + spec §10.3/§10.4 + simapi/confirmDrift + 7 对抗测试（删分派必红） |
-  | **M3-c 部署验收（spec §10.6）** | 🔄 | 重启 → healthz → 模拟执行 tab → 确认流冒烟（本 commit 内） |
+  | **M3-c 部署验收（spec §10.6）** | ✅ | 343f6a6 部署实测：重启 healthz ok + SimService 2 RPC 200 + dashboard 零回归（ListFacts 真实数据）+ 前端 index 200；确认流单测 8 场景全覆盖（真实 suggested 订单端到端冒烟依赖规则命中，库空时以单测+连通冒烟替代，诚实标注） |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
@@ -63,5 +63,5 @@
   - **M3-c 交付注**：SimService 独立域已接线 main.go（st 非 nil 即挂载，sim 配置缺失降级：GetSimReport 返回未启用说明，D-032 同口径）。**repo/carry 二次门禁恒拒已由 D-039 裁决修复**：数据面按 kind 分派权威源（repo→reverse_repo 利率、carry→defi_rate 年化、funding_hedge→ticker/funding），权威源查不到仍 fail-closed 拒（不放宽），ConfirmDriftCheck 签名不变。
   - **D-031 实证修订**：data-api.binance.vision 不镜像 /fapi/*（404）；历史回填源回落 fapi.binance.com（部署机直连 200、满 365d）；OKX 历史端点为 funding-rate-history（funding-history 404），仅保留 ~90d（OKX 部分覆盖，sim_report/avg_30d 受窗口限制，已知 degrade）。
   - 待决策观察（不阻塞）：repo 信号经 SignalToOrder 时仍受 5% 门槛（SPREAD_LOW）约束——平时逆回购 2-4% 会被拒单，仅季末/年末上冲 ≥5% 时放行；与"时点逆回购"策略意图一致（宁缺毋滥），但若业主希望 repo 绕过价差门槛须走 D# 调整。
-- 下一步: **M3-c 复审修复已完成**（D-039 + confirmDrift + 7 对抗测试，全量测试/vet 绿）。待：①**部署验收**（spec §10.6：重启 → healthz ok → 模拟执行 tab → 确认流冒烟）；②业主 testnet key 启用 S3。
-- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；**M3-c 复审修复（repo/carry 恒拒）入 D-039**；对话落 dialogue.md #39/#40/#41/#42/#43/#44/#45/#46/#47。
+- 下一步: **M3-c 已闭环**（施工 + D-039 复审修复 + 部署验收，本 commit）。待：**业主 testnet key 启用 S3 探针**（key 放 /etc/arbcn/arbcn-sim.env，SIMULATED=true + SIM_BINANCE_*/SIM_OKX_*，root:root 0600，重启即启用）；出入金通道验证（业主执行）。
+- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）+ **#13（门禁/折算数据面按实体类型分派，D-039 教训）**；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；**M3-c 复审修复（repo/carry 恒拒）入 D-039**；对话落 dialogue.md #39/#40/#41/#42/#43/#44/#45/#46/#47。
