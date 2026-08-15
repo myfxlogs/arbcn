@@ -1,0 +1,86 @@
+// 版本化迁移（决策层复审 M1-a 时裁决的 M1-b 任务项，dialogue #22）：
+// 由 docker-entrypoint 迁出，改为程序启动时按文件名序执行 dir 下
+// 尚未记账的 *.sql，schema_migrations 表记账。
+package pgstore
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Migrate 执行 dir 下未记账的迁移文件，返回本次应用的数量。
+// 每个文件在单事务内执行：失败整体回滚、不记账、立即中止。
+// 已执行版本（schema_migrations 有记录）跳过；重复调用幂等。
+// 迁移文件可用 IF NOT EXISTS 编写，以兼容 M1-a 时期
+// 经 docker-entrypoint 初始化的既有库（0001 即如此）。
+func Migrate(ctx context.Context, pool *pgxpool.Pool, dir string) (int, error) {
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			version    TEXT PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)`); err != nil {
+		return 0, fmt.Errorf("pgstore: ensure schema_migrations: %w", err)
+	}
+
+	applied := map[string]bool{}
+	rows, err := pool.Query(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+	}
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+		}
+		applied[v] = true
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("pgstore: read schema_migrations: %w", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return 0, fmt.Errorf("pgstore: read migrations dir %s: %w", dir, err)
+	}
+
+	n := 0
+	for _, e := range entries { // ReadDir 已按文件名排序
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".sql") {
+			continue
+		}
+		if applied[name] {
+			continue
+		}
+
+		body, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			return n, fmt.Errorf("pgstore: read migration %s: %w", name, err)
+		}
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			return n, fmt.Errorf("pgstore: begin migration %s: %w", name, err)
+		}
+		if _, err := tx.Exec(ctx, string(body)); err != nil {
+			_ = tx.Rollback(ctx)
+			return n, fmt.Errorf("pgstore: migration %s failed: %w", name, err)
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1)`, name); err != nil {
+			_ = tx.Rollback(ctx)
+			return n, fmt.Errorf("pgstore: record migration %s: %w", name, err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return n, fmt.Errorf("pgstore: commit migration %s: %w", name, err)
+		}
+		applied[name] = true
+		n++
+	}
+	return n, nil
+}

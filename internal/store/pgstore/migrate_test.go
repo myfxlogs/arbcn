@@ -1,0 +1,113 @@
+package pgstore
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func dropTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tables ...string) {
+	t.Helper()
+	for _, tbl := range tables {
+		if _, err := pool.Exec(ctx, "DROP TABLE IF EXISTS "+tbl+" CASCADE"); err != nil {
+			t.Fatalf("DROP %s: %v", tbl, err)
+		}
+	}
+}
+
+// TestMigrateIdempotent：对真库执行 migrations/ 目录（真实 0001_init.sql）——
+// 首跑建 4 表 + 记账；二跑 0 应用、无错误（幂等）。
+func TestMigrateIdempotent(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "schema_migrations")
+
+	n, err := Migrate(ctx, pool, migrationsDir)
+	if err != nil {
+		t.Fatalf("Migrate(first): %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("Migrate(first) applied = %d, want 1", n)
+	}
+
+	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts"} {
+		var exists bool
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
+			tbl).Scan(&exists); err != nil {
+			t.Fatalf("check table %s: %v", tbl, err)
+		}
+		if !exists {
+			t.Errorf("table %s missing after migrate", tbl)
+		}
+	}
+	var versions int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
+		t.Fatalf("count versions: %v", err)
+	}
+	if versions != 1 {
+		t.Fatalf("schema_migrations count = %d, want 1", versions)
+	}
+
+	n, err = Migrate(ctx, pool, migrationsDir)
+	if err != nil {
+		t.Fatalf("Migrate(second): %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("Migrate(second) applied = %d, want 0", n)
+	}
+}
+
+// TestMigrateRollsBackFailedFile：失败文件整体回滚——已成功的记账保留，
+// 失败文件不记账、其 DDL 不生效。
+func TestMigrateRollsBackFailedFile(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	dropTables(t, ctx, pool, "mtest_ok", "mtest_bad", "schema_migrations")
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "0001_ok.sql"),
+		[]byte("CREATE TABLE mtest_ok (id INT);"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "0002_bad.sql"),
+		[]byte("CREATE TABLE mtest_bad (id INT);\nTHIS IS NOT SQL;"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Migrate(ctx, pool, dir); err == nil {
+		t.Fatal("Migrate with broken file = nil, want error")
+	}
+
+	var applied []string
+	rows, err := pool.Query(ctx, `SELECT version FROM schema_migrations ORDER BY version`)
+	if err != nil {
+		t.Fatalf("query versions: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			t.Fatal(err)
+		}
+		applied = append(applied, v)
+	}
+	if len(applied) != 1 || applied[0] != "0001_ok.sql" {
+		t.Fatalf("applied versions = %v, want [0001_ok.sql]", applied)
+	}
+
+	for tbl, want := range map[string]bool{"mtest_ok": true, "mtest_bad": false} {
+		var exists bool
+		if err := pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
+			tbl).Scan(&exists); err != nil {
+			t.Fatalf("check table %s: %v", tbl, err)
+		}
+		if exists != want {
+			t.Errorf("table %s exists = %v, want %v", tbl, exists, want)
+		}
+	}
+}

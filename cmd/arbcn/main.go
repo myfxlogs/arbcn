@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -16,6 +17,7 @@ import (
 
 	"arbcn/internal/config"
 	"arbcn/internal/httpapi"
+	"arbcn/internal/store/pgstore"
 )
 
 func main() {
@@ -43,6 +45,14 @@ func run() error {
 			slog.Warn("postgres unreachable at boot", "err", err)
 		} else {
 			slog.Info("postgres connected")
+			// 版本化迁移（schema_migrations 记账）。PG 可达但迁移失败 = schema 契约
+			// 不成立，fail fast 交给 systemd Restart=on-failure 重试；与"PG 不可达
+			// 只 warn"（复审裁决 dialogue #22）区分开。
+			if n, err := pgstore.Migrate(ctx, pool, cfg.MigrationsDir); err != nil {
+				return fmt.Errorf("migrate: %w", err)
+			} else if n > 0 {
+				slog.Info("migrations applied", "count", n)
+			}
 		}
 	}
 

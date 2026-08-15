@@ -1,7 +1,7 @@
 # 样例（非安装）：cp 到 /etc/systemd/system/arbcn-monitor.service，
 # 然后 systemctl daemon-reload && systemctl enable --now arbcn-monitor。
-# 环境变量（ARBCN_ADDR / ARBCN_PG_DSN / ARBCN_ALERT_EMAIL，见 internal/config）
-# 经 EnvironmentFile 注入，文件不存在时忽略。
+# 环境变量（ARBCN_ADDR / ARBCN_PG_DSN / ARBCN_MIGRATIONS_DIR / ARBCN_ALERT_EMAIL，
+# 见 internal/config）经 EnvironmentFile 注入，文件不存在时忽略。
 [Unit]
 Description=arbcn monitor (data pipeline + alerting, no execution)
 After=network-online.target
