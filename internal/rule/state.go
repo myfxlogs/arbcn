@@ -33,6 +33,9 @@ func (e *Engine) transition(ctx context.Context, r store.Rule, st store.TriggerS
 		}); err != nil {
 			return true, fmt.Errorf("rule %q: insert alert: %w", r.Name, err)
 		}
+		if e.onActive != nil {
+			e.onActive(ctx, r) // 关键规则触发事件（M2-b §5：FactsExporter 立即导出快照）
+		}
 		return true, e.st.PutTriggerState(ctx, store.TriggerState{
 			RuleID: r.ID, State: store.StateActive, Since: now, LastValue: matches[0].value,
 		})

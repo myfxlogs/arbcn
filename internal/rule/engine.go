@@ -30,15 +30,20 @@ type Config struct {
 	Now      func() time.Time               // 0 = time.Now（测试注入时钟）
 	Interval func(store.Rule) time.Duration // 评估间隔覆盖；0 = 规则 interval_sec
 	Log      *slog.Logger                   // 0 = slog.Default()
+	// OnActive 规则 armed→active 转变回调（关键规则触发事件，M2-b §5）。
+	// 在激活告警落库后同步调用；nil = 不回调。供 FactsExporter 等外部组件
+	// 在规则触发时立即刷新 facts.md 快照。
+	OnActive func(ctx context.Context, r store.Rule)
 }
 
 // Engine 是规则引擎实例。
 type Engine struct {
-	st    store.Store
-	rules []evalRule
-	now   func() time.Time
-	ival  func(store.Rule) time.Duration
-	log   *slog.Logger
+	st       store.Store
+	rules    []evalRule
+	now      func() time.Time
+	ival     func(store.Rule) time.Duration
+	log      *slog.Logger
+	onActive func(context.Context, store.Rule)
 }
 
 // evalRule 是加载时解析好的单规则评估单元。
@@ -76,7 +81,7 @@ func New(ctx context.Context, st store.Store, cfg Config) (*Engine, error) {
 			symbols:  splitSet(r.Symbol),
 		})
 	}
-	e := &Engine{st: st, rules: ev, now: cfg.Now, ival: cfg.Interval, log: cfg.Log}
+	e := &Engine{st: st, rules: ev, now: cfg.Now, ival: cfg.Interval, log: cfg.Log, onActive: cfg.OnActive}
 	if e.now == nil {
 		e.now = time.Now
 	}

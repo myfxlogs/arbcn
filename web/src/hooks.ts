@@ -1,11 +1,18 @@
+import { timestampFromDate } from "@bufbuild/protobuf/wkt";
+import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { useCallback, useEffect, useState } from "react";
 
 import { dashboard } from "./client";
 import type {
+  AddLedgerEntryRequest,
   Alert,
   Fact,
+  FactRmb,
   HealthResponse,
+  LedgerEntry,
+  ListFactsResponse,
   SourceHealth,
+  TierSummary,
   TriggerState,
   UnackedAlert,
 } from "./gen/arbcn/dashboard/v1/dashboard_pb";
@@ -21,6 +28,115 @@ export interface Snapshot {
   sourceHealth: SourceHealth[];
   health: HealthResponse;
   at: Date;
+}
+
+// useFactsSnapshot 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影，ListFacts RPC）。
+// 只读轮询：ListFacts 返回覆盖 kind 折算后的 RMB 净收益视角 + fx 可用性。
+export function useFactsSnapshot(): {
+  facts: FactRmb[];
+  fxRate: number;
+  fxAvailable: boolean;
+  fxTs?: Timestamp;
+  error: string;
+  reload: () => void;
+} {
+  const [snap, setSnap] = useState<ListFactsResponse | null>(null);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await dashboard.listFacts({});
+        if (!alive) return;
+        setSnap(res);
+        setError("");
+      } catch (e) {
+        if (!alive) return;
+        setError(String(e));
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), POLL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [tick]);
+
+  return {
+    facts: snap?.facts ?? [],
+    fxRate: snap?.fxRate ?? 0,
+    fxAvailable: snap?.fxAvailable ?? false,
+    fxTs: snap?.fxTs,
+    error,
+    reload: useCallback(() => setTick((n) => n + 1), []),
+  };
+}
+
+// useLedger 台账（M2-b §6）：流水 + 档位归因汇总；addEntry 手工录入后本地刷新。
+export function useLedger(): {
+  entries: LedgerEntry[];
+  summary: TierSummary[];
+  error: string;
+  addEntry: (req: AddLedgerEntryRequest) => Promise<boolean>;
+  reload: () => void;
+} {
+  const [entries, setEntries] = useState<LedgerEntry[]>([]);
+  const [summary, setSummary] = useState<TierSummary[]>([]);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const [entriesRes, summaryRes] = await Promise.all([
+          dashboard.listLedgerEntries({ limit: 200 }),
+          dashboard.ledgerSummary({}),
+        ]);
+        if (!alive) return;
+        setEntries(entriesRes.entries);
+        setSummary(summaryRes.items);
+        setError("");
+      } catch (e) {
+        if (!alive) return;
+        setError(String(e));
+      }
+    };
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
+
+  const addEntry = useCallback(async (req: AddLedgerEntryRequest): Promise<boolean> => {
+    try {
+      await dashboard.addLedgerEntry(req);
+      setTick((n) => n + 1);
+      setError("");
+      return true;
+    } catch (e) {
+      setError(String(e));
+      return false;
+    }
+  }, []);
+
+  return {
+    entries,
+    summary,
+    error,
+    addEntry,
+    reload: useCallback(() => setTick((n) => n + 1), []),
+  };
+}
+
+// ledgerDate 把 datetime-local 字符串（YYYY-MM-DDTHH:mm）转 proto Timestamp。
+export function ledgerDate(input: string): ReturnType<typeof timestampFromDate> | undefined {
+  if (!input) return undefined;
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? undefined : timestampFromDate(d);
 }
 
 // useSnapshot 拉取全量快照（六 RPC 并行，含 M2-a 的 ListUnacked/ListSourceHealth）

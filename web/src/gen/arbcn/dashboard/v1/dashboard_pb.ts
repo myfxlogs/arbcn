@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file arbcn/dashboard/v1/dashboard.proto.
  */
 export const file_arbcn_dashboard_v1_dashboard: GenFile = /*@__PURE__*/
-  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJwCgxVbmFja2VkQWxlcnQSCgoCaWQYASABKAMSDAoEcnVsZRgCIAEoCRINCgVsZXZlbBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEiYKAnRzGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJMaXN0VW5hY2tlZFJlcXVlc3QiVQoTTGlzdFVuYWNrZWRSZXNwb25zZRIvCgVpdGVtcxgBIAMoCzIgLmFyYmNuLmRhc2hib2FyZC52MS5VbmFja2VkQWxlcnQSDQoFdG90YWwYAiABKAUiDwoNQWNrQWxsUmVxdWVzdCIlCg5BY2tBbGxSZXNwb25zZRITCgthY2tlZF9jb3VudBgBIAEoBSKmAQoMU291cmNlSGVhbHRoEgwKBG5hbWUYASABKAkSFAoMaW50ZXJ2YWxfc2VjGAIgASgDEjAKDGxhc3RfcG9sbF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF9mYWN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYBSABKAkiGQoXTGlzdFNvdXJjZUhlYWx0aFJlcXVlc3QiSwoYTGlzdFNvdXJjZUhlYWx0aFJlc3BvbnNlEi8KBWl0ZW1zGAEgAygLMiAuYXJiY24uZGFzaGJvYXJkLnYxLlNvdXJjZUhlYWx0aDKVBgoQRGFzaGJvYXJkU2VydmljZRJqCg9MaXN0TGF0ZXN0RmFjdHMSKi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVxdWVzdBorLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGF0ZXN0RmFjdHNSZXNwb25zZRJbCgpMaXN0QWxlcnRzEiUuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXF1ZXN0GiYuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXNwb25zZRJVCghBY2tBbGVydBIjLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGVydFJlcXVlc3QaJC5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXNwb25zZRJwChFMaXN0VHJpZ2dlclN0YXRlcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRJPCgZIZWFsdGgSIS5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5IZWFsdGhSZXNwb25zZRJeCgtMaXN0VW5hY2tlZBImLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VW5hY2tlZFJlcXVlc3QaJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFVuYWNrZWRSZXNwb25zZRJPCgZBY2tBbGwSIS5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxsUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGxSZXNwb25zZRJtChBMaXN0U291cmNlSGVhbHRoEisuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXF1ZXN0GiwuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXNwb25zZUI9WjthcmJjbi9pbnRlcm5hbC9kYXNoYm9hcmQvZ2VuL2FyYmNuL2Rhc2hib2FyZC92MTtkYXNoYm9hcmR2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJwCgxVbmFja2VkQWxlcnQSCgoCaWQYASABKAMSDAoEcnVsZRgCIAEoCRINCgVsZXZlbBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEiYKAnRzGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJMaXN0VW5hY2tlZFJlcXVlc3QiVQoTTGlzdFVuYWNrZWRSZXNwb25zZRIvCgVpdGVtcxgBIAMoCzIgLmFyYmNuLmRhc2hib2FyZC52MS5VbmFja2VkQWxlcnQSDQoFdG90YWwYAiABKAUiDwoNQWNrQWxsUmVxdWVzdCIlCg5BY2tBbGxSZXNwb25zZRITCgthY2tlZF9jb3VudBgBIAEoBSKmAQoMU291cmNlSGVhbHRoEgwKBG5hbWUYASABKAkSFAoMaW50ZXJ2YWxfc2VjGAIgASgDEjAKDGxhc3RfcG9sbF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF9mYWN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYBSABKAkiGQoXTGlzdFNvdXJjZUhlYWx0aFJlcXVlc3QiSwoYTGlzdFNvdXJjZUhlYWx0aFJlc3BvbnNlEi8KBWl0ZW1zGAEgAygLMiAuYXJiY24uZGFzaGJvYXJkLnYxLlNvdXJjZUhlYWx0aCLCAQoHRmFjdFJtYhIMCgRraW5kGAEgASgJEg0KBXZlbnVlGAIgASgJEg4KBnN5bWJvbBgDIAEoCRINCgV2YWx1ZRgEIAEoARIMCgR1bml0GAUgASgJEiYKAnRzGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgNzcmMYByABKAkSEQoJcm1iX3ZhbHVlGAggASgBEg8KB2Z4X3JhdGUYCSABKAESFAoMZnhfYXZhaWxhYmxlGAogASgIIj8KEExpc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkikQEKEUxpc3RGYWN0c1Jlc3BvbnNlEioKBWZhY3RzGAEgAygLMhsuYXJiY24uZGFzaGJvYXJkLnYxLkZhY3RSbWISDwoHZnhfcmF0ZRgCIAEoARIUCgxmeF9hdmFpbGFibGUYAyABKAgSKQoFZnhfdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqQBCgtMZWRnZXJFbnRyeRIKCgJpZBgBIAEoAxIoCgRkYXRlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAMgASgJEhAKCGN1cnJlbmN5GAQgASgJEg4KBmFtb3VudBgFIAEoARIQCghmZWVfcmF0ZRgGIAEoARIMCgR0aWVyGAcgASgJEgwKBG5vdGUYCCABKAkiogEKFUFkZExlZGdlckVudHJ5UmVxdWVzdBIoCgRkYXRlGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAIgASgJEhAKCGN1cnJlbmN5GAMgASgJEg4KBmFtb3VudBgEIAEoARIQCghmZWVfcmF0ZRgFIAEoARIMCgR0aWVyGAYgASgJEgwKBG5vdGUYByABKAkiJAoWQWRkTGVkZ2VyRW50cnlSZXNwb25zZRIKCgJpZBgBIAEoAyI5ChhMaXN0TGVkZ2VyRW50cmllc1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIk0KGUxpc3RMZWRnZXJFbnRyaWVzUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLmFyYmNuLmRhc2hib2FyZC52MS5MZWRnZXJFbnRyeSIWChRMZWRnZXJTdW1tYXJ5UmVxdWVzdCJeCgtUaWVyU3VtbWFyeRIMCgR0aWVyGAEgASgJEg4KBmluZmxvdxgCIAEoARIPCgdvdXRmbG93GAMgASgBEgsKA25ldBgEIAEoARITCgtlbnRyeV9jb3VudBgFIAEoBSJHChVMZWRnZXJTdW1tYXJ5UmVzcG9uc2USLgoFaXRlbXMYASADKAsyHy5hcmJjbi5kYXNoYm9hcmQudjEuVGllclN1bW1hcnkysAkKEERhc2hib2FyZFNlcnZpY2USagoPTGlzdExhdGVzdEZhY3RzEiouYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QaKy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USWwoKTGlzdEFsZXJ0cxIlLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0QWxlcnRzUmVxdWVzdBomLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0QWxlcnRzUmVzcG9uc2USVQoIQWNrQWxlcnQSIy5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXF1ZXN0GiQuYXJiY24uZGFzaGJvYXJkLnYxLkFja0FsZXJ0UmVzcG9uc2UScAoRTGlzdFRyaWdnZXJTdGF0ZXMSLC5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXF1ZXN0Gi0uYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RUcmlnZ2VyU3RhdGVzUmVzcG9uc2USTwoGSGVhbHRoEiEuYXJiY24uZGFzaGJvYXJkLnYxLkhlYWx0aFJlcXVlc3QaIi5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVzcG9uc2USXgoLTGlzdFVuYWNrZWQSJi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFVuYWNrZWRSZXF1ZXN0GicuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RVbmFja2VkUmVzcG9uc2USTwoGQWNrQWxsEiEuYXJiY24uZGFzaGJvYXJkLnYxLkFja0FsbFJlcXVlc3QaIi5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxsUmVzcG9uc2USbQoQTGlzdFNvdXJjZUhlYWx0aBIrLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0U291cmNlSGVhbHRoUmVxdWVzdBosLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0U291cmNlSGVhbHRoUmVzcG9uc2USWAoJTGlzdEZhY3RzEiQuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RGYWN0c1JlcXVlc3QaJS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEZhY3RzUmVzcG9uc2USZwoOQWRkTGVkZ2VyRW50cnkSKS5hcmJjbi5kYXNoYm9hcmQudjEuQWRkTGVkZ2VyRW50cnlSZXF1ZXN0GiouYXJiY24uZGFzaGJvYXJkLnYxLkFkZExlZGdlckVudHJ5UmVzcG9uc2UScAoRTGlzdExlZGdlckVudHJpZXMSLC5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExlZGdlckVudHJpZXNSZXF1ZXN0Gi0uYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RMZWRnZXJFbnRyaWVzUmVzcG9uc2USZAoNTGVkZ2VyU3VtbWFyeRIoLmFyYmNuLmRhc2hib2FyZC52MS5MZWRnZXJTdW1tYXJ5UmVxdWVzdBopLmFyYmNuLmRhc2hib2FyZC52MS5MZWRnZXJTdW1tYXJ5UmVzcG9uc2VCPVo7YXJiY24vaW50ZXJuYWwvZGFzaGJvYXJkL2dlbi9hcmJjbi9kYXNoYm9hcmQvdjE7ZGFzaGJvYXJkdjFiBnByb3RvMw", [file_google_protobuf_timestamp]);
 
 /**
  * Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -543,6 +543,409 @@ export const ListSourceHealthResponseSchema: GenMessage<ListSourceHealthResponse
   messageDesc(file_arbcn_dashboard_v1_dashboard, 20);
 
 /**
+ * FactRmb 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+ * 原始事实字段（kind/venue/symbol/value/unit/ts/src）不被改写（02 §8 不污染）；
+ * rmb_value/fx_rate/fx_available 为展示层折算结果。
+ *
+ * @generated from message arbcn.dashboard.v1.FactRmb
+ */
+export type FactRmb = Message<"arbcn.dashboard.v1.FactRmb"> & {
+  /**
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string venue = 2;
+   */
+  venue: string;
+
+  /**
+   * @generated from field: string symbol = 3;
+   */
+  symbol: string;
+
+  /**
+   * USD 原值（不污染）
+   *
+   * @generated from field: double value = 4;
+   */
+  value: number;
+
+  /**
+   * @generated from field: string unit = 5;
+   */
+  unit: string;
+
+  /**
+   * @generated from field: google.protobuf.Timestamp ts = 6;
+   */
+  ts?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string src = 7;
+   */
+  src: string;
+
+  /**
+   * RMB 净收益视角；汇率缺失 = value（USD 原值）
+   *
+   * @generated from field: double rmb_value = 8;
+   */
+  rmbValue: number;
+
+  /**
+   * 当日 USDCNH；0 = 不可用
+   *
+   * @generated from field: double fx_rate = 9;
+   */
+  fxRate: number;
+
+  /**
+   * 汇率可用（false → 前端显示「汇率不可用」）
+   *
+   * @generated from field: bool fx_available = 10;
+   */
+  fxAvailable: boolean;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.FactRmb.
+ * Use `create(FactRmbSchema)` to create a new message.
+ */
+export const FactRmbSchema: GenMessage<FactRmb> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 21);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListFactsRequest
+ */
+export type ListFactsRequest = Message<"arbcn.dashboard.v1.ListFactsRequest"> & {
+  /**
+   * 空 = 全部
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * 空 = 全部
+   *
+   * @generated from field: string venue = 2;
+   */
+  venue: string;
+
+  /**
+   * 空 = 全部
+   *
+   * @generated from field: string symbol = 3;
+   */
+  symbol: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListFactsRequest.
+ * Use `create(ListFactsRequestSchema)` to create a new message.
+ */
+export const ListFactsRequestSchema: GenMessage<ListFactsRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 22);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListFactsResponse
+ */
+export type ListFactsResponse = Message<"arbcn.dashboard.v1.ListFactsResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.FactRmb facts = 1;
+   */
+  facts: FactRmb[];
+
+  /**
+   * 当日 USDCNH（快照级；0 = 不可用）
+   *
+   * @generated from field: double fx_rate = 2;
+   */
+  fxRate: number;
+
+  /**
+   * 汇率可用
+   *
+   * @generated from field: bool fx_available = 3;
+   */
+  fxAvailable: boolean;
+
+  /**
+   * 汇率报价时刻；缺省 = 不可用
+   *
+   * @generated from field: google.protobuf.Timestamp fx_ts = 4;
+   */
+  fxTs?: Timestamp | undefined;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListFactsResponse.
+ * Use `create(ListFactsResponseSchema)` to create a new message.
+ */
+export const ListFactsResponseSchema: GenMessage<ListFactsResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 23);
+
+/**
+ * LedgerEntry 台账行（M2-b §6 出入金流水）。
+ *
+ * @generated from message arbcn.dashboard.v1.LedgerEntry
+ */
+export type LedgerEntry = Message<"arbcn.dashboard.v1.LedgerEntry"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * 出入金日期
+   *
+   * @generated from field: google.protobuf.Timestamp date = 2;
+   */
+  date?: Timestamp | undefined;
+
+  /**
+   * 通道（binance / okx / 民营定期 / 逆回购 ...）
+   *
+   * @generated from field: string channel = 3;
+   */
+  channel: string;
+
+  /**
+   * 币种（RMB / USD / USDT / USDC / BTC ...）
+   *
+   * @generated from field: string currency = 4;
+   */
+  currency: string;
+
+  /**
+   * 金额；正 = 入金，负 = 出金
+   *
+   * @generated from field: double amount = 5;
+   */
+  amount: number;
+
+  /**
+   * 费率 %
+   *
+   * @generated from field: double fee_rate = 6;
+   */
+  feeRate: number;
+
+  /**
+   * 档位（store Tier* 常量；entry 自带，不推断）
+   *
+   * @generated from field: string tier = 7;
+   */
+  tier: string;
+
+  /**
+   * 备注
+   *
+   * @generated from field: string note = 8;
+   */
+  note: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.LedgerEntry.
+ * Use `create(LedgerEntrySchema)` to create a new message.
+ */
+export const LedgerEntrySchema: GenMessage<LedgerEntry> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 24);
+
+/**
+ * @generated from message arbcn.dashboard.v1.AddLedgerEntryRequest
+ */
+export type AddLedgerEntryRequest = Message<"arbcn.dashboard.v1.AddLedgerEntryRequest"> & {
+  /**
+   * 出入金日期
+   *
+   * @generated from field: google.protobuf.Timestamp date = 1;
+   */
+  date?: Timestamp | undefined;
+
+  /**
+   * @generated from field: string channel = 2;
+   */
+  channel: string;
+
+  /**
+   * @generated from field: string currency = 3;
+   */
+  currency: string;
+
+  /**
+   * 正 = 入金，负 = 出金
+   *
+   * @generated from field: double amount = 4;
+   */
+  amount: number;
+
+  /**
+   * @generated from field: double fee_rate = 5;
+   */
+  feeRate: number;
+
+  /**
+   * @generated from field: string tier = 6;
+   */
+  tier: string;
+
+  /**
+   * @generated from field: string note = 7;
+   */
+  note: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.AddLedgerEntryRequest.
+ * Use `create(AddLedgerEntryRequestSchema)` to create a new message.
+ */
+export const AddLedgerEntryRequestSchema: GenMessage<AddLedgerEntryRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 25);
+
+/**
+ * @generated from message arbcn.dashboard.v1.AddLedgerEntryResponse
+ */
+export type AddLedgerEntryResponse = Message<"arbcn.dashboard.v1.AddLedgerEntryResponse"> & {
+  /**
+   * 新行 id
+   *
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.AddLedgerEntryResponse.
+ * Use `create(AddLedgerEntryResponseSchema)` to create a new message.
+ */
+export const AddLedgerEntryResponseSchema: GenMessage<AddLedgerEntryResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 26);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListLedgerEntriesRequest
+ */
+export type ListLedgerEntriesRequest = Message<"arbcn.dashboard.v1.ListLedgerEntriesRequest"> & {
+  /**
+   * 分页大小；≤0 = 默认 100
+   *
+   * @generated from field: int32 limit = 1;
+   */
+  limit: number;
+
+  /**
+   * 分页偏移；<0 = 0
+   *
+   * @generated from field: int32 offset = 2;
+   */
+  offset: number;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListLedgerEntriesRequest.
+ * Use `create(ListLedgerEntriesRequestSchema)` to create a new message.
+ */
+export const ListLedgerEntriesRequestSchema: GenMessage<ListLedgerEntriesRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 27);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListLedgerEntriesResponse
+ */
+export type ListLedgerEntriesResponse = Message<"arbcn.dashboard.v1.ListLedgerEntriesResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.LedgerEntry entries = 1;
+   */
+  entries: LedgerEntry[];
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListLedgerEntriesResponse.
+ * Use `create(ListLedgerEntriesResponseSchema)` to create a new message.
+ */
+export const ListLedgerEntriesResponseSchema: GenMessage<ListLedgerEntriesResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 28);
+
+/**
+ * @generated from message arbcn.dashboard.v1.LedgerSummaryRequest
+ */
+export type LedgerSummaryRequest = Message<"arbcn.dashboard.v1.LedgerSummaryRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.LedgerSummaryRequest.
+ * Use `create(LedgerSummaryRequestSchema)` to create a new message.
+ */
+export const LedgerSummaryRequestSchema: GenMessage<LedgerSummaryRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 29);
+
+/**
+ * @generated from message arbcn.dashboard.v1.TierSummary
+ */
+export type TierSummary = Message<"arbcn.dashboard.v1.TierSummary"> & {
+  /**
+   * 档位（store Tier* 常量；空 = 未分类）
+   *
+   * @generated from field: string tier = 1;
+   */
+  tier: string;
+
+  /**
+   * 累计入金
+   *
+   * @generated from field: double inflow = 2;
+   */
+  inflow: number;
+
+  /**
+   * 累计出金（绝对值）
+   *
+   * @generated from field: double outflow = 3;
+   */
+  outflow: number;
+
+  /**
+   * 净额
+   *
+   * @generated from field: double net = 4;
+   */
+  net: number;
+
+  /**
+   * 笔数
+   *
+   * @generated from field: int32 entry_count = 5;
+   */
+  entryCount: number;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.TierSummary.
+ * Use `create(TierSummarySchema)` to create a new message.
+ */
+export const TierSummarySchema: GenMessage<TierSummary> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 30);
+
+/**
+ * @generated from message arbcn.dashboard.v1.LedgerSummaryResponse
+ */
+export type LedgerSummaryResponse = Message<"arbcn.dashboard.v1.LedgerSummaryResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.TierSummary items = 1;
+   */
+  items: TierSummary[];
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.LedgerSummaryResponse.
+ * Use `create(LedgerSummaryResponseSchema)` to create a new message.
+ */
+export const LedgerSummaryResponseSchema: GenMessage<LedgerSummaryResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 31);
+
+/**
  * DashboardService 为 Web 仪表盘提供数据查询与告警确认接口。
  * 除 AckAlert 外全部只读；无任何资金/交易能力。
  *
@@ -628,6 +1031,48 @@ export const DashboardService: GenService<{
     methodKind: "unary";
     input: typeof ListSourceHealthRequestSchema;
     output: typeof ListSourceHealthResponseSchema;
+  },
+  /**
+   * ListFacts 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+   * 覆盖 kind（funding/defi_rate/deposit_rate）× 当日 USDCNH → RMB 净收益视角；
+   * 原始事实不污染（02 §8）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListFacts
+   */
+  listFacts: {
+    methodKind: "unary";
+    input: typeof ListFactsRequestSchema;
+    output: typeof ListFactsResponseSchema;
+  },
+  /**
+   * AddLedgerEntry 手工录入台账行（M2-b §6 出入金流水；资金动作永远人工 §1）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.AddLedgerEntry
+   */
+  addLedgerEntry: {
+    methodKind: "unary";
+    input: typeof AddLedgerEntryRequestSchema;
+    output: typeof AddLedgerEntryResponseSchema;
+  },
+  /**
+   * ListLedgerEntries 台账流水（date DESC, id DESC 分页）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListLedgerEntries
+   */
+  listLedgerEntries: {
+    methodKind: "unary";
+    input: typeof ListLedgerEntriesRequestSchema;
+    output: typeof ListLedgerEntriesResponseSchema;
+  },
+  /**
+   * LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.LedgerSummary
+   */
+  ledgerSummary: {
+    methodKind: "unary";
+    input: typeof LedgerSummaryRequestSchema;
+    output: typeof LedgerSummaryResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_arbcn_dashboard_v1_dashboard, 0);

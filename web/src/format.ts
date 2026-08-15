@@ -102,6 +102,71 @@ export const levelText = (level: string): string => {
   }
 };
 
+// tierLabel 台账档位 → 中文（D-026 三档 + 持有层；entry 自带档位，不推断；
+// 空 = 未分类；未知档位回退原名，演进预留）。
+export const tierLabel = (tier: string): string => {
+  switch (tier) {
+    case "protected_convexity":
+      return "保本凸性";
+    case "stable_base":
+      return "稳定币基档";
+    case "cash_management":
+      return "现金管理";
+    case "holding":
+      return "持有层";
+    case "":
+      return "未分类";
+    default:
+      return tier;
+  }
+};
+
+// fmtAmount 台账金额（千分位 + 最多 2 位小数；正=入金，负=出金）。
+export const fmtAmount = (v: number): string =>
+  v.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+
+// factValue 事实值按单位显示（快照 USD 原值 / RMB 视角共用）：pct_annualized/pct →
+// 百分比；days → 天；price → 4 位小数；ratio → 4 位有效数字；未知单位 → 原值。
+// 修 M2-b 审阅缺陷 F2：原实现对所有 kind 统一 pct()，导致 fx（price 6.744）显示
+// "674.43%"、calendar（days 16）显示 "16.00%"。
+export const factValue = (v: number, unit: string): string => {
+  switch (unit) {
+    case "pct_annualized":
+    case "pct":
+      return pct(v);
+    case "days":
+      return days(v);
+    case "price":
+      return v.toFixed(4);
+    case "ratio":
+      return v.toPrecision(4);
+    default:
+      return String(v);
+  }
+};
+
+// unitText 事实单位码 → 中文（机会面板/快照展示）。
+export const unitText = (unit: string): string => {
+  switch (unit) {
+    case "pct_annualized":
+      return "年化 %";
+    case "price":
+      return "价格";
+    case "pct":
+      return "%";
+    case "days":
+      return "天";
+    case "ratio":
+      return "比值";
+    default:
+      return unit;
+  }
+};
+
+// fxText 汇率可用性（M2-b §4：汇率缺失 → USD 原值 + 「汇率不可用」标记）。
+export const fxText = (available: boolean): string =>
+  available ? "已折算" : "汇率不可用";
+
 // ruleLabel 规则名 → 中文标签（告警流/触发器展示；规则名本身是稳定标识符，
 // 未知名回退原名，与后端 rule/ruleLabels 同语义）。
 export const ruleLabel = (name: string): string => {

@@ -1129,6 +1129,742 @@ func (x *ListSourceHealthResponse) GetItems() []*SourceHealth {
 	return nil
 }
 
+// FactRmb 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+// 原始事实字段（kind/venue/symbol/value/unit/ts/src）不被改写（02 §8 不污染）；
+// rmb_value/fx_rate/fx_available 为展示层折算结果。
+type FactRmb struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Venue         string                 `protobuf:"bytes,2,opt,name=venue,proto3" json:"venue,omitempty"`
+	Symbol        string                 `protobuf:"bytes,3,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	Value         float64                `protobuf:"fixed64,4,opt,name=value,proto3" json:"value,omitempty"` // USD 原值（不污染）
+	Unit          string                 `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`
+	Ts            *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=ts,proto3" json:"ts,omitempty"`
+	Src           string                 `protobuf:"bytes,7,opt,name=src,proto3" json:"src,omitempty"`
+	RmbValue      float64                `protobuf:"fixed64,8,opt,name=rmb_value,json=rmbValue,proto3" json:"rmb_value,omitempty"`          // RMB 净收益视角；汇率缺失 = value（USD 原值）
+	FxRate        float64                `protobuf:"fixed64,9,opt,name=fx_rate,json=fxRate,proto3" json:"fx_rate,omitempty"`                // 当日 USDCNH；0 = 不可用
+	FxAvailable   bool                   `protobuf:"varint,10,opt,name=fx_available,json=fxAvailable,proto3" json:"fx_available,omitempty"` // 汇率可用（false → 前端显示「汇率不可用」）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FactRmb) Reset() {
+	*x = FactRmb{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FactRmb) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FactRmb) ProtoMessage() {}
+
+func (x *FactRmb) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FactRmb.ProtoReflect.Descriptor instead.
+func (*FactRmb) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *FactRmb) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *FactRmb) GetVenue() string {
+	if x != nil {
+		return x.Venue
+	}
+	return ""
+}
+
+func (x *FactRmb) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *FactRmb) GetValue() float64 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+func (x *FactRmb) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *FactRmb) GetTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Ts
+	}
+	return nil
+}
+
+func (x *FactRmb) GetSrc() string {
+	if x != nil {
+		return x.Src
+	}
+	return ""
+}
+
+func (x *FactRmb) GetRmbValue() float64 {
+	if x != nil {
+		return x.RmbValue
+	}
+	return 0
+}
+
+func (x *FactRmb) GetFxRate() float64 {
+	if x != nil {
+		return x.FxRate
+	}
+	return 0
+}
+
+func (x *FactRmb) GetFxAvailable() bool {
+	if x != nil {
+		return x.FxAvailable
+	}
+	return false
+}
+
+type ListFactsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`     // 空 = 全部
+	Venue         string                 `protobuf:"bytes,2,opt,name=venue,proto3" json:"venue,omitempty"`   // 空 = 全部
+	Symbol        string                 `protobuf:"bytes,3,opt,name=symbol,proto3" json:"symbol,omitempty"` // 空 = 全部
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFactsRequest) Reset() {
+	*x = ListFactsRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFactsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFactsRequest) ProtoMessage() {}
+
+func (x *ListFactsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFactsRequest.ProtoReflect.Descriptor instead.
+func (*ListFactsRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ListFactsRequest) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ListFactsRequest) GetVenue() string {
+	if x != nil {
+		return x.Venue
+	}
+	return ""
+}
+
+func (x *ListFactsRequest) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+type ListFactsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Facts         []*FactRmb             `protobuf:"bytes,1,rep,name=facts,proto3" json:"facts,omitempty"`
+	FxRate        float64                `protobuf:"fixed64,2,opt,name=fx_rate,json=fxRate,proto3" json:"fx_rate,omitempty"`               // 当日 USDCNH（快照级；0 = 不可用）
+	FxAvailable   bool                   `protobuf:"varint,3,opt,name=fx_available,json=fxAvailable,proto3" json:"fx_available,omitempty"` // 汇率可用
+	FxTs          *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=fx_ts,json=fxTs,proto3" json:"fx_ts,omitempty"`                       // 汇率报价时刻；缺省 = 不可用
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListFactsResponse) Reset() {
+	*x = ListFactsResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListFactsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListFactsResponse) ProtoMessage() {}
+
+func (x *ListFactsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListFactsResponse.ProtoReflect.Descriptor instead.
+func (*ListFactsResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListFactsResponse) GetFacts() []*FactRmb {
+	if x != nil {
+		return x.Facts
+	}
+	return nil
+}
+
+func (x *ListFactsResponse) GetFxRate() float64 {
+	if x != nil {
+		return x.FxRate
+	}
+	return 0
+}
+
+func (x *ListFactsResponse) GetFxAvailable() bool {
+	if x != nil {
+		return x.FxAvailable
+	}
+	return false
+}
+
+func (x *ListFactsResponse) GetFxTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FxTs
+	}
+	return nil
+}
+
+// LedgerEntry 台账行（M2-b §6 出入金流水）。
+type LedgerEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Date          *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=date,proto3" json:"date,omitempty"`                        // 出入金日期
+	Channel       string                 `protobuf:"bytes,3,opt,name=channel,proto3" json:"channel,omitempty"`                  // 通道（binance / okx / 民营定期 / 逆回购 ...）
+	Currency      string                 `protobuf:"bytes,4,opt,name=currency,proto3" json:"currency,omitempty"`                // 币种（RMB / USD / USDT / USDC / BTC ...）
+	Amount        float64                `protobuf:"fixed64,5,opt,name=amount,proto3" json:"amount,omitempty"`                  // 金额；正 = 入金，负 = 出金
+	FeeRate       float64                `protobuf:"fixed64,6,opt,name=fee_rate,json=feeRate,proto3" json:"fee_rate,omitempty"` // 费率 %
+	Tier          string                 `protobuf:"bytes,7,opt,name=tier,proto3" json:"tier,omitempty"`                        // 档位（store Tier* 常量；entry 自带，不推断）
+	Note          string                 `protobuf:"bytes,8,opt,name=note,proto3" json:"note,omitempty"`                        // 备注
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LedgerEntry) Reset() {
+	*x = LedgerEntry{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LedgerEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LedgerEntry) ProtoMessage() {}
+
+func (x *LedgerEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LedgerEntry.ProtoReflect.Descriptor instead.
+func (*LedgerEntry) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *LedgerEntry) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *LedgerEntry) GetDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Date
+	}
+	return nil
+}
+
+func (x *LedgerEntry) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *LedgerEntry) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *LedgerEntry) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *LedgerEntry) GetFeeRate() float64 {
+	if x != nil {
+		return x.FeeRate
+	}
+	return 0
+}
+
+func (x *LedgerEntry) GetTier() string {
+	if x != nil {
+		return x.Tier
+	}
+	return ""
+}
+
+func (x *LedgerEntry) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
+type AddLedgerEntryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Date          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"` // 出入金日期
+	Channel       string                 `protobuf:"bytes,2,opt,name=channel,proto3" json:"channel,omitempty"`
+	Currency      string                 `protobuf:"bytes,3,opt,name=currency,proto3" json:"currency,omitempty"`
+	Amount        float64                `protobuf:"fixed64,4,opt,name=amount,proto3" json:"amount,omitempty"` // 正 = 入金，负 = 出金
+	FeeRate       float64                `protobuf:"fixed64,5,opt,name=fee_rate,json=feeRate,proto3" json:"fee_rate,omitempty"`
+	Tier          string                 `protobuf:"bytes,6,opt,name=tier,proto3" json:"tier,omitempty"`
+	Note          string                 `protobuf:"bytes,7,opt,name=note,proto3" json:"note,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddLedgerEntryRequest) Reset() {
+	*x = AddLedgerEntryRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddLedgerEntryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddLedgerEntryRequest) ProtoMessage() {}
+
+func (x *AddLedgerEntryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddLedgerEntryRequest.ProtoReflect.Descriptor instead.
+func (*AddLedgerEntryRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *AddLedgerEntryRequest) GetDate() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Date
+	}
+	return nil
+}
+
+func (x *AddLedgerEntryRequest) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *AddLedgerEntryRequest) GetCurrency() string {
+	if x != nil {
+		return x.Currency
+	}
+	return ""
+}
+
+func (x *AddLedgerEntryRequest) GetAmount() float64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *AddLedgerEntryRequest) GetFeeRate() float64 {
+	if x != nil {
+		return x.FeeRate
+	}
+	return 0
+}
+
+func (x *AddLedgerEntryRequest) GetTier() string {
+	if x != nil {
+		return x.Tier
+	}
+	return ""
+}
+
+func (x *AddLedgerEntryRequest) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
+type AddLedgerEntryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // 新行 id
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AddLedgerEntryResponse) Reset() {
+	*x = AddLedgerEntryResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AddLedgerEntryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AddLedgerEntryResponse) ProtoMessage() {}
+
+func (x *AddLedgerEntryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AddLedgerEntryResponse.ProtoReflect.Descriptor instead.
+func (*AddLedgerEntryResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *AddLedgerEntryResponse) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+type ListLedgerEntriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`   // 分页大小；≤0 = 默认 100
+	Offset        int32                  `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"` // 分页偏移；<0 = 0
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLedgerEntriesRequest) Reset() {
+	*x = ListLedgerEntriesRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLedgerEntriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLedgerEntriesRequest) ProtoMessage() {}
+
+func (x *ListLedgerEntriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLedgerEntriesRequest.ProtoReflect.Descriptor instead.
+func (*ListLedgerEntriesRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ListLedgerEntriesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListLedgerEntriesRequest) GetOffset() int32 {
+	if x != nil {
+		return x.Offset
+	}
+	return 0
+}
+
+type ListLedgerEntriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*LedgerEntry         `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListLedgerEntriesResponse) Reset() {
+	*x = ListLedgerEntriesResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListLedgerEntriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListLedgerEntriesResponse) ProtoMessage() {}
+
+func (x *ListLedgerEntriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLedgerEntriesResponse.ProtoReflect.Descriptor instead.
+func (*ListLedgerEntriesResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ListLedgerEntriesResponse) GetEntries() []*LedgerEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
+type LedgerSummaryRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LedgerSummaryRequest) Reset() {
+	*x = LedgerSummaryRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LedgerSummaryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LedgerSummaryRequest) ProtoMessage() {}
+
+func (x *LedgerSummaryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LedgerSummaryRequest.ProtoReflect.Descriptor instead.
+func (*LedgerSummaryRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{29}
+}
+
+type TierSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tier          string                 `protobuf:"bytes,1,opt,name=tier,proto3" json:"tier,omitempty"`                                // 档位（store Tier* 常量；空 = 未分类）
+	Inflow        float64                `protobuf:"fixed64,2,opt,name=inflow,proto3" json:"inflow,omitempty"`                          // 累计入金
+	Outflow       float64                `protobuf:"fixed64,3,opt,name=outflow,proto3" json:"outflow,omitempty"`                        // 累计出金（绝对值）
+	Net           float64                `protobuf:"fixed64,4,opt,name=net,proto3" json:"net,omitempty"`                                // 净额
+	EntryCount    int32                  `protobuf:"varint,5,opt,name=entry_count,json=entryCount,proto3" json:"entry_count,omitempty"` // 笔数
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TierSummary) Reset() {
+	*x = TierSummary{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TierSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TierSummary) ProtoMessage() {}
+
+func (x *TierSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TierSummary.ProtoReflect.Descriptor instead.
+func (*TierSummary) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *TierSummary) GetTier() string {
+	if x != nil {
+		return x.Tier
+	}
+	return ""
+}
+
+func (x *TierSummary) GetInflow() float64 {
+	if x != nil {
+		return x.Inflow
+	}
+	return 0
+}
+
+func (x *TierSummary) GetOutflow() float64 {
+	if x != nil {
+		return x.Outflow
+	}
+	return 0
+}
+
+func (x *TierSummary) GetNet() float64 {
+	if x != nil {
+		return x.Net
+	}
+	return 0
+}
+
+func (x *TierSummary) GetEntryCount() int32 {
+	if x != nil {
+		return x.EntryCount
+	}
+	return 0
+}
+
+type LedgerSummaryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*TierSummary         `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LedgerSummaryResponse) Reset() {
+	*x = LedgerSummaryResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LedgerSummaryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LedgerSummaryResponse) ProtoMessage() {}
+
+func (x *LedgerSummaryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LedgerSummaryResponse.ProtoReflect.Descriptor instead.
+func (*LedgerSummaryResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *LedgerSummaryResponse) GetItems() []*TierSummary {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 var File_arbcn_dashboard_v1_dashboard_proto protoreflect.FileDescriptor
 
 const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
@@ -1202,7 +1938,62 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\tR\x06status\"\x19\n" +
 	"\x17ListSourceHealthRequest\"R\n" +
 	"\x18ListSourceHealthResponse\x126\n" +
-	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.SourceHealthR\x05items2\x95\x06\n" +
+	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.SourceHealthR\x05items\"\x8c\x02\n" +
+	"\aFactRmb\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05venue\x18\x02 \x01(\tR\x05venue\x12\x16\n" +
+	"\x06symbol\x18\x03 \x01(\tR\x06symbol\x12\x14\n" +
+	"\x05value\x18\x04 \x01(\x01R\x05value\x12\x12\n" +
+	"\x04unit\x18\x05 \x01(\tR\x04unit\x12*\n" +
+	"\x02ts\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x10\n" +
+	"\x03src\x18\a \x01(\tR\x03src\x12\x1b\n" +
+	"\trmb_value\x18\b \x01(\x01R\brmbValue\x12\x17\n" +
+	"\afx_rate\x18\t \x01(\x01R\x06fxRate\x12!\n" +
+	"\ffx_available\x18\n" +
+	" \x01(\bR\vfxAvailable\"T\n" +
+	"\x10ListFactsRequest\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05venue\x18\x02 \x01(\tR\x05venue\x12\x16\n" +
+	"\x06symbol\x18\x03 \x01(\tR\x06symbol\"\xb3\x01\n" +
+	"\x11ListFactsResponse\x121\n" +
+	"\x05facts\x18\x01 \x03(\v2\x1b.arbcn.dashboard.v1.FactRmbR\x05facts\x12\x17\n" +
+	"\afx_rate\x18\x02 \x01(\x01R\x06fxRate\x12!\n" +
+	"\ffx_available\x18\x03 \x01(\bR\vfxAvailable\x12/\n" +
+	"\x05fx_ts\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x04fxTs\"\xde\x01\n" +
+	"\vLedgerEntry\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12.\n" +
+	"\x04date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x04date\x12\x18\n" +
+	"\achannel\x18\x03 \x01(\tR\achannel\x12\x1a\n" +
+	"\bcurrency\x18\x04 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x05 \x01(\x01R\x06amount\x12\x19\n" +
+	"\bfee_rate\x18\x06 \x01(\x01R\afeeRate\x12\x12\n" +
+	"\x04tier\x18\a \x01(\tR\x04tier\x12\x12\n" +
+	"\x04note\x18\b \x01(\tR\x04note\"\xd8\x01\n" +
+	"\x15AddLedgerEntryRequest\x12.\n" +
+	"\x04date\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x04date\x12\x18\n" +
+	"\achannel\x18\x02 \x01(\tR\achannel\x12\x1a\n" +
+	"\bcurrency\x18\x03 \x01(\tR\bcurrency\x12\x16\n" +
+	"\x06amount\x18\x04 \x01(\x01R\x06amount\x12\x19\n" +
+	"\bfee_rate\x18\x05 \x01(\x01R\afeeRate\x12\x12\n" +
+	"\x04tier\x18\x06 \x01(\tR\x04tier\x12\x12\n" +
+	"\x04note\x18\a \x01(\tR\x04note\"(\n" +
+	"\x16AddLedgerEntryResponse\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\"H\n" +
+	"\x18ListLedgerEntriesRequest\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
+	"\x06offset\x18\x02 \x01(\x05R\x06offset\"V\n" +
+	"\x19ListLedgerEntriesResponse\x129\n" +
+	"\aentries\x18\x01 \x03(\v2\x1f.arbcn.dashboard.v1.LedgerEntryR\aentries\"\x16\n" +
+	"\x14LedgerSummaryRequest\"\x86\x01\n" +
+	"\vTierSummary\x12\x12\n" +
+	"\x04tier\x18\x01 \x01(\tR\x04tier\x12\x16\n" +
+	"\x06inflow\x18\x02 \x01(\x01R\x06inflow\x12\x18\n" +
+	"\aoutflow\x18\x03 \x01(\x01R\aoutflow\x12\x10\n" +
+	"\x03net\x18\x04 \x01(\x01R\x03net\x12\x1f\n" +
+	"\ventry_count\x18\x05 \x01(\x05R\n" +
+	"entryCount\"N\n" +
+	"\x15LedgerSummaryResponse\x125\n" +
+	"\x05items\x18\x01 \x03(\v2\x1f.arbcn.dashboard.v1.TierSummaryR\x05items2\xb0\t\n" +
 	"\x10DashboardService\x12j\n" +
 	"\x0fListLatestFacts\x12*.arbcn.dashboard.v1.ListLatestFactsRequest\x1a+.arbcn.dashboard.v1.ListLatestFactsResponse\x12[\n" +
 	"\n" +
@@ -1212,7 +2003,11 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x06Health\x12!.arbcn.dashboard.v1.HealthRequest\x1a\".arbcn.dashboard.v1.HealthResponse\x12^\n" +
 	"\vListUnacked\x12&.arbcn.dashboard.v1.ListUnackedRequest\x1a'.arbcn.dashboard.v1.ListUnackedResponse\x12O\n" +
 	"\x06AckAll\x12!.arbcn.dashboard.v1.AckAllRequest\x1a\".arbcn.dashboard.v1.AckAllResponse\x12m\n" +
-	"\x10ListSourceHealth\x12+.arbcn.dashboard.v1.ListSourceHealthRequest\x1a,.arbcn.dashboard.v1.ListSourceHealthResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
+	"\x10ListSourceHealth\x12+.arbcn.dashboard.v1.ListSourceHealthRequest\x1a,.arbcn.dashboard.v1.ListSourceHealthResponse\x12X\n" +
+	"\tListFacts\x12$.arbcn.dashboard.v1.ListFactsRequest\x1a%.arbcn.dashboard.v1.ListFactsResponse\x12g\n" +
+	"\x0eAddLedgerEntry\x12).arbcn.dashboard.v1.AddLedgerEntryRequest\x1a*.arbcn.dashboard.v1.AddLedgerEntryResponse\x12p\n" +
+	"\x11ListLedgerEntries\x12,.arbcn.dashboard.v1.ListLedgerEntriesRequest\x1a-.arbcn.dashboard.v1.ListLedgerEntriesResponse\x12d\n" +
+	"\rLedgerSummary\x12(.arbcn.dashboard.v1.LedgerSummaryRequest\x1a).arbcn.dashboard.v1.LedgerSummaryResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
 
 var (
 	file_arbcn_dashboard_v1_dashboard_proto_rawDescOnce sync.Once
@@ -1226,7 +2021,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 	return file_arbcn_dashboard_v1_dashboard_proto_rawDescData
 }
 
-var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
 var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*Fact)(nil),                      // 0: arbcn.dashboard.v1.Fact
 	(*ListLatestFactsRequest)(nil),    // 1: arbcn.dashboard.v1.ListLatestFactsRequest
@@ -1249,41 +2044,67 @@ var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*SourceHealth)(nil),              // 18: arbcn.dashboard.v1.SourceHealth
 	(*ListSourceHealthRequest)(nil),   // 19: arbcn.dashboard.v1.ListSourceHealthRequest
 	(*ListSourceHealthResponse)(nil),  // 20: arbcn.dashboard.v1.ListSourceHealthResponse
-	(*timestamppb.Timestamp)(nil),     // 21: google.protobuf.Timestamp
+	(*FactRmb)(nil),                   // 21: arbcn.dashboard.v1.FactRmb
+	(*ListFactsRequest)(nil),          // 22: arbcn.dashboard.v1.ListFactsRequest
+	(*ListFactsResponse)(nil),         // 23: arbcn.dashboard.v1.ListFactsResponse
+	(*LedgerEntry)(nil),               // 24: arbcn.dashboard.v1.LedgerEntry
+	(*AddLedgerEntryRequest)(nil),     // 25: arbcn.dashboard.v1.AddLedgerEntryRequest
+	(*AddLedgerEntryResponse)(nil),    // 26: arbcn.dashboard.v1.AddLedgerEntryResponse
+	(*ListLedgerEntriesRequest)(nil),  // 27: arbcn.dashboard.v1.ListLedgerEntriesRequest
+	(*ListLedgerEntriesResponse)(nil), // 28: arbcn.dashboard.v1.ListLedgerEntriesResponse
+	(*LedgerSummaryRequest)(nil),      // 29: arbcn.dashboard.v1.LedgerSummaryRequest
+	(*TierSummary)(nil),               // 30: arbcn.dashboard.v1.TierSummary
+	(*LedgerSummaryResponse)(nil),     // 31: arbcn.dashboard.v1.LedgerSummaryResponse
+	(*timestamppb.Timestamp)(nil),     // 32: google.protobuf.Timestamp
 }
 var file_arbcn_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	21, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
+	32, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
 	0,  // 1: arbcn.dashboard.v1.ListLatestFactsResponse.facts:type_name -> arbcn.dashboard.v1.Fact
-	21, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
+	32, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
 	3,  // 3: arbcn.dashboard.v1.ListAlertsResponse.alerts:type_name -> arbcn.dashboard.v1.Alert
-	21, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
+	32, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
 	8,  // 5: arbcn.dashboard.v1.ListTriggerStatesResponse.states:type_name -> arbcn.dashboard.v1.TriggerState
-	21, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
+	32, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
 	13, // 7: arbcn.dashboard.v1.ListUnackedResponse.items:type_name -> arbcn.dashboard.v1.UnackedAlert
-	21, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
-	21, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
+	32, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
+	32, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
 	18, // 10: arbcn.dashboard.v1.ListSourceHealthResponse.items:type_name -> arbcn.dashboard.v1.SourceHealth
-	1,  // 11: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
-	4,  // 12: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
-	6,  // 13: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
-	9,  // 14: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
-	11, // 15: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
-	14, // 16: arbcn.dashboard.v1.DashboardService.ListUnacked:input_type -> arbcn.dashboard.v1.ListUnackedRequest
-	16, // 17: arbcn.dashboard.v1.DashboardService.AckAll:input_type -> arbcn.dashboard.v1.AckAllRequest
-	19, // 18: arbcn.dashboard.v1.DashboardService.ListSourceHealth:input_type -> arbcn.dashboard.v1.ListSourceHealthRequest
-	2,  // 19: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
-	5,  // 20: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
-	7,  // 21: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
-	10, // 22: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
-	12, // 23: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
-	15, // 24: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
-	17, // 25: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
-	20, // 26: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
-	19, // [19:27] is the sub-list for method output_type
-	11, // [11:19] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	32, // 11: arbcn.dashboard.v1.FactRmb.ts:type_name -> google.protobuf.Timestamp
+	21, // 12: arbcn.dashboard.v1.ListFactsResponse.facts:type_name -> arbcn.dashboard.v1.FactRmb
+	32, // 13: arbcn.dashboard.v1.ListFactsResponse.fx_ts:type_name -> google.protobuf.Timestamp
+	32, // 14: arbcn.dashboard.v1.LedgerEntry.date:type_name -> google.protobuf.Timestamp
+	32, // 15: arbcn.dashboard.v1.AddLedgerEntryRequest.date:type_name -> google.protobuf.Timestamp
+	24, // 16: arbcn.dashboard.v1.ListLedgerEntriesResponse.entries:type_name -> arbcn.dashboard.v1.LedgerEntry
+	30, // 17: arbcn.dashboard.v1.LedgerSummaryResponse.items:type_name -> arbcn.dashboard.v1.TierSummary
+	1,  // 18: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
+	4,  // 19: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
+	6,  // 20: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
+	9,  // 21: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
+	11, // 22: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
+	14, // 23: arbcn.dashboard.v1.DashboardService.ListUnacked:input_type -> arbcn.dashboard.v1.ListUnackedRequest
+	16, // 24: arbcn.dashboard.v1.DashboardService.AckAll:input_type -> arbcn.dashboard.v1.AckAllRequest
+	19, // 25: arbcn.dashboard.v1.DashboardService.ListSourceHealth:input_type -> arbcn.dashboard.v1.ListSourceHealthRequest
+	22, // 26: arbcn.dashboard.v1.DashboardService.ListFacts:input_type -> arbcn.dashboard.v1.ListFactsRequest
+	25, // 27: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:input_type -> arbcn.dashboard.v1.AddLedgerEntryRequest
+	27, // 28: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:input_type -> arbcn.dashboard.v1.ListLedgerEntriesRequest
+	29, // 29: arbcn.dashboard.v1.DashboardService.LedgerSummary:input_type -> arbcn.dashboard.v1.LedgerSummaryRequest
+	2,  // 30: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
+	5,  // 31: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
+	7,  // 32: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
+	10, // 33: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
+	12, // 34: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
+	15, // 35: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
+	17, // 36: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
+	20, // 37: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
+	23, // 38: arbcn.dashboard.v1.DashboardService.ListFacts:output_type -> arbcn.dashboard.v1.ListFactsResponse
+	26, // 39: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:output_type -> arbcn.dashboard.v1.AddLedgerEntryResponse
+	28, // 40: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:output_type -> arbcn.dashboard.v1.ListLedgerEntriesResponse
+	31, // 41: arbcn.dashboard.v1.DashboardService.LedgerSummary:output_type -> arbcn.dashboard.v1.LedgerSummaryResponse
+	30, // [30:42] is the sub-list for method output_type
+	18, // [18:30] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_arbcn_dashboard_v1_dashboard_proto_init() }
@@ -1298,7 +2119,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_dashboard_v1_dashboard_proto_rawDesc), len(file_arbcn_dashboard_v1_dashboard_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   32,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

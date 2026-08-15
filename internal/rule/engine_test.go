@@ -47,7 +47,7 @@ func TestStateMachineLifecycle(t *testing.T) {
 	}
 
 	step(16) // armed → active
-	if got := st.alertsCopy(); len(got) != 1 || got[0].Message != "r1 active: BTC@binance=16" {
+	if got := st.alertsCopy(); len(got) != 1 || got[0].Message != "r1 触发: BTC@binance=16" {
 		t.Fatalf("alerts after armed→active = %+v, want 1 active", got)
 	}
 	if s := state(); s.State != store.StateActive || s.LastValue != 16 {
@@ -64,7 +64,7 @@ func TestStateMachineLifecycle(t *testing.T) {
 
 	step(5) // 均值 (16+17+5)/3 ≈ 12.7 < 15 → resolved 补发解除
 	got := st.alertsCopy()
-	if len(got) != 2 || got[1].Message != "r1 resolved" {
+	if len(got) != 2 || got[1].Message != "r1 已解除" {
 		t.Fatalf("alerts after resolved = %+v, want 2 条且第 2 条为 resolved", got)
 	}
 	if s := state(); s.State != store.StateResolved {
@@ -79,7 +79,7 @@ func TestStateMachineLifecycle(t *testing.T) {
 	step(30) // 均值 (16+17+5+5+30)/5 = 14.6 < 15 → 仍 resolved，无转变
 	step(50) // 均值 (16+17+5+5+30+50)/6 ≈ 20.5 > 15 → resolved → active（第 3 告警）
 	got = st.alertsCopy()
-	if len(got) != 3 || got[2].Message != "r1 active: BTC@binance=20.5" {
+	if len(got) != 3 || got[2].Message != "r1 触发: BTC@binance=20.5" {
 		t.Fatalf("alerts after re-active = %+v, want 3 条且第 3 条 active", got)
 	}
 }
@@ -219,7 +219,46 @@ func TestActiveMsgTruncates(t *testing.T) {
 		matches[i] = match{venue: "v", symbol: string(rune('A' + i)), value: float64(i)}
 	}
 	got := activeMsg("x", matches)
-	if !strings.HasSuffix(got, ", …") || !strings.HasPrefix(got, "x active: ") {
+	if !strings.HasSuffix(got, ", …") || !strings.HasPrefix(got, "x 触发: ") {
 		t.Errorf("activeMsg = %q, want 前缀 + 截断后缀", got)
+	}
+}
+
+// TestOnActiveFiresOnTransitionOnly：关键规则触发事件（M2-b §5）只在
+// armed/resolved→active 转变时回调；持续满足（状态不变）与 resolved 不回调。
+// [对抗测试锚点] 删除 state.go transition() 里 e.onActive 调用 → 本测试必红。
+func TestOnActiveFiresOnTransitionOnly(t *testing.T) {
+	st := newFakeStore([]store.Rule{
+		{Name: "r1", Kind: fact.KindFunding, Cond: "avg_30d > 15", Level: store.LevelWarn, Enabled: true},
+	}, nil)
+	clock := t0
+	var fired []string
+	onActive := func(_ context.Context, r store.Rule) { fired = append(fired, r.Name) }
+	e, err := New(context.Background(), st, Config{
+		Now:      func() time.Time { return clock },
+		OnActive: onActive,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	step := func(v float64) {
+		t.Helper()
+		clock = clock.Add(time.Minute)
+		if err := st.InsertFacts(context.Background(), []fact.Fact{
+			fct(fact.KindFunding, "binance", "BTC", v, -time.Hour),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.EvaluateAll(context.Background()); err != nil {
+			t.Fatalf("EvaluateAll: %v", err)
+		}
+	}
+
+	step(16) // armed → active：回调 1 次
+	step(17) // active 持续满足：不回调
+	step(5)  // 均值回落 → resolved：不回调（解除不是触发事件）
+	step(50) // resolved → active 再触发：回调第 2 次
+	if len(fired) != 2 || fired[0] != "r1" || fired[1] != "r1" {
+		t.Errorf("onActive fired = %v, want [r1 r1]（仅 2 次 armed/resolved→active 转变）", fired)
 	}
 }

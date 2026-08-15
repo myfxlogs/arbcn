@@ -253,3 +253,13 @@
 - **结论**：风险门禁定稿——预期年化 <5% 拒单（`SPREAD_LOW`）/ 单笔 ≤ 模拟资金 20%（`SIZE_OVER`）/ 日累计 ≤ 50%（`DAILY_OVER`）/ carry_asset 白名单 / 无对冲拒单（`UNHEDGED`）。04-m3-spec.md 标记为**已确认**，可派发施工。改动门禁数值须走 D#。
 - **决策号**：D-034 补充（门禁数值定稿）。
 - **下一步**：M2-b 施工（RMB 折算 + facts.md 导出 + 台账）→ M3-a 派发。
+
+## #38 · 2026-08-15 · M2-b 施工交付 + 负责人复审（F1/F2）· 施工 agent → 决策层
+- **参与方**：施工 agent（M2-b）、Claude（负责人复审）
+- **交付**：M2-b 三件套——① **RMB 折算**（internal/rmb 纯函数包：RMB 净收益 = USD 收益率 − 年化人民币升值，30d 尾窗，D-023 算例口径；ListFacts RPC 投影 + 汇率缺失降级"汇率不可用"）；② **facts.md 自动导出**（exporter 组件：日定时 + 规则触发事件，begin/end 标记独占段，旧快照标"已过期"不删除，原子写；rule.Config.OnActive 仅在 armed/resolved→active 转变回调）；③ **台账起步**（ledger 表 0004 迁移 + 录入/流水/按 tier 归因三 RPC + 前端三分页：监控总览/事实快照 RMB 视角/出入金台账）。全部门禁过（go vet / go test -race / buf lint / check-lines / npm build）。
+- **负责人复审发现（已修复 + 补对抗测试）**：
+  - **F1**：ListFacts 快照投影含 heartbeat 内部遥测，与 exporter skipKinds 排除口径不一致 → facts.go 过滤 + TestListFactsExcludesHeartbeat。
+  - **F2**：FactsSnapshot 对所有 kind 统一 pct()，fx（price 6.7443）显示"674.43%"、calendar（days 16）显示"16.00%" → format.ts 新增 unit 感知 factValue()，值列按 unit 分支。两条教训入 practices.md #4/#5。
+- **规格歧义裁定**：RMB 公式（spec §4 字面"× 当日 USDCNH"对年化收益率荒谬）→ 裁定 = 收益率 − 年化升值（D-023 算例一致，6%−3%=3%），回填 03-m2-spec.md §4。
+- **验证**：go vet/build/test -race 全绿；线上部署（SIGKILL 重启，PID 2296654）healthz ok；ListFacts 实测排除 heartbeat、fx/calendar 单位正确；facts.md 生产首写成功（20:44 快照，段标记 + 无 heartbeat）。
+- **下一步**：M3-a 派发施工（04-m3-spec.md §3）。

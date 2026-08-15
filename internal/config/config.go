@@ -14,6 +14,7 @@ type Config struct {
 	PGDSN         string // PostgreSQL DSN（arbcn-postgres 容器，宿主端口 5434）
 	MigrationsDir string // 版本化迁移 SQL 目录（启动时执行未记账文件，schema_migrations 记账）
 	WebDir        string // 仪表盘静态资源目录（非空 = dev 模式覆盖嵌入 dist，见 arbcn/web 包）
+	FactsPath     string // facts.md 自动导出目标路径（M2-b §5 FactsExporter；默认 docs/handoff/facts.md）
 	SMTP          alert.SMTPConfig
 }
 
@@ -24,6 +25,7 @@ func Load() Config {
 		PGDSN:         getenv("ARBCN_PG_DSN", "postgres://arbcn:arbcn@localhost:5434/arbcn?sslmode=disable"),
 		MigrationsDir: getenv("ARBCN_MIGRATIONS_DIR", "migrations"),
 		WebDir:        os.Getenv("ARBCN_WEB_DIR"),
+		FactsPath:     getenv("ARBCN_FACTS_PATH", "docs/handoff/facts.md"),
 		SMTP: alert.SMTPConfig{
 			Host: os.Getenv("ARBCN_SMTP_HOST"),
 			User: os.Getenv("ARBCN_SMTP_USER"),

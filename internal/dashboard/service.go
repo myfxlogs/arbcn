@@ -45,6 +45,8 @@ type Service struct {
 	db         httpapi.Pinger            // nil = 只报进程存活
 	migrations httpapi.PendingMigrations // nil = 不检查迁移
 	sources    []SourceInfo              // 启用源清单（ListSourceHealth 数据面）
+	// Now 为测试注入时钟（ListFacts 的 30d 汇率窗口）；0 = time.Now。
+	Now func() time.Time
 }
 
 // New 构造服务；db/migrations 与 /healthz 同源（复用 httpapi.Healthz 的依赖类型）；
@@ -233,6 +235,14 @@ func (s *Service) sourceHealth(ctx context.Context, src SourceInfo, now time.Tim
 	default:
 		return StatusLive, lastPoll, lastFact, nil
 	}
+}
+
+// now 返回注入时钟或 time.Now。
+func (s *Service) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }
 
 // toFact 映射 internal/fact.Fact → proto。

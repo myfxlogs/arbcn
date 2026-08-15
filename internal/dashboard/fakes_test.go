@@ -19,10 +19,12 @@ var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 // fakeStore：内存版 store.Store（dashboard 读取路径有真语义；
 // 写路径本包不经过，误用即红）。
 type fakeStore struct {
-	facts  []fact.Fact
-	alerts []store.Alert
-	states []store.RuleState
-	err    error // 注入存储层故障
+	facts   []fact.Fact
+	alerts  []store.Alert
+	states  []store.RuleState
+	ledger  []store.LedgerEntry
+	nextID  int64 // 台账自增 id（fake 内存版）
+	err     error // 注入存储层故障
 }
 
 func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
@@ -138,13 +140,101 @@ func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error
 	return append([]store.RuleState(nil), f.states...), nil
 }
 
-// —— 写路径：dashboard 服务不经过（只读 + ack），误用即红 ——
+// —— 台账路径（M2-b §6：AddLedgerEntry/ListLedgerEntries/LedgerSummary 真语义）——
+
+func (f *fakeStore) InsertLedgerEntry(_ context.Context, e store.LedgerEntry) (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	f.nextID++
+	e.ID = f.nextID
+	f.ledger = append(f.ledger, e)
+	return e.ID, nil
+}
+
+func (f *fakeStore) ListLedgerEntries(_ context.Context, limit, offset int) ([]store.LedgerEntry, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	out := append([]store.LedgerEntry(nil), f.ledger...)
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Date.Equal(out[j].Date) {
+			return out[i].Date.After(out[j].Date)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if offset >= len(out) {
+		return nil, nil
+	}
+	end := min(offset+limit, len(out))
+	return out[offset:end], nil
+}
+
+func (f *fakeStore) LedgerSummary(_ context.Context) ([]store.TierSummary, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	agg := map[string]*store.TierSummary{}
+	order := []string{}
+	for _, e := range f.ledger {
+		if _, ok := agg[e.Tier]; !ok {
+			agg[e.Tier] = &store.TierSummary{Tier: e.Tier}
+			order = append(order, e.Tier)
+		}
+		s := agg[e.Tier]
+		s.EntryCount++
+		s.Net += e.Amount
+		if e.Amount > 0 {
+			s.Inflow += e.Amount
+		} else {
+			s.Outflow += -e.Amount
+		}
+	}
+	sort.Strings(order)
+	out := make([]store.TierSummary, 0, len(order))
+	for _, t := range order {
+		out = append(out, *agg[t])
+	}
+	return out, nil
+}
+
+// —— 其余写路径：dashboard 服务不经过（只读 + ack），误用即红 ——
 
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
 	panic("fakeStore: InsertFacts not used")
 }
-func (f *fakeStore) QueryFacts(context.Context, store.FactQuery) ([]fact.Fact, error) {
-	panic("fakeStore: QueryFacts not used")
+func (f *fakeStore) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	to := q.To
+	if to.IsZero() {
+		to = time.Now()
+	}
+	out := []fact.Fact{}
+	for _, x := range f.facts {
+		if q.Kind != "" && x.Kind != q.Kind {
+			continue
+		}
+		if q.Venue != "" && x.Venue != q.Venue {
+			continue
+		}
+		if q.Symbol != "" && x.Symbol != q.Symbol {
+			continue
+		}
+		if x.Ts.Before(q.From) || !x.Ts.Before(to) {
+			continue
+		}
+		out = append(out, x)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
+	return out, nil
 }
 func (f *fakeStore) UpsertRule(context.Context, store.Rule) (int64, error) {
 	panic("fakeStore: UpsertRule not used")

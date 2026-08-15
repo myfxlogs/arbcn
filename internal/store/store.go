@@ -81,6 +81,37 @@ type FactQuery struct {
 	Limit  int
 }
 
+// LedgerEntry 是 ledger 表的持久化记录（M2-b §6 台账起步）。
+// 出入金流水：date 出入金日期 / channel 通道 / currency 币种 / amount 金额（正入负出）/
+// fee_rate 费率 % / tier 档位（entry 自带，不推断）/ note 备注。
+type LedgerEntry struct {
+	ID       int64     // 主键（读取时回填）
+	Date     time.Time // 出入金日期
+	Channel  string    // 通道（binance / okx / 民营定期 / 逆回购 ...）
+	Currency string    // 币种（RMB / USD / USDT / USDC / BTC ...）
+	Amount   float64   // 金额；正 = 入金，负 = 出金
+	FeeRate  float64   // 费率 %（0 = 无）
+	Tier     string    // 档位（Tier* 常量；entry 自带，不推断）
+	Note     string    // 备注
+}
+
+// Tier 值域（D-026 三档 + 持有层单列可选；entry 自带，前端映射中文标签）。
+const (
+	TierProtectedConvexity = "protected_convexity" // 保本凸性（10 万 A 半：民营定期+现金管理+期权凸性）
+	TierStableBase         = "stable_base"         // 稳定币基档（10 万 B 半：CEX 定期 + 自托管 DeFi）
+	TierCashManagement     = "cash_management"     // 现金管理（国内底仓：货基/逆回购时点）
+	TierHolding            = "holding"             // 持有层（业主自选方向敞口，单列；TRX 等）
+)
+
+// TierSummary 按 tier 归因汇总（M2-b §6：GROUP BY tier 简单分组）。
+type TierSummary struct {
+	Tier       string  // 档位（Tier* 常量）
+	Inflow     float64 // 累计入金（amount > 0 和）
+	Outflow    float64 // 累计出金（amount < 0 的绝对值）
+	Net        float64 // 净额（Inflow − Outflow）
+	EntryCount int     // 笔数
+}
+
 // Store 是监控管线的持久化抽象（facts/rules/trigger_states）。
 type Store interface {
 	// InsertFacts 批量写入；空切片无操作；含非法 Fact 整批拒绝。
@@ -118,4 +149,11 @@ type Store interface {
 	// AckAll 全部已读（单事务 UPDATE alerts SET acked=true WHERE acked=false），
 	// 返回本次确认的告警数（M2-a §1.2）。
 	AckAll(ctx context.Context) (int64, error)
+	// InsertLedgerEntry 追加台账行（M2-b §6）；返回新行 id。
+	InsertLedgerEntry(ctx context.Context, e LedgerEntry) (int64, error)
+	// ListLedgerEntries 按 date DESC, id DESC 分页返回台账流水。
+	// limit ≤ 0 = 默认 100，offset < 0 = 0。
+	ListLedgerEntries(ctx context.Context, limit, offset int) ([]LedgerEntry, error)
+	// LedgerSummary 按 tier 分组归因汇总（GROUP BY tier；空 tier 归入 ""）。
+	LedgerSummary(ctx context.Context) ([]TierSummary, error)
 }

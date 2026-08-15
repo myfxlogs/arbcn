@@ -151,6 +151,17 @@ func (m *memStore) AckAll(context.Context) (int64, error) {
 	panic("memStore: AckAll not used")
 }
 
+// —— M2-b 台账面（M2-b §6）：alert 测试不经过台账，误用即红 ——
+func (m *memStore) InsertLedgerEntry(context.Context, store.LedgerEntry) (int64, error) {
+	panic("memStore: InsertLedgerEntry not used")
+}
+func (m *memStore) ListLedgerEntries(context.Context, int, int) ([]store.LedgerEntry, error) {
+	panic("memStore: ListLedgerEntries not used")
+}
+func (m *memStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
+	panic("memStore: LedgerSummary not used")
+}
+
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }
 

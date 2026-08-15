@@ -1,12 +1,23 @@
 import { useEffect, useState } from "react";
 
-import { useSnapshot } from "./hooks";
+import { useFactsSnapshot, useSnapshot } from "./hooks";
 import { fmtClock, reasonText } from "./format";
+import { Alerts } from "./components/Alerts";
 import { Bell } from "./components/Bell";
 import { Chip } from "./components/Chip";
+import { FactsSnapshot } from "./components/FactsSnapshot";
+import { Ledger } from "./components/Ledger";
 import { Opportunity } from "./components/Opportunity";
 import { Triggers } from "./components/Triggers";
-import { Alerts } from "./components/Alerts";
+
+// Tab 顶部分页（M2-b：监控总览 / 事实快照 RMB 视角 / 出入金台账）。
+type Tab = "overview" | "facts" | "ledger";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "overview", label: "监控总览" },
+  { key: "facts", label: "事实快照" },
+  { key: "ledger", label: "出入金台账" },
+];
 
 // initTheme 初始主题：本地存储 > 系统偏好。
 function initTheme(): "light" | "dark" {
@@ -17,6 +28,8 @@ function initTheme(): "light" | "dark" {
 
 export default function App() {
   const { snap, error, reload, ackAlert, ackAll } = useSnapshot();
+  const factsSnap = useFactsSnapshot();
+  const [tab, setTab] = useState<Tab>("overview");
   const [theme, setTheme] = useState<"light" | "dark">(initTheme);
   const [ackBusy, setAckBusy] = useState<ReadonlySet<string>>(new Set());
 
@@ -66,23 +79,50 @@ export default function App() {
         </button>
       </header>
 
-      {error ? (
-        <div className="banner" role="alert">
-          加载失败：{error}
-        </div>
-      ) : null}
+      <nav className="tabs" aria-label="视图切换">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={t.key === tab ? "tab tab-on" : "tab"}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
-      {snap ? (
+      {tab === "overview" ? (
         <>
-          {/* 双栏：机会面板 + 告警流（对话 #32 布局要求） */}
-          <div className="row">
-            <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
-            <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
-          </div>
-          <Triggers states={snap.states} />
+          {error ? (
+            <div className="banner" role="alert">
+              加载失败：{error}
+            </div>
+          ) : null}
+          {snap ? (
+            <>
+              {/* 双栏：机会面板 + 告警流（对话 #32 布局要求） */}
+              <div className="row">
+                <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
+                <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
+              </div>
+              <Triggers states={snap.states} />
+            </>
+          ) : (
+            <p className="empty">连接服务中…</p>
+          )}
         </>
+      ) : tab === "facts" ? (
+        <FactsSnapshot
+          facts={factsSnap.facts}
+          fxRate={factsSnap.fxRate}
+          fxAvailable={factsSnap.fxAvailable}
+          fxTs={factsSnap.fxTs}
+          error={factsSnap.error}
+          onReload={factsSnap.reload}
+        />
       ) : (
-        <p className="empty">连接服务中…</p>
+        <Ledger />
       )}
     </main>
   );

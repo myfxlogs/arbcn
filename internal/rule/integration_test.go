@@ -153,7 +153,7 @@ func TestSeedAndEvaluatePG(t *testing.T) {
 		t.Fatalf("EvaluateAll: %v", err)
 	}
 	got := alertRows(t, ctx, pool, critID)
-	if len(got) != 1 || got[0].Level != store.LevelCritical || got[0].Message != "funding_critical active: BTC@binance=22" {
+	if len(got) != 1 || got[0].Level != store.LevelCritical || got[0].Message != "资金费率激活 触发: BTC@binance=22" {
 		t.Fatalf("funding_critical alerts = %+v, want 1 条 critical/avg22", got)
 	}
 
@@ -178,7 +178,7 @@ func TestSeedAndEvaluatePG(t *testing.T) {
 		t.Fatalf("EvaluateAll(3rd): %v", err)
 	}
 	got = alertRows(t, ctx, pool, critID)
-	if len(got) != 2 || got[1].Message != "funding_critical resolved" {
+	if len(got) != 2 || got[1].Message != "资金费率激活 已解除" {
 		t.Fatalf("funding_critical alerts after resolve = %+v, want 2 条（第 2 条 resolved）", got)
 	}
 }

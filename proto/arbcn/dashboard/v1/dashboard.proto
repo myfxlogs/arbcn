@@ -27,6 +27,16 @@ service DashboardService {
   rpc AckAll(AckAllRequest) returns (AckAllResponse);
   // ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
   rpc ListSourceHealth(ListSourceHealthRequest) returns (ListSourceHealthResponse);
+  // ListFacts 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+  // 覆盖 kind（funding/defi_rate/deposit_rate）× 当日 USDCNH → RMB 净收益视角；
+  // 原始事实不污染（02 §8）。
+  rpc ListFacts(ListFactsRequest) returns (ListFactsResponse);
+  // AddLedgerEntry 手工录入台账行（M2-b §6 出入金流水；资金动作永远人工 §1）。
+  rpc AddLedgerEntry(AddLedgerEntryRequest) returns (AddLedgerEntryResponse);
+  // ListLedgerEntries 台账流水（date DESC, id DESC 分页）。
+  rpc ListLedgerEntries(ListLedgerEntriesRequest) returns (ListLedgerEntriesResponse);
+  // LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
+  rpc LedgerSummary(LedgerSummaryRequest) returns (LedgerSummaryResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -131,4 +141,82 @@ message ListSourceHealthRequest {}
 
 message ListSourceHealthResponse {
   repeated SourceHealth items = 1;
+}
+
+// FactRmb 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+// 原始事实字段（kind/venue/symbol/value/unit/ts/src）不被改写（02 §8 不污染）；
+// rmb_value/fx_rate/fx_available 为展示层折算结果。
+message FactRmb {
+  string kind = 1;
+  string venue = 2;
+  string symbol = 3;
+  double value = 4;       // USD 原值（不污染）
+  string unit = 5;
+  google.protobuf.Timestamp ts = 6;
+  string src = 7;
+  double rmb_value = 8;   // RMB 净收益视角；汇率缺失 = value（USD 原值）
+  double fx_rate = 9;     // 当日 USDCNH；0 = 不可用
+  bool fx_available = 10; // 汇率可用（false → 前端显示「汇率不可用」）
+}
+
+message ListFactsRequest {
+  string kind = 1;    // 空 = 全部
+  string venue = 2;   // 空 = 全部
+  string symbol = 3;  // 空 = 全部
+}
+
+message ListFactsResponse {
+  repeated FactRmb facts = 1;
+  double fx_rate = 2;                     // 当日 USDCNH（快照级；0 = 不可用）
+  bool fx_available = 3;                  // 汇率可用
+  google.protobuf.Timestamp fx_ts = 4;    // 汇率报价时刻；缺省 = 不可用
+}
+
+// LedgerEntry 台账行（M2-b §6 出入金流水）。
+message LedgerEntry {
+  int64 id = 1;
+  google.protobuf.Timestamp date = 2; // 出入金日期
+  string channel = 3;                 // 通道（binance / okx / 民营定期 / 逆回购 ...）
+  string currency = 4;                // 币种（RMB / USD / USDT / USDC / BTC ...）
+  double amount = 5;                  // 金额；正 = 入金，负 = 出金
+  double fee_rate = 6;                // 费率 %
+  string tier = 7;                    // 档位（store Tier* 常量；entry 自带，不推断）
+  string note = 8;                    // 备注
+}
+
+message AddLedgerEntryRequest {
+  google.protobuf.Timestamp date = 1; // 出入金日期
+  string channel = 2;
+  string currency = 3;
+  double amount = 4;   // 正 = 入金，负 = 出金
+  double fee_rate = 5;
+  string tier = 6;
+  string note = 7;
+}
+
+message AddLedgerEntryResponse {
+  int64 id = 1; // 新行 id
+}
+
+message ListLedgerEntriesRequest {
+  int32 limit = 1;   // 分页大小；≤0 = 默认 100
+  int32 offset = 2;  // 分页偏移；<0 = 0
+}
+
+message ListLedgerEntriesResponse {
+  repeated LedgerEntry entries = 1;
+}
+
+message LedgerSummaryRequest {}
+
+message TierSummary {
+  string tier = 1;       // 档位（store Tier* 常量；空 = 未分类）
+  double inflow = 2;     // 累计入金
+  double outflow = 3;    // 累计出金（绝对值）
+  double net = 4;        // 净额
+  int32 entry_count = 5; // 笔数
+}
+
+message LedgerSummaryResponse {
+  repeated TierSummary items = 1;
 }

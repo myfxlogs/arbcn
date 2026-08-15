@@ -58,6 +58,18 @@ const (
 	// DashboardServiceListSourceHealthProcedure is the fully-qualified name of the DashboardService's
 	// ListSourceHealth RPC.
 	DashboardServiceListSourceHealthProcedure = "/arbcn.dashboard.v1.DashboardService/ListSourceHealth"
+	// DashboardServiceListFactsProcedure is the fully-qualified name of the DashboardService's
+	// ListFacts RPC.
+	DashboardServiceListFactsProcedure = "/arbcn.dashboard.v1.DashboardService/ListFacts"
+	// DashboardServiceAddLedgerEntryProcedure is the fully-qualified name of the DashboardService's
+	// AddLedgerEntry RPC.
+	DashboardServiceAddLedgerEntryProcedure = "/arbcn.dashboard.v1.DashboardService/AddLedgerEntry"
+	// DashboardServiceListLedgerEntriesProcedure is the fully-qualified name of the DashboardService's
+	// ListLedgerEntries RPC.
+	DashboardServiceListLedgerEntriesProcedure = "/arbcn.dashboard.v1.DashboardService/ListLedgerEntries"
+	// DashboardServiceLedgerSummaryProcedure is the fully-qualified name of the DashboardService's
+	// LedgerSummary RPC.
+	DashboardServiceLedgerSummaryProcedure = "/arbcn.dashboard.v1.DashboardService/LedgerSummary"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -78,6 +90,16 @@ type DashboardServiceClient interface {
 	AckAll(context.Context, *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error)
 	// ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
 	ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error)
+	// ListFacts 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+	// 覆盖 kind（funding/defi_rate/deposit_rate）× 当日 USDCNH → RMB 净收益视角；
+	// 原始事实不污染（02 §8）。
+	ListFacts(context.Context, *connect.Request[v1.ListFactsRequest]) (*connect.Response[v1.ListFactsResponse], error)
+	// AddLedgerEntry 手工录入台账行（M2-b §6 出入金流水；资金动作永远人工 §1）。
+	AddLedgerEntry(context.Context, *connect.Request[v1.AddLedgerEntryRequest]) (*connect.Response[v1.AddLedgerEntryResponse], error)
+	// ListLedgerEntries 台账流水（date DESC, id DESC 分页）。
+	ListLedgerEntries(context.Context, *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error)
+	// LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
+	LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -139,6 +161,30 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("ListSourceHealth")),
 			connect.WithClientOptions(opts...),
 		),
+		listFacts: connect.NewClient[v1.ListFactsRequest, v1.ListFactsResponse](
+			httpClient,
+			baseURL+DashboardServiceListFactsProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListFacts")),
+			connect.WithClientOptions(opts...),
+		),
+		addLedgerEntry: connect.NewClient[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse](
+			httpClient,
+			baseURL+DashboardServiceAddLedgerEntryProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("AddLedgerEntry")),
+			connect.WithClientOptions(opts...),
+		),
+		listLedgerEntries: connect.NewClient[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse](
+			httpClient,
+			baseURL+DashboardServiceListLedgerEntriesProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListLedgerEntries")),
+			connect.WithClientOptions(opts...),
+		),
+		ledgerSummary: connect.NewClient[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse](
+			httpClient,
+			baseURL+DashboardServiceLedgerSummaryProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("LedgerSummary")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -152,6 +198,10 @@ type dashboardServiceClient struct {
 	listUnacked       *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
 	ackAll            *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
 	listSourceHealth  *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
+	listFacts         *connect.Client[v1.ListFactsRequest, v1.ListFactsResponse]
+	addLedgerEntry    *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
+	listLedgerEntries *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
+	ledgerSummary     *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -194,6 +244,26 @@ func (c *dashboardServiceClient) ListSourceHealth(ctx context.Context, req *conn
 	return c.listSourceHealth.CallUnary(ctx, req)
 }
 
+// ListFacts calls arbcn.dashboard.v1.DashboardService.ListFacts.
+func (c *dashboardServiceClient) ListFacts(ctx context.Context, req *connect.Request[v1.ListFactsRequest]) (*connect.Response[v1.ListFactsResponse], error) {
+	return c.listFacts.CallUnary(ctx, req)
+}
+
+// AddLedgerEntry calls arbcn.dashboard.v1.DashboardService.AddLedgerEntry.
+func (c *dashboardServiceClient) AddLedgerEntry(ctx context.Context, req *connect.Request[v1.AddLedgerEntryRequest]) (*connect.Response[v1.AddLedgerEntryResponse], error) {
+	return c.addLedgerEntry.CallUnary(ctx, req)
+}
+
+// ListLedgerEntries calls arbcn.dashboard.v1.DashboardService.ListLedgerEntries.
+func (c *dashboardServiceClient) ListLedgerEntries(ctx context.Context, req *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error) {
+	return c.listLedgerEntries.CallUnary(ctx, req)
+}
+
+// LedgerSummary calls arbcn.dashboard.v1.DashboardService.LedgerSummary.
+func (c *dashboardServiceClient) LedgerSummary(ctx context.Context, req *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error) {
+	return c.ledgerSummary.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -212,6 +282,16 @@ type DashboardServiceHandler interface {
 	AckAll(context.Context, *connect.Request[v1.AckAllRequest]) (*connect.Response[v1.AckAllResponse], error)
 	// ListSourceHealth 返回各启用源 freshness 状态（live/stale/down；M2-a §2.1/§2.2）。
 	ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error)
+	// ListFacts 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影）。
+	// 覆盖 kind（funding/defi_rate/deposit_rate）× 当日 USDCNH → RMB 净收益视角；
+	// 原始事实不污染（02 §8）。
+	ListFacts(context.Context, *connect.Request[v1.ListFactsRequest]) (*connect.Response[v1.ListFactsResponse], error)
+	// AddLedgerEntry 手工录入台账行（M2-b §6 出入金流水；资金动作永远人工 §1）。
+	AddLedgerEntry(context.Context, *connect.Request[v1.AddLedgerEntryRequest]) (*connect.Response[v1.AddLedgerEntryResponse], error)
+	// ListLedgerEntries 台账流水（date DESC, id DESC 分页）。
+	ListLedgerEntries(context.Context, *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error)
+	// LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
+	LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -269,6 +349,30 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("ListSourceHealth")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceListFactsHandler := connect.NewUnaryHandler(
+		DashboardServiceListFactsProcedure,
+		svc.ListFacts,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListFacts")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceAddLedgerEntryHandler := connect.NewUnaryHandler(
+		DashboardServiceAddLedgerEntryProcedure,
+		svc.AddLedgerEntry,
+		connect.WithSchema(dashboardServiceMethods.ByName("AddLedgerEntry")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceListLedgerEntriesHandler := connect.NewUnaryHandler(
+		DashboardServiceListLedgerEntriesProcedure,
+		svc.ListLedgerEntries,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListLedgerEntries")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceLedgerSummaryHandler := connect.NewUnaryHandler(
+		DashboardServiceLedgerSummaryProcedure,
+		svc.LedgerSummary,
+		connect.WithSchema(dashboardServiceMethods.ByName("LedgerSummary")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -287,6 +391,14 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceAckAllHandler.ServeHTTP(w, r)
 		case DashboardServiceListSourceHealthProcedure:
 			dashboardServiceListSourceHealthHandler.ServeHTTP(w, r)
+		case DashboardServiceListFactsProcedure:
+			dashboardServiceListFactsHandler.ServeHTTP(w, r)
+		case DashboardServiceAddLedgerEntryProcedure:
+			dashboardServiceAddLedgerEntryHandler.ServeHTTP(w, r)
+		case DashboardServiceListLedgerEntriesProcedure:
+			dashboardServiceListLedgerEntriesHandler.ServeHTTP(w, r)
+		case DashboardServiceLedgerSummaryProcedure:
+			dashboardServiceLedgerSummaryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -326,4 +438,20 @@ func (UnimplementedDashboardServiceHandler) AckAll(context.Context, *connect.Req
 
 func (UnimplementedDashboardServiceHandler) ListSourceHealth(context.Context, *connect.Request[v1.ListSourceHealthRequest]) (*connect.Response[v1.ListSourceHealthResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListSourceHealth is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListFacts(context.Context, *connect.Request[v1.ListFactsRequest]) (*connect.Response[v1.ListFactsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListFacts is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) AddLedgerEntry(context.Context, *connect.Request[v1.AddLedgerEntryRequest]) (*connect.Response[v1.AddLedgerEntryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.AddLedgerEntry is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListLedgerEntries(context.Context, *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListLedgerEntries is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.LedgerSummary is not implemented"))
 }

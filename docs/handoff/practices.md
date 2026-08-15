@@ -18,3 +18,7 @@
 2. **外部 AI/agent 方案必须逐条核实再采纳**：2026-08-15 千问方案 7 项主张中 4 项有错（工行利率 0.8% 实为 2.8%、两得宝 R5/C5 门槛遗漏、降息前提与加息预期矛盾、压力测试年息套 6 个月夸大 2×）。核实后吸收其 1 个真知（华夏全对冲互认基金）并落 D-018。外部方案的定位 = 候选输入，不是决策；产品准入、风险画像、宏观前提、数学三样必须验。
 
 3. **time.Time 比较一律用 .Equal，不用 `==`/`!=`**：2026-08-15 M2-a 修掉 pgstore/dashboard_test.go 既有坑——arbcn-postgres 服务器 TZ=+0800，pgx v5 读回 timestamptz 带本地时区，`alerts[1].Ts != ts1`（ts1 为 UTC）恒真误报。`.Equal` 只比瞬间（时区无关），`==` 还比 location 指针。同理：写断言前先看读回路径是否带时区。
+
+4. **展示层值格式化必须按 unit 感知，禁止对 kind 一刀切 pct()**：2026-08-15 M2-b 复审（负责人 F2）——FactsSnapshot 对所有 kind 统一 pct()，导致 fx（unit=price，6.7443）显示 "674.43%"、calendar（unit=days，16）显示 "16.00%"。事实值语义由 unit 承载（pct_annualized/pct/days/price/ratio），格式化按 unit 分支；新增事实类型时先看 unit 再决定显示。
+
+5. **快照/投影类 RPC 要排除内部遥测事实**：2026-08-15 M2-b 复审（负责人 F1）——ListFacts 快照投影把 heartbeat（内部遥测，非市场事实）一起返回，与 exporter skipKinds 排除不一致，污染"事实快照"视图。exporter（写 facts.md）和 dashboard 投影（机器可读面）必须同口径排除 heartbeat；实现两处时互相引用锚点，别各写各的。

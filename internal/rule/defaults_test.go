@@ -46,7 +46,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindFunding, "okx", "BTC", 16.75, -2*time.Hour),
 			},
 			level:   store.LevelWarn,
-			message: "funding_warn active: BTC@binance=16.25, BTC@okx=16.75",
+			message: "资金费率预警 触发: BTC@binance=16.25, BTC@okx=16.75",
 		},
 		{
 			rule: "funding_critical",
@@ -55,7 +55,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindFunding, "binance", "ETH", 21.5, -2*time.Hour),
 			},
 			level:   store.LevelCritical,
-			message: "funding_critical active: BTC@binance=21, ETH@binance=21.5",
+			message: "资金费率激活 触发: BTC@binance=21, ETH@binance=21.5",
 		},
 		{
 			rule: "trx_funding_positive",
@@ -66,7 +66,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindFunding, "binance", "TRX", -1, -40*time.Hour),
 			},
 			level:   store.LevelWarn,
-			message: "trx_funding_positive active: TRX@binance=0.75",
+			message: "TRX 费率转正 触发: TRX@binance=0.75",
 		},
 		{
 			rule: "defi_large_tier_change",
@@ -75,7 +75,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindDefiRate, "aave", "USDC", 4.0, -40*time.Minute),
 			},
 			level:   store.LevelInfo,
-			message: "defi_large_tier_change active: USDC@aave=0.67",
+			message: "金额档利率变动 触发: USDC@aave=0.67",
 		},
 		{
 			rule: "ladder_trap",
@@ -84,7 +84,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindDefiRate, "binance_ear", "USDT_L", 2.0, -24*time.Hour),
 			},
 			level:   store.LevelWarn,
-			message: "ladder_trap active: 9.8",
+			message: "阶梯陷阱识别 触发: 9.8",
 		},
 		{
 			rule: "reverse_repo_timing",
@@ -93,19 +93,19 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindCalendar, "rule", "month_end", 12, -30*time.Minute),
 			},
 			level:   store.LevelWarn,
-			message: "reverse_repo_timing active: thursday@rule=1",
+			message: "逆回购时点 触发: thursday@rule=1",
 		},
 		{
 			rule:    "usdcnh_buy_line",
 			facts:   []fact.Fact{fct(fact.KindFX, "sina", "USDCNH", 6.55, -10*time.Minute)},
 			level:   store.LevelWarn,
-			message: "usdcnh_buy_line active: USDCNH@sina=6.55",
+			message: "汇率加仓线 触发: USDCNH@sina=6.55",
 		},
 		{
 			rule:    "iv_opportunity",
 			facts:   append(ivHistory(), fct(fact.KindIV, "deribit", "BTC", 45, -30*time.Minute)),
 			level:   store.LevelInfo,
-			message: "iv_opportunity active: BTC@deribit=45",
+			message: "IV 机会 触发: BTC@deribit=45",
 		},
 		{
 			rule: "nonstable_quote_change",
@@ -114,7 +114,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindDefiRate, "morpho", "WETH", 1.5, -40*time.Minute),
 			},
 			level:   store.LevelWarn,
-			message: "nonstable_quote_change active: WETH@morpho=0.6",
+			message: "计价币种陷阱 触发: WETH@morpho=0.6",
 		},
 		{
 			rule: "collector_heartbeat",
@@ -123,7 +123,7 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 				fct(fact.KindHeartbeat, "collector", "deribit_iv", 0.5, -time.Minute),
 			},
 			level:   store.LevelCritical,
-			message: "collector_heartbeat active: binance_funding@collector=3",
+			message: "采集器心跳 触发: binance_funding@collector=3",
 		},
 	}
 

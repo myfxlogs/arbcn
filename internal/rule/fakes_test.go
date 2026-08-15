@@ -171,6 +171,17 @@ func (f *fakeStore) AckAll(context.Context) (int64, error) {
 	panic("fakeStore: AckAll not used")
 }
 
+// —— M2-b 台账面（M2-b §6）：rule 测试不经过台账，误用即红 ——
+func (f *fakeStore) InsertLedgerEntry(context.Context, store.LedgerEntry) (int64, error) {
+	panic("fakeStore: InsertLedgerEntry not used")
+}
+func (f *fakeStore) ListLedgerEntries(context.Context, int, int) ([]store.LedgerEntry, error) {
+	panic("fakeStore: ListLedgerEntries not used")
+}
+func (f *fakeStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
+	panic("fakeStore: LedgerSummary not used")
+}
+
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()

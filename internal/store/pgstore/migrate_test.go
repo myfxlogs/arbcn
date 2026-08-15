@@ -19,21 +19,21 @@ func dropTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tables ..
 }
 
 // TestMigrateIdempotent：对真库执行 migrations/ 目录（真实迁移文件）——
-// 首跑建 4 表 + 记账；二跑 0 应用、无错误（幂等）。
+// 首跑建 5 表 + 记账；二跑 0 应用、无错误（幂等）。
 func TestMigrateIdempotent(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
-	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "schema_migrations")
+	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "ledger", "schema_migrations")
 
 	n, err := Migrate(ctx, pool, migrationsDir)
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
-	if n != 3 { // 0001_init.sql + 0002_rule_scope.sql + 0003_alerts_delivered.sql
-		t.Fatalf("Migrate(first) applied = %d, want 3", n)
+	if n != 4 { // 0001_init.sql + 0002_rule_scope.sql + 0003_alerts_delivered.sql + 0004_ledger.sql
+		t.Fatalf("Migrate(first) applied = %d, want 4", n)
 	}
 
-	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts"} {
+	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger"} {
 		var exists bool
 		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
@@ -48,8 +48,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 3 {
-		t.Fatalf("schema_migrations count = %d, want 3", versions)
+	if versions != 4 {
+		t.Fatalf("schema_migrations count = %d, want 4", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)

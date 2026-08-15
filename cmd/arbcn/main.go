@@ -30,6 +30,7 @@ import (
 	"arbcn/internal/collect/optionsiv"
 	"arbcn/internal/config"
 	"arbcn/internal/dashboard"
+	"arbcn/internal/exporter"
 	"arbcn/internal/httpapi"
 	"arbcn/internal/rule"
 	"arbcn/internal/store"
@@ -98,7 +99,7 @@ func run() error {
 
 	errCh := make(chan error, 8)
 	if st != nil {
-		if err := startPipeline(ctx, errCh, st, cfg.SMTP, enabled); err != nil {
+		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled); err != nil {
 			return err
 		}
 	}
@@ -126,9 +127,10 @@ func run() error {
 	}
 }
 
-// startPipeline 装配数据管线（store 可用时）：调度器 + 心跳发射方 → 规则引擎 →
-// SMTP Alerter。各组件 Run 阻塞至 ctx 取消（返回 nil）；装配错误 fail fast。
-func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, sources []collect.Named) error {
+// startPipeline 装配数据管线（store 可用时）：调度器 + 心跳发射方 → 规则引擎
+// （关键规则触发事件接 FactsExporter）→ SMTP Alerter → FactsExporter（facts.md 快照）。
+// 各组件 Run 阻塞至 ctx 取消（返回 nil）；装配错误 fail fast。
+func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, factsPath string, sources []collect.Named) error {
 	hb := &alert.Heartbeat{St: st}
 	for _, src := range sources {
 		hb.Track(src.Name, src.Interval)
@@ -147,11 +149,22 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 	} else if n > 0 {
 		slog.Info("rules seeded", "count", n)
 	}
-	engine, err := rule.New(ctx, st, rule.Config{})
+
+	// FactsExporter（M2-b §5 / D-028 闭环）：定时（日）+ 规则触发事件 → 把监控
+	// 最新值渲染进 facts.md。factsPath 空 = 禁用；规则引擎 OnActive 接它的
+	// 非阻塞触发（关键规则激活 → 立即刷新快照）。写文件失败只 warn 不崩管线。
+	factsExporter := exporter.New(st, factsPath)
+	engine, err := rule.New(ctx, st, rule.Config{
+		OnActive: factsExporter.OnRuleActive,
+	})
 	if err != nil {
 		return fmt.Errorf("rule engine: %w", err)
 	}
 	go func() { errCh <- engine.Run(ctx) }()
+	if factsPath != "" {
+		go func() { errCh <- factsExporter.Run(ctx) }()
+		slog.Info("facts exporter started", "path", factsPath)
+	}
 
 	// SMTP 接线（dialogue #27 门控 + D-032 修订）：未配置或配置非法 → warn +
 	// 降级禁用（告警留在 alerts 表排队，进程不退出）；合法 → 启动消费循环。

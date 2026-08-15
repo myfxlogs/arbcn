@@ -54,6 +54,15 @@ func (f *fakeStore) AckAll(context.Context) (int64, error)                      
 func (f *fakeStore) ListTriggerStates(context.Context) ([]store.RuleState, error) {
 	return nil, nil
 }
+func (f *fakeStore) InsertLedgerEntry(context.Context, store.LedgerEntry) (int64, error) {
+	panic("fakeStore: InsertLedgerEntry not used")
+}
+func (f *fakeStore) ListLedgerEntries(context.Context, int, int) ([]store.LedgerEntry, error) {
+	panic("fakeStore: ListLedgerEntries not used")
+}
+func (f *fakeStore) LedgerSummary(context.Context) ([]store.TierSummary, error) {
+	panic("fakeStore: LedgerSummary not used")
+}
 
 func (f *fakeStore) count() int {
 	f.mu.Lock()
