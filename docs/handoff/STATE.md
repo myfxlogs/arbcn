@@ -25,7 +25,7 @@
   | **M1-a 脚手架 → 施工 agent #1** | ✅ | e999f8e |
   | **M1-b Fact 模型+存储层 → 施工 agent #2** | ✅ | e04aa4b |
   | **M1-c Exchange collector → 施工 agent #3** | ✅ | c1accb2 |
-  | **M1-d DeFiRates/Domestic/Calendar/IV → 施工 agent #4** | ✅ | 本会话 |
+  | **M1-d DeFiRates/Domestic/Calendar/IV → 施工 agent #4** | ✅ | c8b912d |
   | M1-e 规则引擎+对抗测试 | ⬜ | 待 M1-d |
   | M1-f Alerter+元监控 | ⬜ | 待 M1-e |
   | M1-g Web 仪表盘最小集 | ⬜ | 待 M1-f |
