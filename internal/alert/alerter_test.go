@@ -1,6 +1,7 @@
 package alert
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -165,18 +166,110 @@ func TestAlerterStoreErrorBacksOffAndRecovers(t *testing.T) {
 	<-done
 }
 
-// TestAlerterRequiresSMTPConfig：投递参数不齐 fail fast（不进入消费循环）。
+// TestAlerterRequiresSMTPConfig：投递参数不齐/格式非法 → Run fail fast（不进入消费循环）。
 func TestAlerterRequiresSMTPConfig(t *testing.T) {
 	cases := []SMTPConfig{
 		{From: "x@local", To: []string{"a@x.test"}},                  // 缺 host
 		{Host: "h:25", To: []string{"a@x.test"}},                     // 缺 from
 		{Host: "h:25", From: "x@local"},                              // 缺 to
 		{Host: "badhost", From: "x@local", To: []string{"a@x.test"}}, // 缺端口
+		{Host: "h:abc", From: "x@local", To: []string{"a@x.test"}},   // 非数字端口
+		{Host: "h:99999", From: "x@local", To: []string{"a@x.test"}}, // 越界端口
+		{Host: "h:0", From: "x@local", To: []string{"a@x.test"}},     // 端口 0
+		{Host: "h:", From: "x@local", To: []string{"a@x.test"}},      // 空端口
+		{Host: ":25", From: "x@local", To: []string{"a@x.test"}},     // 空 host
 	}
 	for i, c := range cases {
 		a := &Alerter{St: newMemStore(), SMTP: c}
 		if err := a.Run(context.Background()); err == nil {
 			t.Errorf("case %d: Run = nil error, want fail fast", i)
 		}
+	}
+}
+
+// TestStartNotConfigured：三要素不齐 → warn + 禁用（dialogue #27 行为保留）。
+func TestStartNotConfigured(t *testing.T) {
+	cases := []SMTPConfig{
+		{},                                       // 全空
+		{Host: "h:25", From: "x@local"},          // 缺 to
+		{Host: "h:25", To: []string{"a@x.test"}}, // 缺 from
+	}
+	for i, c := range cases {
+		st := newMemStore()
+		var buf bytes.Buffer
+		a := &Alerter{St: st, SMTP: c, Log: slog.New(slog.NewTextHandler(&buf, nil))}
+		if a.Start(context.Background(), make(chan error, 1)) {
+			t.Errorf("case %d: Start = true, want disabled", i)
+		}
+		if !strings.Contains(buf.String(), "SMTP not configured") {
+			t.Errorf("case %d: warn log missing:\n%s", i, buf.String())
+		}
+		if st.pendCallCount() != 0 {
+			t.Errorf("case %d: alerter consumed pending alerts while disabled", i)
+		}
+	}
+}
+
+// TestStartInvalidSMTPDegrades：配置了但非法（D-032）→ warn + 降级禁用，
+// 进程不退出；已入队告警不被消费、留在 alerts 表排队；errCh 无错误。
+func TestStartInvalidSMTPDegrades(t *testing.T) {
+	cases := []SMTPConfig{
+		{Host: "badhost", From: "x@local", To: []string{"a@x.test"}}, // 缺端口
+		{Host: "h:abc", From: "x@local", To: []string{"a@x.test"}},   // 非数字端口
+		{Host: "h:99999", From: "x@local", To: []string{"a@x.test"}}, // 越界端口
+		{Host: ":25", From: "x@local", To: []string{"a@x.test"}},     // 空 host
+	}
+	for i, c := range cases {
+		st := newMemStore()
+		if err := st.InsertAlert(context.Background(), store.Alert{
+			RuleID: 1, RuleName: "r", Level: store.LevelWarn, Message: "r active",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var buf bytes.Buffer
+		a := &Alerter{St: st, SMTP: c, Log: slog.New(slog.NewTextHandler(&buf, nil))}
+		errCh := make(chan error, 1)
+		if a.Start(context.Background(), errCh) {
+			t.Errorf("case %d: Start = true, want disabled", i)
+		}
+		if !strings.Contains(buf.String(), "SMTP config invalid") {
+			t.Errorf("case %d: warn log missing:\n%s", i, buf.String())
+		}
+		if st.pendCallCount() != 0 || st.deliveredCount() != 0 {
+			t.Errorf("case %d: alerts consumed while disabled", i)
+		}
+		select {
+		case err := <-errCh:
+			t.Errorf("case %d: unexpected errCh error: %v", i, err)
+		default:
+		}
+	}
+}
+
+// TestStartValidRuns：合法配置 → 启动消费循环（假 SMTP 全路径冒烟，D-032 ②）。
+func TestStartValidRuns(t *testing.T) {
+	srv := newFakeSMTP(t)
+	st := newMemStore()
+	if err := st.InsertAlert(context.Background(), store.Alert{
+		RuleID: 1, RuleName: "funding_warn", Level: store.LevelWarn, Message: "funding_warn active",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	a := testAlerter(st, SMTPConfig{Host: srv.addr(), From: "arbcn@local", To: []string{"a@x.test"}})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error, 1)
+	if !a.Start(ctx, errCh) {
+		t.Fatal("Start = false, want enabled")
+	}
+	waitFor(t, 2*time.Second, func() bool { return st.deliveredCount() == 1 })
+	cancel()
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Errorf("Run returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Run did not return after cancel")
 	}
 }

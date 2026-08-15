@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/smtp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +32,10 @@ func (c SMTPConfig) Configured() bool {
 	return c.Host != "" && c.From != "" && len(c.To) > 0
 }
 
-func (c SMTPConfig) validate() error {
+// Validate 校验投递参数格式（D-032：main 接线在启动 Alerter 前调用；
+// 非法即降级禁用，不退出进程）。只查格式不连服务端，真实投递失败由
+// Run 重试路径处理。
+func (c SMTPConfig) Validate() error {
 	if c.Host == "" {
 		return errors.New("smtp host empty")
 	}
@@ -48,10 +52,18 @@ func (c SMTPConfig) validate() error {
 }
 
 // smtpHost 拆出 host:port 的 host 部分并校验格式（PLAIN 认证与 TLS ServerName 用）。
+// 端口须为 1..65535 十进制数——net.SplitHostPort 不拦空/非数字/越界端口，
+// 此处补上（D-032：非法配置启动期降级，而非投递期反复失败）。
 func smtpHost(addr string) (string, error) {
-	host, _, err := net.SplitHostPort(addr)
+	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		return "", fmt.Errorf("alert: smtp host %q: %w", addr, err)
+	}
+	if host == "" {
+		return "", fmt.Errorf("alert: smtp host %q: host empty", addr)
+	}
+	if n, err := strconv.Atoi(port); err != nil || n < 1 || n > 65535 {
+		return "", fmt.Errorf("alert: smtp host %q: invalid port %q", addr, port)
 	}
 	return host, nil
 }
@@ -70,12 +82,30 @@ type Alerter struct {
 // batchSize 单轮最多消费的告警数。
 const batchSize = 100
 
+// Start 是 main 接线入口（dialogue #27 门控 + D-032 修订）：SMTP 未配置或配置
+// 非法 = warn + 降级禁用（不启动消费循环，告警行留在 alerts 表排队，配置修正后
+// 重启补投，返回 false）；合法 = 启动 Run 消费循环（返回 true）。Run 的错误回传
+// errCh（与 Scheduler/Engine 同款接线）。进程永不因 SMTP 配置问题退出。
+func (a *Alerter) Start(ctx context.Context, errCh chan<- error) bool {
+	if !a.SMTP.Configured() {
+		a.log().Warn("SMTP not configured, alerts stay queued in DB",
+			"hint", "set ARBCN_SMTP_HOST / ARBCN_SMTP_FROM / ARBCN_SMTP_TO")
+		return false
+	}
+	if err := a.SMTP.Validate(); err != nil {
+		a.log().Warn("SMTP config invalid, alerter disabled, alerts stay queued in DB", "err", err)
+		return false
+	}
+	go func() { errCh <- a.Run(ctx) }()
+	return true
+}
+
 // Run 消费循环：有积压紧转排空（不睡眠），全部投递后按 Poll 空闲轮询。
 func (a *Alerter) Run(ctx context.Context) error {
 	if a.St == nil {
 		return errors.New("alert: alerter: nil store")
 	}
-	if err := a.SMTP.validate(); err != nil {
+	if err := a.SMTP.Validate(); err != nil {
 		return fmt.Errorf("alert: alerter: %w", err)
 	}
 	attempt := 0

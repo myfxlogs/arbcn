@@ -151,14 +151,9 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 	}
 	go func() { errCh <- engine.Run(ctx) }()
 
-	// SMTP.Configured() 门控（dialogue #27 裁决，替代已删的 config.AlertEmail）：
-	// 未配置 = warn 并跳过投递，告警留在 alerts 表排队；配齐后下次启动开始消费。
-	if smtp.Configured() {
-		go func() { errCh <- (&alert.Alerter{St: st, SMTP: smtp}).Run(ctx) }()
-	} else {
-		slog.Warn("SMTP not configured, alerts stay queued in DB",
-			"hint", "set ARBCN_SMTP_HOST / ARBCN_SMTP_FROM / ARBCN_SMTP_TO")
-	}
+	// SMTP 接线（dialogue #27 门控 + D-032 修订）：未配置或配置非法 → warn +
+	// 降级禁用（告警留在 alerts 表排队，进程不退出）；合法 → 启动消费循环。
+	(&alert.Alerter{St: st, SMTP: smtp}).Start(ctx, errCh)
 	return nil
 }
 
