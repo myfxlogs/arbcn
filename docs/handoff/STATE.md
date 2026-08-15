@@ -22,7 +22,7 @@
   | 市场事实知识库 facts.md + 数据闭环 | ✅ | D-028 |
   | 监控系统架构设计 | ✅ | D-029（02-monitor-architecture.md） |
   | Go 裁决 + 客户端形态 + 三问确认 | ✅ | D-030 |
-  | **M1-a 脚手架 → 施工 agent #1** | ✅ | 本会话 |
+  | **M1-a 脚手架 → 施工 agent #1** | ✅ | e999f8e |
   | M1-b Fact 模型+存储层 | ⬜ | 待 M1-a |
   | M1-c Exchange collector | ⬜ | 待 M1-b |
   | M1-d DeFiRates/Domestic/Calendar/IV | ⬜ | 待 M1-c |
