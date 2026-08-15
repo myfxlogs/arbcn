@@ -290,3 +290,11 @@
   - **决策（D-036）**：①收敛口径修正——前向模拟只验证机制，统计结论由历史 funding 数据出（spec 新增 §5.3 历史收敛分析，M3-b 前置小任务，不另立阶段）；②G1 规则→Signal 映射表 + 运行驱动定义（挂钩 rule.Engine.OnActive；M3-a 未接线的根因即此）；③G2 sim_pnl 措辞对齐实现；④G3 模拟资金独立量纲、比例口径报告；⑤G4 理论无摩擦曲线定义；⑥G5 确认价取确认时刻 ref_price + SPREAD_DRIFT 漂移门禁。G1–G5 全部落进 04-m3-spec.md。
 - **决策号**：D-036。
 - **下一步**：M3-b 细化设计（含 §5.3 历史回填前置任务 + G1 驱动接线方案）。
+
+## #42 · 2026-08-15 · M3-b 细化设计定稿（D-037）· 业主 → 决策层
+- **参与方**：业主（甲方）、Claude（决策层）
+- **议题**：业主指示"排 M3-b 细化设计"。
+- **需求**：细化 M3-b 到可派工施工粒度。
+- **结论**：决策层摸清代码面（rule.OnActive 调用点 state.go:37、Scheduler、sim/store/exchange collector/main.go 接线）后定稿 spec §9（S1–S5）。核心裁决（D-037）：①**结算数据源 = 真实市场公开 funding，非 testnet**（testnet 费率有偏差，污染机制验证；testnet 只做 key 隔离验证，D-034 ④ 都接保持仅明确用途）；②S1 驱动 = OnActive 携带命中实体单点改 + sim.Driver 按 §3.1.1 映射组装；③S2 结算按 (symbol,venue) 分组防跨 venue 污染；④S3 testnet 只读 key 门控（缺 key 降级不阻塞）；⑤S4 历史回填落 facts 表（顺带富化 funding_warn 的 avg_30d）+ 周频 sim_report；⑥S5 白名单默认空宁缺毋滥；⑦诚实标注现货腿取永续 ticker（无现货 collector）。spec §5.1/§5.2 数据源修正 + §9 施工细化。
+- **决策号**：D-037。
+- **下一步**：M3-b 施工派工（spec §9 S1–S5）。

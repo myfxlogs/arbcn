@@ -122,11 +122,11 @@
 ## 5. M3-b：testnet 只读接入 + 息差收敛
 
 ### 5.1 接入
-- Binance Testnet + OKX Demo 双接入（D-034 ④）：公共行情源（复用既有 collector 骨架，换 testnet 域 + testnet 鉴权）+ 账户只读查询（余额核对用，验证 key 连通）。
-- 已知限制（spec 标注）：testnet 资金费率/深度与真实市场**存在偏差**；模拟盘验证的是**机制收敛**（持仓按规则收付 funding），数值口径以 testnet 为准，结论需标注偏差。
+- Binance Testnet + OKX Demo 双接入（D-034 ④）：公共行情源（复用既有 collector 骨架，换 testnet 域 + testnet 鉴权）+ 账户只读查询（余额核对用，验证 key 连通）。**用途 = §2 key 隔离机制验证（D-034 豁免条款落地），不是结算数据源**。
+- **结算数据源裁决（D-037）**：模拟持仓的 funding 结算取**真实市场公开 funding**（既有 binance_funding/okx_funding collector 已采，无 key）——testnet 费率有偏差（本 spec 自标），喂结算会污染机制验证数字；testnet 只做连通性/key 隔离验证（M3-b §9.4）。已知限制保留：真实采集瞬时偏差不可避免，但无 testnet 额外污染。
 
 ### 5.2 对账
-- 模拟持仓的真实 funding 由 testnet 行情喂入 → 按 §3.2 结算 → 息差曲线（周视图）。
+- 模拟持仓的 funding 由**真实市场公开 funding 事实**喂入（§5.1 裁决）→ 按 §3.2 结算 → 息差曲线（周视图）。
 - 对账输出 `sim_report`（周频）：模拟净值 vs **理论净值（无摩擦理想曲线）**，差异 = 摩擦 + testnet 偏差 → 归因。
 - **理论曲线定义（D-036 G4）**：cash-and-carry 定价下永续价收敛于现货（价差 → 0）；理想 funding 累计 = 建仓时预期年化 × 名义 × 持有天数 ÷ 365（每 8h 结算）；摩擦模型 = 手续费（双边）+ 滑点（按 testnet 深度差）+ 现货腿资金占用成本。差异 = 实测 − 理论 = 摩擦 + testnet 偏差。
 - **验证目标分层（D-036 收敛口径修正）**：
@@ -163,3 +163,108 @@
 - ❌ 交易策略回测引擎 / 顺单历史回放（只评估策略表现、不顺单、不模拟下单执行）
 - ✔ 历史 funding / 价差数据回填 + 统计收敛分析（§5.3）是 M3 收敛验证的**数据基础，须做**——不在"不做"之列（D-036 收敛口径修正）
 - ❌ 策略自动路由 / 跨所自动撮合
+
+---
+
+## 9. M3-b 施工细化设计（D-034/D-036 落地 · 施工权威 · D-037 定稿）
+
+### 9.0 范围裁决（先读）
+- 五件套 S1–S5（§9.1）。核心裁决（D-037）：**模拟结算数据源 = 真实市场公开 funding**（§5.1 已改），不是 testnet——testnet 费率偏差会污染机制验证数字；testnet 只做 §2 key 隔离机制验证（S3）。历史回填直接落 facts 表（kind=funding + 真实 ts），顺带让 `funding_warn`/`funding_critical` 的 `avg_30d` 立即有真实回溯（此前仅 1–3 天实时数据）——双赢。
+
+### 9.1 子任务拆解
+
+| # | 子任务 | 内容 | 验收锚点（对抗测试） |
+|---|--------|------|----------------------|
+| S1 | 规则→Signal 驱动接线（G1 落地） | rule.OnActive 携带命中实体 → sim.Driver 按 §3.1.1 映射组装 Signal → Generate 落库 | OnActive(funding_warn, BTC@binance 命中) → sim_orders 落 funding_hedge；未知规则 → 不建单（删映射 → 必红） |
+| S2 | 8h 结算调度 | 对 open funding 腿按 (symbol,venue) 取真实 funding 结算 | 结算 pnl 正确；BTC@binance 与 BTC@okx 隔离（错 rate / 串 venue → 必红） |
+| S3 | testnet 只读 + key 隔离验证（key 门控） | SIMULATED 标记加载校验 + 只读查询 + 零下单路径 | 缺 SIMULATED 标记 → 拒绝加载；sim 包无主网交易域/下单端点域（domains_test） |
+| S4 | 历史收敛分析（§5.3 落地） | funding 历史回填（facts 表）+ 周频统计报告 | 回填幂等（跑两遍不重复）；年化折算正确（删 annualize → 必红） |
+| S5 | 白名单 + 降级 | ARBCN_SIM_CARRY_WHITELIST 显式配置；sim 配置缺失 → 禁用 warn | 白名单解析；carry 未白名单 → WHITELIST 拒单 |
+
+### 9.2 S1 规则→Signal 驱动
+
+**rule 包改动（单点小改）**：
+- `Config.OnActive` 签名 `func(ctx, store.Rule)` → `func(ctx context.Context, r store.Rule, entities []store.EntityHit)`；`store.EntityHit{Venue, Symbol string, Value float64}`（store 包新增）。
+- 改点仅 `state.go:37`（`matches []match` 已在作用域）→ 映射 `[]match` → `[]store.EntityHit`。
+- 既有调用方仅两处：main.go startPipeline 的 OnActive、exporter.OnRuleActive（签名同步改，忽略 entities，仍只用 r 刷新快照）；exporter_test 两处同步。
+
+**sim.Driver（新 internal/sim/driver.go）**：
+```
+type Driver struct {
+    st  store.Store
+    cfg Config            // 含 CarryWhitelist（§9.6）
+    now func() time.Time  // 注入时钟
+}
+func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []store.EntityHit) error
+```
+- 映射表：sim 包内不可变常量表（§3.1.1 表编码：规则名 → kind + 组装函数）+ 对抗测试（未知规则名 → 不建单，宁缺毋滥）。
+- 组装（每个命中实体 venue/symbol/value）：
+  - `funding_*` → Kind=funding_hedge，Venue=hit.venue，Symbol=hit.symbol，RefPrice=LatestFacts(ticker, venue, symbol)，SpotPrice/PerpPrice=同取该 ticker 最新价（**诚实标注：系统无现货 collector，ticker 即永续价；现货/永续腿存在性由门禁把关（>0），basis/现货腿差留真实执行层，M3 只验证 funding 机制**），FundingAnn=hit.value（cond 口径 avg_30d），Notional=0（Generate 默认 capital×20%）。
+  - `reverse_repo_timing` → Kind=repo（全局模式命中，单信号，无实体 venue/symbol）。
+  - carry 白名单 → Kind=carry_asset，CarryWhite=symbol ∈ whitelist（§9.6）。
+  - 其余规则 → 不建单。
+- 调 `Generate(ctx, sig)`（SignalToOrder + InsertSimOrder，DayNotional 自动回填）。
+- 单次激活只建一单（OnActive 仅 armed→active 转变触发，持续满足不重复建单——§3.1.2 语义）；生成时门禁已落库（§4）。
+- 降级：cfg 加载失败 → Driver nil，main.go 不接 OnActive（§7 warn 不退出）。
+
+### 9.3 S2 8h 结算调度
+
+**store 扩展（小改）**：
+- `ListOpenSimPositions(ctx, symbol, venue string)`（venue 空 = 不限）——现签名仅 symbol。
+- `sim.SettleFunding` 扩展 `(ctx, symbol, venue string, annualized float64)`——按 (symbol,venue) 分组结算，避免 BTC@binance 与 BTC@okx 互相污染（诚实数字）。
+
+**settleLoop（Driver 内 goroutine）**：每 8h tick：`ListOpenSimPositions(ctx, "", "")` → 按 (symbol,venue) 分组 open funding 腿 → 每组 `LatestFacts(kind=funding, venue, symbol)` → 无事实则 skip（warn 一次）→ `SettleFunding(ctx, symbol, venue, value)`。
+- tick 实现：`time.Ticker` + ctx 取消（复用 rule.sleepCtx 模式）；注入时钟可测。
+- **数据源裁决落地**：结算 funding = LatestFacts **真实市场值**（binance_funding/okx_funding 采集）；testnet 费率不参与结算（§9.0）。
+
+### 9.4 S3 testnet 只读 + key 隔离（key 门控）
+
+- 配置：`/etc/arbcn/arbcn-sim.env` `SIM_*`（独立文件 root:root 0600，D-034 ② 物理隔离）；加载器在 sim 包（config.go 扩展 `TestnetConfig`）：每 key 显式 `SIMULATED=true`，**缺标记拒绝加载**（对抗测试：删校验 → 必红）。
+- 只读探针（随 settle tick，key 可用时）：对 binance_testnet / okx_demo：
+  - 公共行情 + 账户只读查询（余额/费率）验证 key 连通；
+  - 成功后经 `alert.Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx", now)` 登记 → 出现在 ListSourceHealth（复用 M2-a freshness 面，D-032 降级同口径：失败 warn 不退出）。
+  - **零下单路径**：sim 包不含任何下单端点代码；domains_test 断言无主网交易域、无 order/place 域。
+- 依赖：testnet key 由业主提供（缺失 → S3 降级禁用 + degraded 提示，**不阻塞 S1/S2/S4/S5**）。
+
+### 9.5 S4 历史收敛分析（§5.3 落地）
+
+**历史回填（一次性，幂等）**：
+- Binance：`data-api.binance.vision/fapi/v1/fundingRate?symbol=BTCUSDT&startTime&endTime&limit=1000`（D-031 公开数据域；翻页拉满窗口）→ 每行 {fundingTime, fundingRate} → annualize（×1095 / ×2190，按 fundingInfo interval）→ fact{Kind=funding, Venue=binance, Symbol=BTC, Ts=fundingTime, Unit=pct_annualized}。
+- OKX：`/api/v5/public/funding-history?instId=BTC-USDT-SWAP&limit=100&after=` 分页 → 同口径。
+- 窗口默认 365d（`ARBCN_SIM_HISTORY_DAYS`，0 = 禁用）。
+- **幂等**：回填前 `QueryFacts(funding, venue, symbol, from=window)` 取已有 ts 集合 → 跳过已覆盖时段（跑两遍不重复，对抗测试必红锚点）。落库走 `InsertFacts`（既有管线，无 dedup 依赖）。
+- 顺带收益：`funding_warn`/`funding_critical` 的 `avg_30d` 立即有真实回溯（此前仅 1–3 天实时）。
+
+**周频统计报告 sim_report**（settle loop 每 7×8h 渲染，导出 markdown，类似 facts.md 独占段）：
+- 每 (venue,symbol)：实际累计 funding 收益（Σ rate_frac × notional）、理论累计（窗口均值年化 × 名义 × 天数/365）、残差 = 实际 − 理论、残差分布（均值/σ）、**收敛半衰期**（|残差| 减半所需天数，滚动窗口）、**摩擦后净收益**（实际 − 双边手续费 − 滑点估计）vs 5% 门槛。
+- 纯函数计算（internal/sim/report.go）+ 对抗测试（删 Σ 累计 → 必红）。
+- 数据面定位：收敛统计只来自历史（§5.3）；前向模拟只证机制（§5.2）。
+
+### 9.6 S5 白名单 + 降级
+
+- Config 增 `CarryWhitelist []string`（`ARBCN_SIM_CARRY_WHITELIST` 逗号分隔；**默认空**）。默认空 = carry 信号被 WHITELIST 拒单直到显式配置（安全默认，宁缺毋滥，M3-a 复审 M2 接受项落地）。
+- Driver 组装 carry 信号时 `CarryWhite = contains(whitelist, symbol)`；SignalToOrder 白名单门禁已存在（§4 白名单行）。
+- sim 配置缺失/非法 → Driver nil、settle loop/backfill 跳过（warn 不退出，§7 与 D-032 同口径）。
+
+### 9.7 main.go 接线
+
+- startPipeline（store 可用时）：
+  1. 迁移后回填：sim cfg 可用 → `backfill.Run(ctx)`（一次性、幂等、阻塞至完成）。
+  2. `simDriver := sim.NewDriver(st, simCfg)`（cfg 失败 → nil = 降级）。
+  3. `rule.Config.OnActive = compose`：`func(ctx, r, entities){ factsExporter.OnRuleActive(ctx, r); if simDriver != nil { simDriver.OnRuleActive(ctx, r, entities) } }`。
+  4. `go settleLoop(ctx)`（simDriver != nil 时）。
+  5. testnet 探针（S3，key 可用时）随 settle tick。
+- 不新增端口/RPC（模拟对账视图属 M3-c UI；M3-b 只产出落库数据 + sim_report 文件）。
+
+### 9.8 验收标准（§7 硬要求不变）
+
+- `go vet` + `go test -race` 全仓绿；行数门禁（gen/ + *_test 豁免）。
+- 对抗测试锚点：删 rule→Signal 映射 → 必红；删 funding 历史 annualize → 必红；删幂等跳过 → 重复回填断言必红；删 SIMULATED 校验 → 缺标记 key 加载断言必红；结算按 venue 分组 → 跨 venue 污染断言必红。
+- domains_test 增：sim 包无主网交易域、无下单端点域。
+- 线上：SIGKILL 部署 healthz ok；回填后 `funding_warn` 的 `avg_30d` 有 30d 数据（可查 facts）。
+
+### 9.9 依赖与阻塞
+
+- testnet key（业主提供）→ S3 门控，缺失降级，不阻塞 S1/S2/S4/S5。
+- 白名单默认空 → carry 先被 WHITELIST 拒单，显式配置后生效。
+- M3-c（确认 UI + SPREAD_DRIFT 漂移门禁）在 M3-b 后开工（D-034 ⑤ 顺序不变）。

@@ -215,3 +215,16 @@
   ⑥ **G5**：M3-c 确认成交价取**确认时刻最新 ref_price**（非生成时）；生成→确认窗口 ref_price 漂移 > 2%（或预期年化变化 > 20%）→ 二次门禁拒单（新标记 `SPREAD_DRIFT`，M3-c 实现）。
 - **理由**：先核实再采纳（D-028）要求验证目标与方法匹配——统计结论只能来自有统计效力的数据（历史），机制验证才适合前向模拟；规格缺口不补，M3-b/c 施工会在集成时才发现"驱动没定义"（M3-a 已验证过这个坑）；P3 要求文档与实现口径一致。
 - **结论**：M3 方向保持（机制验证 = 最优解）；收敛验证改为**前向验证机制 + 历史验证统计**双证据；G1–G5 全部落进 04-m3-spec.md（§0.1/§1.2/§3.1.1/§3.1.2/§3.2/§5.2/§5.3/§8）。STATE 施工表 M3-b 行更新：细化设计含 §5.3 历史回填前置任务。
+
+## D-037 M3-b 细化设计定稿（施工权威 spec §9 + 结算数据源裁决）（2026-08-15）
+- **背景**：D-034 ⑦"先细化设计后动工，动工前再确认一次"；D-036 后业主指示"排 M3-b 细化设计"。决策层摸清代码面（rule.OnActive 调用点 state.go:37、collect.Scheduler、sim 现有接口、store sim 接口、exchange collector、main.go startPipeline 接线）后定稿。
+- **决策**：
+  ① **结算数据源裁决**：模拟结算 funding = **真实市场公开 funding**（既有 binance_funding/okx_funding 采集，无 key），**不是 testnet**——testnet 费率有偏差（spec §5.1 自标），喂结算污染机制验证数字；testnet 只做 §2 key 隔离机制验证。D-034 ④"Binance Testnet + OKX Demo 都接"保持，仅明确用途。
+  ② **S1 规则→Signal 驱动（G1 落地）**：`rule.Config.OnActive` 签名改 `func(ctx, r, entities []store.EntityHit)`（改点仅 state.go:37，matches 已在作用域；exporter.OnRuleActive 同步改忽略 entities）；新 `sim.Driver.OnRuleActive` 按 §3.1.1 映射表组装 Signal → Generate 落库；未知规则不建单（宁缺毋滥）；单次激活一单（OnActive 仅 armed→active 转变）。
+  ③ **S2 8h 结算**：store.ListOpenSimPositions 扩展 venue 过滤 + sim.SettleFunding 扩展 (symbol,venue)——按 (symbol,venue) 分组结算，防 BTC@binance / BTC@okx 互相污染；结算值取 LatestFacts 真实 funding。
+  ④ **S3 testnet 只读 + key 隔离（key 门控）**：SIM_* 独立文件 + `SIMULATED=true` 强校验（缺标记拒加载）；只读探针经 Heartbeat.Record 登记进 ListSourceHealth（复用 M2-a freshness 面）；零下单路径（domains_test 断言无主网交易域/下单域）；缺 key → 降级禁用，不阻塞 S1/S2/S4/S5。
+  ⑤ **S4 历史收敛分析**：历史回填直接落 **facts 表**（kind=funding + 真实 ts；binance.vision `/fapi/v1/fundingRate` 翻页 + OKX `/funding-history` 分页；默认 365d `ARBCN_SIM_HISTORY_DAYS`；QueryFacts 幂等跳过已覆盖时段）；顺带让 funding_warn 的 avg_30d 立即有真实回溯（此前仅 1–3 天实时）；周频 sim_report（实际 vs 理论累计、残差分布、收敛半衰期、摩擦后净收益 vs 5% 门槛）。
+  ⑥ **S5 白名单 + 降级**：Config.CarryWhitelist（`ARBCN_SIM_CARRY_WHITELIST`，默认空 = carry 被 WHITELIST 拒单直到显式配置，宁缺毋滥，M3-a 复审 M2 接受项落地）；sim 配置缺失 → 降级禁用（D-032 同口径 warn 不退出）。
+  ⑦ **诚实标注**：系统无现货 collector，ticker 即永续价；funding_hedge 现货腿价取 ticker（basis/现货腿差留真实执行层），M3 只验证 funding 机制。
+- **理由**：先核实再采纳（D-028）——设计全部锚定现有代码面（OnActive 单点改、复用 Scheduler/Heartbeat/facts 管线/domains_test 模式），无新架构发明；结算数据源选真实市场是 D-036"前向只证机制"的直接推论（数字诚实才有验证效力）；历史回填落 facts 表 = 单一机制双收益（收敛数据 + 规则回溯富化）。
+- **结论**：M3-b 拆 S1–S5，spec 新增 §9 施工权威细化 + §5.1/§5.2 数据源修正；施工派工即按 spec §9。M3-c 后置（D-034 ⑤ 顺序不变）。testnet key 由业主提供，缺失 S3 降级不阻塞核心。
