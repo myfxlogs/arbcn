@@ -34,7 +34,7 @@
   | **M1-i SMTP 降级补丁 → 施工 agent #9** | ✅ | 0d740b7 |
   | 部署 systemd 常驻（mluser 运行） | ✅ | 2026-08-15 实测 active |
   | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
-  | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | 🔄 | 本提交 |
+  | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | ✅ | e26eea9 |
   | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ⬜ | D-033 / 03-m2-spec.md |
   | M2-b：RMB 折算 + facts.md 导出 + 台账 | ⬜ | M2-a 后 |
 - 阻塞/待决策:
