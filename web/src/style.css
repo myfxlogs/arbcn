@@ -532,3 +532,87 @@ button.ack:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* —— M3-c C4：模拟执行面板（SimExec） —— */
+.sim-exec {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sim-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  border: 1px dashed var(--ring);
+  background: var(--surface);
+}
+.sim-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--ink-2);
+  border: 1px solid var(--ring);
+  background: transparent;
+}
+.sim-group th {
+  background: var(--surface-2, var(--surface));
+  color: var(--ink-2);
+  font-weight: 600;
+  text-align: left;
+}
+.risk-flags {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.risk-badge {
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--warn, #b45309);
+  border: 1px solid currentColor;
+  background: transparent;
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.note-cell {
+  color: var(--ink-2);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.muted {
+  color: var(--ink-2);
+}
+.sim-result {
+  margin: 0;
+}
+.sim-report {
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface);
+  border: 1px solid var(--ring);
+  border-radius: 8px;
+  padding: 12px;
+}

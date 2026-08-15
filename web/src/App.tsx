@@ -8,15 +8,17 @@ import { Chip } from "./components/Chip";
 import { FactsSnapshot } from "./components/FactsSnapshot";
 import { Ledger } from "./components/Ledger";
 import { Opportunity } from "./components/Opportunity";
+import { SimExec } from "./components/SimExec";
 import { Triggers } from "./components/Triggers";
 
-// Tab 顶部分页（M2-b：监控总览 / 事实快照 RMB 视角 / 出入金台账）。
-type Tab = "overview" | "facts" | "ledger";
+// Tab 顶部分页（M2-b：监控总览 / 事实快照 RMB 视角 / 出入金台账；M3-c：模拟执行）。
+type Tab = "overview" | "facts" | "ledger" | "sim";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "监控总览" },
   { key: "facts", label: "事实快照" },
   { key: "ledger", label: "出入金台账" },
+  { key: "sim", label: "模拟执行" },
 ];
 
 // initTheme 初始主题：本地存储 > 系统偏好。
@@ -121,6 +123,8 @@ export default function App() {
           error={factsSnap.error}
           onReload={factsSnap.reload}
         />
+      ) : tab === "sim" ? (
+        <SimExec />
       ) : (
         <Ledger />
       )}
