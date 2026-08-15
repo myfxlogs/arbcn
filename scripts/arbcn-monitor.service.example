@@ -11,8 +11,10 @@ Wants=docker.service
 
 [Service]
 Type=simple
-User=arbcn
-Group=arbcn
+# 决策：单机单人工具，用部署机当前用户（避免 root 扩大攻击面，也无须专用
+# 系统账号）。换机器部署时把 User/Group 改成该机用户。
+User=mluser
+Group=mluser
 WorkingDirectory=/opt/arbcn
 ExecStart=/opt/arbcn/bin/arbcn
 Restart=on-failure

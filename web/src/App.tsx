@@ -70,9 +70,12 @@ export default function App() {
 
       {snap ? (
         <>
-          <Opportunity facts={snap.facts} />
+          {/* 双栏：机会面板 + 告警流（对话 #32 布局要求） */}
+          <div className="row">
+            <Opportunity facts={snap.facts} />
+            <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
+          </div>
           <Triggers states={snap.states} />
-          <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
         </>
       ) : (
         <p className="empty">连接服务中…</p>

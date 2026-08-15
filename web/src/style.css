@@ -86,6 +86,21 @@ main {
   padding: 16px;
   margin-bottom: 16px;
 }
+/* —— 双栏：机会面板（宽）+ 告警流（窄）同一行，窄屏回退单栏 —— */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.row > .card {
+  margin-bottom: 16px; /* 行内卡片下边距由后续内容承担，双栏底部对齐 */
+}
+@media (max-width: 860px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+}
 .card h2 {
   margin: 0 0 12px;
   font-size: 16px;
