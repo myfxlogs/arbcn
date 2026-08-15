@@ -292,7 +292,7 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 | # | 子任务 | 内容 | 验收锚点（对抗测试） |
 |---|--------|------|----------------------|
 | C1 | SimService proto + 生成物 | 新 `proto/arbcn/sim/v1/sim.proto` + buf generate（后端 protoc-gen-go + connect-go，前端 protoc-gen-es）；4 个 RPC | 生成物编译通过；mux 挂 `/arbcn.sim.v1.SimService/`；ListSimOrders 空库返回空不报错 |
-| C2 | SPREAD_DRIFT 二次门禁 | `RiskSpreadDrift` 标记 + 纯函数 `ConfirmDriftCheck`（G5 口径：ref 漂移 >2% 或 年化变化 >20% → 拒；有限性 fail-closed）；数据面 = 确认时刻 LatestFacts(ticker/funding) | 删漂移比较 → 必红；NaN/零 ref → 拒；漂移 2.01% → 拒、1.99% → 过 |
+| C2 | SPREAD_DRIFT 二次门禁 | `RiskSpreadDrift` 标记 + 纯函数 `ConfirmDriftCheck`（G5 口径：ref 漂移 >2% 或 年化变化 >20% → 拒；有限性 fail-closed）；数据面 = **按 kind 分派权威源**（D-039：funding_hedge→ticker/funding；repo→reverse_repo 利率；carry→defi_rate 年化；权威源查不到 → fail-closed 拒） | 删漂移比较 → 必红；NaN/零 ref → 拒；漂移 2.01% → 拒、1.99% → 过；删 kind 分派 → repo/carry 确认流测试必红 |
 | C3 | 确认成交流（ConfirmSimOrder） | RPC 唯一写路径：GetSimOrder → 非 suggested 拒（防重复确认）→ 二次门禁（拒 → RejectSimOrder 追加 SPREAD_DRIFT）→ 通过 → store 原子 `AcceptSimOrder`（suggested→confirmed→filled + INSERT 全腿，WHERE status='suggested' 守卫） | 已确认/已填/已拒订单确认 → 报错；门禁拒 → rejected+SPREAD_DRIFT+note；并发双确认 → 状态守卫拦第二次（无重复建腿） |
 | C4 | 模拟执行 UI tab | App.tsx 第 4 个 tab「模拟执行」：建议订单列表（待确认/拒单负样本分组）/ 模拟持仓（PnL USD + 即期 RMB）/ 对账报告入口（GetSimReport 渲染 markdown）；SIMULATED 徽标贯穿 | 组件构建通过；SIMULATED 徽标固定渲染（可检查）；确认按钮仅 suggested 可点 → ConfirmSimOrder → 刷新 |
 | C5 | 可检查性 + main.go 接线 + 验收 | domains_test 增 simapi 无真实账户/下单端点（grep 断言）；ConfirmSimOrder 是唯一写路径（无自动确认定时器）；mux 接线；全量测试 + 部署 | simapi 包 grep 无主网交易域/真实 API 端点；go vet + test -race 全绿；部署后 tab 可用 |
@@ -389,7 +389,13 @@ G5 口径逐字落地：
 - 两条件**各自独立触发**（任一过线即拒，note 记具体原因；G5"或"关系）
 - 有限性守卫：`genRef==0 || IsNaN(genRef|curRef|genSpread|curSpread) || IsInf` → 拒（fail-closed）
 
-**数据面**（RPC handler 层，C3 内）：确认时刻 `LatestFacts(kind=ticker, venue, symbol)` 最新价 → curRef；`LatestFacts(kind=funding, venue, symbol)` 最新年化 → curSpread。查不到 ticker/funding → fail-closed 拒（无数据不确认，§4"任一操作数无数据 → 不告警"同哲学，确认流从严）。
+**数据面**（RPC handler 层，C3 内；**D-039 kind 分派**）：确认时刻按 kind 选**权威数据源**——上述 ticker/funding 双查是 funding_hedge 语义；repo/carry 数据源不同（硬编码双查会恒拒，M3-c 验收发现）：
+- **funding_hedge**：`LatestFacts(kind=ticker, venue, symbol)` 最新价 → curRef；`LatestFacts(kind=funding, venue, symbol)` 最新年化 → curSpread。双查，缺一 fail-closed 拒。
+- **repo**：ref = 面值锚（GC001 面值 100，无价格行情；curRef=genRef 漂移恒 0）；spread = `LatestFacts(kind=reverse_repo)` 当日逆回购利率（与生成侧 repoSignal 同权威源）。查不到 → fail-closed 拒。
+- **carry_asset**：spread = `LatestFacts(kind=defi_rate, venue, symbol)` 生息年化（权威源）；查不到 → fail-closed 拒。ref = ticker 有则查（稳定币现价漂移），无 → curRef=genRef（面值锚 1.0 漂移恒 0，跳过 ref 检查——稳定币无方向风险，核心漂移是生息年化，D-019 白名单已对冲）。
+- 未知 kind → fail-closed 拒（与 SignalToOrder L1 同口径）。
+
+fail-closed 哲学保持：**每类订单的权威源查不到 → 拒**（无数据不确认，§4"任一操作数无数据 → 不告警"同哲学，确认流从严）。`ConfirmDriftCheck` 纯函数签名不变。
 
 **[对抗测试锚点]**：删 `> 0.02` 漂移比较 → TestConfirmDriftRejectsDrift 必红；`ConfirmDriftCheck(100, 5, 100, 5)` → 过；`(100, 5, 102.01, 5)` → 拒；`(0, 5, 100, 5)` → 拒（零 ref fail-closed）；`(100, 5, NaN, 5)` → 拒。
 
@@ -397,7 +403,7 @@ G5 口径逐字落地：
 
 **流程**（handler 层，唯一写路径）：
 1. `GetSimOrder(id)` → ErrNotFound 报错；`status != suggested` → 报错（已确认/已填/已拒/过期 → 防重复确认）。
-2. 二次门禁（§10.3）：确认时刻重查 ticker/funding → `ConfirmDriftCheck`。
+2. 二次门禁（§10.3 + D-039 kind 分派数据面）：确认时刻重查该 kind 权威源 → `ConfirmDriftCheck`。
    - **拒** → 调新 store 方法 `RejectSimOrder(id, reason, "SPREAD_DRIFT")`（原子：status=rejected + risk_flags 追加标记 + note 覆盖）→ 返回 `{accepted:false, order}`。拒单 = 负样本保留（§4）。
    - **过** → 组 legs（funding_hedge = 两腿 现货 long + 永续 short；carry/repo = 单生息腿）→ 调新 store 原子方法。
 3. **新 store 原子方法 `AcceptSimOrder(id, note, legs)`**（替代"先置 confirmed 再 ConfirmAndFill"两步——practices #8 原子性）：

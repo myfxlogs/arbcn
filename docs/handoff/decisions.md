@@ -241,3 +241,13 @@
   ⑥ **可检查性**：domains_test 增 simapi 包无真实账户/下单端点（grep 断言）；ConfirmSimOrder 是唯一写路径（无自动确认定时器）；SIMULATED 徽标前端固定渲染（可 grep）。expired 状态默认不触发（避免时间窗复杂度）。
 - **理由**：先核实再采纳（D-028）——设计全部锚定现有代码面（复用 store sim 接口 / sim legs 组装 / rmb 包 / dashboard RPC 模式 / domains_test 模式），无新架构发明；proto 独立域规避源缺失的回归风险；原子确认是 M3-a 复审 M1（成交原子）的同类不变量在人工流上的延续；RMB 即期口径避免 H1 刻度错位重演。
 - **结论**：M3-c 拆 C1–C5，spec 新增 §10 施工权威细化（含 proto 定义全文 + RPC 签名 + 门禁口径 + 对抗测试锚点）；施工派工即按 spec §10。D-036 G5 从"口径定义"升格为"可施工规格"。
+
+## D-039 二次门禁数据面 kind 分派（repo/carry 恒拒修复）（2026-08-15）
+- **背景**：M3-c 施工交付后决策层复审（先核实再采纳 D-028），发现 spec §10.3 的二次门禁数据面存在**设计缺口**：§10.3「确认时刻 LatestFacts(ticker/funding)，查不到 → fail-closed 拒」是 funding_hedge 语义，但 handler 层对**所有 kind 硬编码双查 ticker/funding**——repo 无 ticker（面值锚 100，无价格行情）、carry 无 funding（稳定币生息无资金费率），导致 **repo/carry 确认恒拒**（M3-c UI 对这两类订单不可用）。施工 agent 未自行决定，显式挂起（对话 #46）。
+- **决策**：`ConfirmDriftCheck` 纯函数签名不变（§10.3 锚点稳定）；数据面改为**按 kind 选权威数据源**（`Service.confirmDrift`，service.go）：
+  ① **funding_hedge**：ticker → curRef、funding → curSpread，双查缺一 fail-closed 拒（原样）。
+  ② **repo**：ref = 面值锚（curRef=genRef，漂移恒 0）；spread = `KindReverseRepo` 当日逆回购利率（与生成侧 repoSignal 同权威源）；查不到 → fail-closed 拒。repo 真实漂移风险 = 利率变化（5→6.5 即 +30% >20% 拒）。
+  ③ **carry_asset**：spread = `KindDefiRate` 生息年化（权威源）；查不到 → fail-closed 拒。ref = ticker 有则查（稳定币现价漂移 >2% 拒），无 → curRef=genRef（面值锚 1.0 漂移恒 0，跳过 ref 检查——稳定币无方向风险，核心漂移是生息年化，白名单已对冲）。
+  ④ 未知 kind → fail-closed 拒（与 SignalToOrder L1 同口径）。
+- **理由**：fail-closed 语义**保持不放宽**——每类订单的**权威源**查不到 → 拒（宁缺毋滥，与生成侧同口径），只是把"权威源"从"ticker/funding"修正为按 kind 的正确事实源（reverse_repo / defi_rate 本就存在且是生成侧权威）。repo/carry 恒拒 = 确认流功能残缺，不是"从严"；不赌原则（D-019）要求 repo 天然无方向敞口，其唯一漂移风险（锁定利率变化）已由 reverse_repo 检查覆盖。
+- **结论**：spec §10.3/§10.4/C2 表格同步更新；service.go `confirmDrift` + 7 个新对抗测试（repo accept/reject/fail-closed + carry accept/ticker-drift/spread-reject/fail-closed，删 kind 分派必红）。全量测试 + vet 绿。

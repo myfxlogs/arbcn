@@ -343,3 +343,23 @@
 - **决策号**：无新 D#（沿用 D-038 施工权威；repo 门禁例外待裁决）。
 - **验证**：go build / go vet / go test -race ./... 全绿（PG 集成 ARBCN_TEST_PG_DSN）；前端 npm run build 过；对抗锚点（suggested 守卫 / 漂移比较 / SIMULATED 渲染 / 真实端点 grep）逐一覆盖。
 - **下一步**：①部署验收（spec §10.6 清单：重启 healthz ok → tab 打开 → 确认流冒烟）；②repo 二次门禁设计裁决；③等业主 testnet key 启用 S3。
+
+## #47 · 2026-08-15 · M3-c 决策层复审 + repo/carry 恒拒裁决 · 决策层
+- **参与方**：Claude（决策层，先核实再采纳 D-028）
+- **议题**：M3-c 施工交付（#46）复审验收 + 裁决 #46 挂起的"repo 二次门禁恒拒"设计问题。
+- **复审结论（逐项核实，非采信交付报告）**：
+  - git 交付面：5 commit（83742ba..5fd8f63）结构清晰、工作树 clean、dashboardv1 生成物零回归（git diff 空）。
+  - C1 proto：符合 §10.2（4 RPC / SimOrder / SimPosition，pnl_rmb 即期口径注释明确，独立域互不依赖）。
+  - C2 ConfirmDriftCheck：2%/20% 独立触发 + genRef==0/genSpread==0/NaN/±Inf fail-closed（防 0/0=NaN 绕过 practices #7）——超规格要求。
+  - C3 原子成交：AcceptSimOrder 单事务两步 UPDATE（suggested→confirmed→filled）各带 RowsAffected 守卫，任一 0 → 整体回滚（无"已确认未成交"悬挂）；RejectSimOrder 原子 + risk_flags 去重追加 + flags 空拒绝调用。
+  - C4 UI：SIMULATED 徽标贯穿、确认按钮仅 suggested + 二次点击防误点、PnL 即期折算 + 汇率缺失标 USD 原值、risk_flags 中文徽标、无真金按钮。
+  - C5 可检查性：grep 锚点（零真实端点 / 零自动确认定时器 / SIMULATED 渲染）+ ConfirmSimOrder 唯一写路径成立。
+  - 基线：`go test ./...`（含 PG 集成）+ `go vet` 全绿。
+- **裁决（D-039）**：二次门禁数据面**按 kind 分派权威源**，而非硬编码 ticker/funding 双查（那是 funding_hedge 语义；repo 无 ticker、carry 无 funding → 恒拒 = 确认流功能残缺，非从严）。`ConfirmDriftCheck` 纯函数签名**不变**（spec §10.3 锚点稳定）：
+  - repo：ref=面值锚（漂移恒 0）；spread=`KindReverseRepo` 当日利率（与生成侧 repoSignal 同权威源）；查不到 → fail-closed 拒。真实漂移风险=利率变化 >20% 拒。
+  - carry：spread=`KindDefiRate` 年化（权威源）；查不到 → fail-closed 拒；ref=ticker 有则查、无则面值锚漂移恒 0（稳定币无方向风险）。
+  - fail-closed 语义不放宽：每类订单权威源查不到 → 拒（宁缺毋滥）。
+- **实现**：`simapi.Service.confirmDrift` + 7 新对抗测试（repo accept/reject/fail-closed + carry accept/ticker-drift/spread-reject/fail-closed；删 kind 分派 → accept 断言必红）。spec §10.3/§10.4/C2 表格 + decisions D-039 同步。
+- **验证**：全量 `go test ./...` + `go vet ./internal/simapi/... ./internal/sim/... ./cmd/...` 全绿。
+- **决策号**：D-039（kind 分派数据面）。
+- **下一步**：部署验收（spec §10.6：重启 → healthz → 模拟执行 tab → 确认流冒烟）；等业主 testnet key 启用 S3。

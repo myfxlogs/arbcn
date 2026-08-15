@@ -76,8 +76,8 @@ func (s *Service) ListSimOrders(ctx context.Context, req *connect.Request[simv1.
 
 // ConfirmSimOrder 人工确认 → 本地模拟成交（**唯一写路径**，04-m3-spec §10.4 C3）：
 //  1. GetSimOrder(id) → 未知 id 报错；status != suggested 报错（防重复确认）。
-//  2. 二次门禁（§10.3 SPREAD_DRIFT）：确认时刻重查 ticker/funding → ConfirmDriftCheck；
-//     查不到 ticker/funding → fail-closed 拒（无数据不确认，从严）。
+//  2. 二次门禁（§10.3 SPREAD_DRIFT + D-039 kind 分派数据面）：确认时刻重查该 kind
+//     权威数据源 → ConfirmDriftCheck；权威源查不到 → fail-closed 拒（无数据不确认，从严）。
 //  3. 拒 → RejectSimOrder（原子 rejected + risk_flags 追加 SPREAD_DRIFT + note）→
 //     {accepted:false}（拒单 = 负样本保留，§4）。
 //  4. 过 → 组 legs → store 原子 AcceptSimOrder（suggested→confirmed→filled + INSERT
@@ -95,23 +95,10 @@ func (s *Service) ConfirmSimOrder(ctx context.Context, req *connect.Request[simv
 			fmt.Errorf("simapi: order %d status = %q, want suggested（防重复确认）", o.ID, o.Status))
 	}
 
-	// 二次门禁数据面（§10.3）：确认时刻最新 ticker → curRef；最新 funding → curSpread。
-	curRef, refOK, err := s.latestValue(ctx, fact.KindTicker, o.Venue, o.Symbol)
+	// 二次门禁（§10.3 SPREAD_DRIFT + D-039 kind 分派数据面）。
+	reject, reason, err := s.confirmDrift(ctx, o)
 	if err != nil {
 		return nil, storeErr(err)
-	}
-	curSpread, spreadOK, err := s.latestValue(ctx, fact.KindFunding, o.Venue, o.Symbol)
-	if err != nil {
-		return nil, storeErr(err)
-	}
-	reason, reject := "", false
-	switch {
-	case !refOK:
-		reason, reject = "SPREAD_DRIFT: 确认时刻查不到 ticker 行情（fail-closed 拒单）", true
-	case !spreadOK:
-		reason, reject = "SPREAD_DRIFT: 确认时刻查不到 funding 费率（fail-closed 拒单）", true
-	default:
-		reject, reason = sim.ConfirmDriftCheck(o.RefPrice, o.ExpectedSpread, curRef, curSpread)
 	}
 	if reject {
 		if err := s.st.RejectSimOrder(ctx, o.ID, reason, sim.RiskSpreadDrift); err != nil {
@@ -124,9 +111,10 @@ func (s *Service) ConfirmSimOrder(ctx context.Context, req *connect.Request[simv
 		return connect.NewResponse(&simv1.ConfirmSimOrderResponse{Order: toSimOrder(updated), Accepted: false}), nil
 	}
 
-	// 通过 → 组 legs（共享 sim.BuildLegs）→ 原子成交。
+	// 通过 → 组 legs（共享 sim.BuildLegs）→ 原子成交。note 用订单生成价
+	// （ConfirmDriftCheck 已保证确认时刻漂移 <2%，成交腿 ref_price 口径一致）。
 	legs := sim.BuildLegs(o, s.now())
-	note := fmt.Sprintf("人工确认成交 @ ref_price %.2f（二次门禁通过）", curRef)
+	note := fmt.Sprintf("人工确认成交 @ ref_price %.2f（二次门禁通过）", o.RefPrice)
 	if err := s.st.AcceptSimOrder(ctx, o.ID, note, legs); err != nil {
 		return nil, storeErr(err)
 	}
@@ -192,6 +180,79 @@ func (s *Service) latestValue(ctx context.Context, kind, venue, symbol string) (
 		return 0, false, nil
 	}
 	return fs[0].Value, true, nil
+}
+
+// confirmDrift 确认时刻二次门禁数据面（§10.3 SPREAD_DRIFT，D-039 kind 分派）。
+// spec §10.3「查不到 ticker/funding → fail-closed 拒」是 funding_hedge 语义；repo/carry
+// 的数据源不同，硬编码双查会让它们**恒拒**（M3-c 验收发现）：repo 无价格行情（面值锚），
+// carry 无 funding（稳定币生息无资金费率）。故按 kind 选**权威数据源**，fail-closed 语义
+// 保持——每类订单的权威源查不到 → 拒（宁缺毋滥，与生成侧同口径）。ConfirmDriftCheck
+// 纯函数签名不变（spec §10.3 锚点稳定）。
+//
+//   - funding_hedge：ticker → curRef，funding → curSpread（双查，缺一 fail-closed）。
+//   - repo：ref = 面值锚（GC001 面值 100，curRef=genRef 漂移恒 0，无价格行情可查）；
+//     spread = 当日逆回购利率（KindReverseRepo，与 repoSignal 同权威源）；查不到 → 拒。
+//   - carry_asset：spread = 生息年化（KindDefiRate，权威源）；查不到 → 拒。ref = ticker
+//     有则查（稳定币现价），无 → curRef=genRef（面值锚 1.0 漂移恒 0，跳过 ref 检查——
+//     稳定币无方向风险，核心漂移是生息年化，D-019 白名单已对冲）。
+//   - 未知 kind → fail-closed 拒（与 SignalToOrder L1 同口径）。
+//
+// [对抗测试锚点]（D-039）：repo/carry 恒拒回归——删 kind 分派 → 新测试
+// TestConfirmSimOrderRepoAccept/TestConfirmSimOrderCarryAccept 必红。
+func (s *Service) confirmDrift(ctx context.Context, o store.SimOrder) (bool, string, error) {
+	var curRef, curSpread float64
+	var refOK, spreadOK bool
+	var err error
+
+	switch o.Kind {
+	case store.SimKindFundingHedge:
+		curRef, refOK, err = s.latestValue(ctx, fact.KindTicker, o.Venue, o.Symbol)
+		if err != nil {
+			return false, "", err
+		}
+		curSpread, spreadOK, err = s.latestValue(ctx, fact.KindFunding, o.Venue, o.Symbol)
+		if err != nil {
+			return false, "", err
+		}
+		if !refOK {
+			return true, "SPREAD_DRIFT: 确认时刻查不到 ticker 行情（fail-closed 拒单）", nil
+		}
+		if !spreadOK {
+			return true, "SPREAD_DRIFT: 确认时刻查不到 funding 费率（fail-closed 拒单）", nil
+		}
+	case store.SimKindRepo:
+		// 面值锚：GC001 面值恒定（RefPrice=100），无价格行情；curRef=genRef 漂移恒 0。
+		curRef = o.RefPrice
+		curSpread, spreadOK, err = s.latestValue(ctx, fact.KindReverseRepo, "", "")
+		if err != nil {
+			return false, "", err
+		}
+		if !spreadOK {
+			return true, "SPREAD_DRIFT: 确认时刻查不到 reverse_repo 当日利率（fail-closed 拒单）", nil
+		}
+		refOK = true
+	case store.SimKindCarryAsset:
+		curSpread, spreadOK, err = s.latestValue(ctx, fact.KindDefiRate, o.Venue, o.Symbol)
+		if err != nil {
+			return false, "", err
+		}
+		if !spreadOK {
+			return true, "SPREAD_DRIFT: 确认时刻查不到 defi_rate 生息年化（fail-closed 拒单）", nil
+		}
+		curRef, refOK, err = s.latestValue(ctx, fact.KindTicker, o.Venue, o.Symbol)
+		if err != nil {
+			return false, "", err
+		}
+		if !refOK {
+			curRef = o.RefPrice // 稳定币面值锚 1.0：无 ticker → 漂移恒 0，只查年化变化（D-039）
+			refOK = true
+		}
+	default:
+		return true, "SPREAD_DRIFT: 未知套利 kind " + o.Kind + "（fail-closed 拒单）", nil
+	}
+
+	reject, reason := sim.ConfirmDriftCheck(o.RefPrice, o.ExpectedSpread, curRef, curSpread)
+	return reject, reason, nil
 }
 
 // toSimOrder 映射 store.SimOrder → proto。ts 用毫秒时间戳（前端 bigint 承载）。

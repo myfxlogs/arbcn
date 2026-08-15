@@ -255,6 +255,22 @@ func confirmReq(id int64) *connect.Request[simv1.ConfirmSimOrderRequest] {
 	return connect.NewRequest(&simv1.ConfirmSimOrderRequest{Id: id})
 }
 
+// repoOrder 返回典型 repo 建议订单（D-039：ref=面值 100 恒定 / spread=当日逆回购利率）。
+func repoOrder(id int64) store.SimOrder {
+	return store.SimOrder{ID: id, Ts: t0.Add(-time.Hour), SrcRule: "reverse_repo_timing",
+		Kind: store.SimKindRepo, Venue: "domestic", Symbol: "GC001",
+		Side: store.SimSideLong, Qty: 10000, RefPrice: 100, ExpectedSpread: 5,
+		Status: store.SimStatusSuggested}
+}
+
+// carryOrder 返回典型 carry_asset 建议订单（D-039：ref=稳定币面值锚 1.0 / spread=生息年化）。
+func carryOrder(id int64) store.SimOrder {
+	return store.SimOrder{ID: id, Ts: t0.Add(-time.Hour), SrcRule: "defi_large_tier_change",
+		Kind: store.SimKindCarryAsset, Venue: "sim_local", Symbol: "USDT",
+		Side: store.SimSideLong, Qty: 10000, RefPrice: 1.0, ExpectedSpread: 5,
+		Status: store.SimStatusSuggested}
+}
+
 // TestListSimOrdersEmptyAndStatusFilter：空库返回 [] 不报错；status 过滤生效。
 func TestListSimOrdersEmptyAndStatusFilter(t *testing.T) {
 	st := newFakeStore()
@@ -441,6 +457,149 @@ func TestConfirmSimOrderSpreadReject(t *testing.T) {
 	}
 	if len(st.rejected) != 1 || !slices.Contains(st.rejected[0].flags, sim.RiskSpreadDrift) {
 		t.Fatalf("rejected = %+v, want SPREAD_DRIFT 拒单", st.rejected)
+	}
+}
+
+// —— D-039 kind 分派数据面：repo/carry 确认流（M3-c 验收发现：spec §10.3 硬编码
+// ticker/funding 双查让 repo/carry 恒拒。修复后按 kind 选权威源，本组测试为回归锚点——
+// 删 kind 分派（回到硬编码双查）→ TestConfirmSimOrderRepoAccept / TestConfirmSimOrderCarryAccept 必红。——
+
+// TestConfirmSimOrderRepoAccept：repo 确认 → 查 reverse_repo 当日利率（非 ticker/funding），
+// ref=面值 100 漂移恒 0；利率未变 → 通过（accepted=true，杜绝"repo 恒拒"）。
+func TestConfirmSimOrderRepoAccept(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(repoOrder(0))
+	st.addFact(fact.KindReverseRepo, "", "", 5, t0.Add(-time.Minute)) // 当日回购利率同生成时
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(repo accept): %v", err)
+	}
+	if !resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusFilled {
+		t.Fatalf("accepted = %v, status = %q, want true/filled（repo 不得恒拒）", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.accepted) != 1 || len(st.rejected) != 0 {
+		t.Fatalf("accepted = %d, rejected = %d, want 1/0", len(st.accepted), len(st.rejected))
+	}
+}
+
+// TestConfirmSimOrderRepoReject：确认时点回购利率变化 >20%（5 → 6.5）→ SPREAD_DRIFT 拒。
+// repo 的真实漂移风险是利率变化（锁定时点利率），面值漂移恒 0。
+func TestConfirmSimOrderRepoReject(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(repoOrder(0))
+	st.addFact(fact.KindReverseRepo, "", "", 6.5, t0.Add(-time.Minute)) // +30% > 20%
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(repo reject): %v", err)
+	}
+	if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("accepted = %v, status = %q, want false/rejected", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || !slices.Contains(st.rejected[0].flags, sim.RiskSpreadDrift) {
+		t.Fatalf("rejected = %+v, want SPREAD_DRIFT 拒单", st.rejected)
+	}
+}
+
+// TestConfirmSimOrderRepoFailClosed：确认时点查不到 reverse_repo → fail-closed 拒
+// （与生成侧 repoSignal「无事实不建单」同口径，宁缺毋滥）。
+func TestConfirmSimOrderRepoFailClosed(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(repoOrder(0))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(repo fail-closed): %v", err)
+	}
+	if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("accepted = %v, status = %q, want false/rejected（fail-closed）", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || !strings.Contains(st.rejected[0].reason, "fail-closed") {
+		t.Fatalf("rejected = %+v, want fail-closed 拒单", st.rejected)
+	}
+}
+
+// TestConfirmSimOrderCarryAccept：carry 确认 → 查 defi_rate 生息年化；无 ticker（稳定币
+// 无现价行情）→ ref=面值锚 1.0 漂移恒 0，只查年化；未变 → 通过（杜绝"carry 恒拒"）。
+func TestConfirmSimOrderCarryAccept(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(carryOrder(0))
+	st.addFact(fact.KindDefiRate, "sim_local", "USDT", 5, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(carry accept): %v", err)
+	}
+	if !resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusFilled {
+		t.Fatalf("accepted = %v, status = %q, want true/filled（carry 不得恒拒）", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.accepted) != 1 || len(st.rejected) != 0 {
+		t.Fatalf("accepted = %d, rejected = %d, want 1/0", len(st.accepted), len(st.rejected))
+	}
+}
+
+// TestConfirmSimOrderCarryTickerDrift：carry 有 ticker 时 ref 检查生效——稳定币现价
+// 1.0 → 1.05（+5% > 2%）→ SPREAD_DRIFT 拒（ticker 数据存在则价格漂移不能放过）。
+func TestConfirmSimOrderCarryTickerDrift(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(carryOrder(0))
+	st.addFact(fact.KindDefiRate, "sim_local", "USDT", 5, t0.Add(-time.Minute))
+	st.addFact(fact.KindTicker, "sim_local", "USDT", 1.05, t0.Add(-time.Minute)) // +5%
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(carry ticker drift): %v", err)
+	}
+	if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("accepted = %v, status = %q, want false/rejected", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || !slices.Contains(st.rejected[0].flags, sim.RiskSpreadDrift) {
+		t.Fatalf("rejected = %+v, want SPREAD_DRIFT 拒单", st.rejected)
+	}
+}
+
+// TestConfirmSimOrderCarrySpreadReject：生息年化变化 >20%（5 → 6.5）→ SPREAD_DRIFT 拒
+// （无 ticker 时 ref 检查跳过，spread 年化检查仍独立触发）。
+func TestConfirmSimOrderCarrySpreadReject(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(carryOrder(0))
+	st.addFact(fact.KindDefiRate, "sim_local", "USDT", 6.5, t0.Add(-time.Minute)) // +30%
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(carry spread reject): %v", err)
+	}
+	if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("accepted = %v, status = %q, want false/rejected", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || !slices.Contains(st.rejected[0].flags, sim.RiskSpreadDrift) {
+		t.Fatalf("rejected = %+v, want SPREAD_DRIFT 拒单", st.rejected)
+	}
+}
+
+// TestConfirmSimOrderCarryFailClosed：确认时点查不到 defi_rate → fail-closed 拒
+// （生息年化是 carry 权威源，宁缺毋滥）。
+func TestConfirmSimOrderCarryFailClosed(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(carryOrder(0))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(carry fail-closed): %v", err)
+	}
+	if resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusRejected {
+		t.Fatalf("accepted = %v, status = %q, want false/rejected（fail-closed）", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(st.rejected) != 1 || !strings.Contains(st.rejected[0].reason, "fail-closed") {
+		t.Fatalf("rejected = %+v, want fail-closed 拒单", st.rejected)
 	}
 }
 
