@@ -1,0 +1,10 @@
+{"status":"success","data":[
+{"chain":"Ethereum","project":"lido","symbol":"STETH","tvlUsd":17879318718,"apy":2.182,"pool":"747c1d2a-c668-4682-b9f9-296708a3dd90","stablecoin":false},
+{"chain":"Ethereum","project":"aave-v3","symbol":"USDC","tvlUsd":1876543210,"apy":3.29,"pool":"aa70268e-4b52-42bf-a116-608b370f9501","stablecoin":true},
+{"chain":"Ethereum","project":"morpho-blue","symbol":"STEAKUSDC","tvlUsd":512345678,"apy":4.16,"pool":"931ea9be-5f4d-428e-beaf-205fc5b4e2b5","stablecoin":true},
+{"chain":"Ethereum","project":"ethena-usde","symbol":"SUSDE","tvlUsd":345678901,"apy":4.29,"pool":"66985a81-9c51-46ca-9977-42b4fe7bc6df","stablecoin":false},
+{"chain":"Ethereum","project":"blackrock-buidl","symbol":"BUIDL","tvlUsd":987654321,"apy":3.57,"pool":"b663ca59-c7e6-4435-ae4a-28d339ce6a15","stablecoin":true},
+{"chain":"Ethereum","project":"ondo-yield-assets","symbol":"USDY","tvlUsd":432109876,"apy":3.55,"pool":"ac61ee82-2fe4-4f9b-a9cd-7fb33f598859","stablecoin":true},
+{"chain":"Ethereum","project":"aave-v3","symbol":"USDT","tvlUsd":876543210,"apy":2.86,"pool":"f981a304-bb6c-45b8-b0c5-fd2f515ad23a","stablecoin":true},
+{"chain":"Base","project":"morpho-blue","symbol":"SIRLOINUSDC","tvlUsd":12345678,"apy":5.45,"pool":"8276be38-acc6-4005-ab0d-62680f49f4df","stablecoin":true}
+]}

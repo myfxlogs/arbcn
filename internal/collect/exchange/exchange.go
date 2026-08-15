@@ -6,9 +6,7 @@ package exchange
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -70,24 +68,9 @@ func (c Config) client() *http.Client {
 	return &http.Client{Timeout: 10 * time.Second}
 }
 
-// getJSON GET 并解码；非 200 或解码失败返回错误。1MB 上限防异常响应。
+// getJSON GET 并解码（公共工具 collect.GetJSON，1MB 上限，无自定义头）。
 func getJSON(ctx context.Context, client *http.Client, url string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("GET %s: %w", url, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: status %d", url, resp.StatusCode)
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out); err != nil {
-		return fmt.Errorf("GET %s: decode: %w", url, err)
-	}
-	return nil
+	return collect.GetJSON(ctx, client, url, nil, 1<<20, out)
 }
 
 // annualize 把单次结算费率折算为年化百分数：× (8760 / intervalHours) × 100。

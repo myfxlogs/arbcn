@@ -7,11 +7,12 @@ import (
 	"time"
 )
 
-// Kind 常量表（§4 Fact.Kind + §5 Exchange 采集内容 ticker）。
+// Kind 常量表（§4 Fact.Kind；按 §5 数据源扩充：ticker / deposit_rate）。
 const (
 	KindFunding     = "funding"      // 永续资金费率（UnitPctAnnualized）
 	KindDefiRate    = "defi_rate"    // 链上/DeFi 收益产品利率（UnitPctAnnualized）
 	KindReverseRepo = "reverse_repo" // 交易所逆回购 GC001/R-001（UnitPctAnnualized）
+	KindDepositRate = "deposit_rate" // 银行挂牌存款利率（§5 Domestic；UnitPctAnnualized）
 	KindFX          = "fx"           // 汇率 USDCNH（UnitPrice）
 	KindIV          = "iv"           // 隐含波动率 DVOL（UnitPct）
 	KindCalendar    = "calendar"     // 日历事件（季末/月末/国债发行；UnitDays）
@@ -42,6 +43,7 @@ var validKinds = map[string]bool{
 	KindFunding:     true,
 	KindDefiRate:    true,
 	KindReverseRepo: true,
+	KindDepositRate: true,
 	KindFX:          true,
 	KindIV:          true,
 	KindCalendar:    true,
