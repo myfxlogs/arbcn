@@ -230,3 +230,10 @@
 - **验证**：`npm run build`（tsc + vite）过；check-lines 过；`go build -o bin/arbcn ./cmd/arbcn` 成功（dist 嵌入 22.5M）；**真传输冒烟**（临时实例 :50053 不触 systemd）——ListUnacked 返回未读 + total、ListSourceHealth 返回 10 源（binance_funding/okx_funding/defi_rates/deribit_iv/repo/calendar/fx/bank_rate 与 sourceForTile 映射逐名对上；周六 repo/fx/deribit_iv 判 stale = 闭市/冻结，印证 D-033 实证）、AckAll ackedCount=2 后 ListUnacked 归零。
 - **决策层注意**：当前 systemd 二进制（19:40 启动）早于 M2-a 后端，新 RPC 404；重建 bin/arbcn + 重启服务即带新功能（前端 dist 已嵌入，无需单独部署 web）。冒烟中的 AckAll 已把生产 2 条 resolved 心跳告警标记已读（仅读取状态，无资金面影响）。
 - **下一步**：M2-b 施工（RMB 折算 + facts.md 自动导出 + 台账）。
+
+## #35 · 2026-08-15 · i18n 清理交付 + 部署（Claude 直接施工）
+- **参与方**：Claude
+- **交付**：页面硬编码英文全部中文化——① 前端 format.ts 新增 statusText/reasonText/stateText/levelText/ruleLabel 五个映射（健康状态、降级原因、触发状态机、告警级别、规则名）；② Chip 徽标（LevelChip/StateChip）、铃铛抽屉规则名、告警流/触发器规则名、健康 chip、机会面板标题全部走映射；③ 后端 rule/state.go 消息模板改中文（`ruleLabel(name)+" 触发: …"` / `" 已解除"`）与前端 ruleLabel 语义对齐（默认回退原名）；④ `npm run build` + `go build` 后 SIGKILL 触发 systemd 重启（新 PID 2271002），healthz ok，新 dist（index-DxayK8R_.js）已托管。
+- **实测**：源健康 10 源判定正确（crypto 源 live；repo/fx/deribit_iv 周六闭市 stale）；DB 内最新心跳告警 `采集器心跳 已解除`（中文模板已生效，旧英文行=历史数据）；12:00 曾有一次心跳延迟尖峰（binance_ticker 19.5s）12:07 自愈，现全部 live。
+- **决策层注意**：① 遗留两条未确认心跳告警在铃铛中（11:43/12:00 抖动期间产生的 active + 最新 resolved），属真实数据，业主可 ack；② **方向级待决策**：业主已提议「提升到自动交易（人工确认）+ 模拟账号验证，尤其加密层」——触及无密钥铁律（D-010/§13）与「决策监控、不自动执行」形态，须 讨论→决定→执行 后落 D#，未决前不动手。
+- **下一步**：M2-b 施工（RMB 折算 + facts.md 导出 + 台账，03-m2-spec.md §4–§6）。

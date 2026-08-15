@@ -1,4 +1,4 @@
-import { fmtTs, num } from "../format";
+import { fmtTs, num, ruleLabel } from "../format";
 import type { TriggerState } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { StateChip } from "./Chip";
 
@@ -23,7 +23,7 @@ export function Triggers({ states }: { states: TriggerState[] }) {
             <tbody>
               {states.map((s) => (
                 <tr key={s.ruleName}>
-                  <th scope="row">{s.ruleName}</th>
+                  <th scope="row">{ruleLabel(s.ruleName)}</th>
                   <td>
                     <StateChip state={s.state} />
                   </td>

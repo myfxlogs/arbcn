@@ -1,4 +1,4 @@
-import { fmtTs } from "../format";
+import { fmtTs, ruleLabel } from "../format";
 import type { Alert } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { Chip, LevelChip } from "./Chip";
 
@@ -23,7 +23,7 @@ export function Alerts({
             <li key={a.id.toString()}>
               <div className="timeline-head">
                 <LevelChip level={a.level} />
-                <span className="timeline-rule">{a.ruleName}</span>
+                <span className="timeline-rule">{ruleLabel(a.ruleName)}</span>
                 <time className="timeline-ts">{fmtTs(a.ts)}</time>
                 {a.acked ? (
                   <Chip tone="good">已确认</Chip>

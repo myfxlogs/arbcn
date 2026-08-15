@@ -41,7 +41,7 @@ func (e *Engine) transition(ctx context.Context, r store.Rule, st store.TriggerS
 		return false, nil // armed/resolved 且未命中 → 无转变，不落库
 	}
 	if err := e.st.InsertAlert(ctx, store.Alert{
-		RuleID: r.ID, Ts: now, Level: r.Level, Message: r.Name + " resolved",
+		RuleID: r.ID, Ts: now, Level: r.Level, Message: ruleLabel(r.Name) + " 已解除",
 	}); err != nil {
 		return false, fmt.Errorf("rule %q: insert resolved alert: %w", r.Name, err)
 	}
@@ -50,10 +50,10 @@ func (e *Engine) transition(ctx context.Context, r store.Rule, st store.TriggerS
 	})
 }
 
-// activeMsg 组装激活告警消息（命中实体最多列 3 个，余数省略）。
+// activeMsg 组装激活告警消息（命中实体最多列 3 个，余数省略；中文模板）。
 func activeMsg(name string, matches []match) string {
 	if len(matches) == 0 {
-		return name + " active"
+		return ruleLabel(name) + " 触发"
 	}
 	n := min(len(matches), 3)
 	parts := make([]string, 0, n)
@@ -64,7 +64,7 @@ func activeMsg(name string, matches []match) string {
 			parts = append(parts, fmt.Sprintf("%s@%s=%.4g", m.symbol, m.venue, m.value))
 		}
 	}
-	msg := name + " active: " + strings.Join(parts, ", ")
+	msg := ruleLabel(name) + " 触发: " + strings.Join(parts, ", ")
 	if len(matches) > n {
 		msg += ", …"
 	}

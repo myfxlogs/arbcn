@@ -73,8 +73,8 @@ export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHeal
     <section className="card" aria-labelledby="opp-title">
       <h2 id="opp-title">机会面板</h2>
 
-      <h3>funding 矩阵（币 × 所 · 年化 %）</h3>
-      <MatrixTable rows={funding.rows} cols={funding.cols} cell={funding.get} empty="暂无 funding 数据" />
+      <h3>资金费率矩阵（币 × 所 · 年化 %）</h3>
+      <MatrixTable rows={funding.rows} cols={funding.cols} cell={funding.get} empty="暂无资金费率数据" />
 
       <h3>稳定币金额档利率（项目 × 币种 · 年化 %）</h3>
       <MatrixTable rows={defi.rows} cols={defi.cols} cell={defi.get} empty="暂无 DeFi 利率数据" />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { useSnapshot } from "./hooks";
-import { fmtClock } from "./format";
+import { fmtClock, reasonText } from "./format";
 import { Bell } from "./components/Bell";
 import { Chip } from "./components/Chip";
 import { Opportunity } from "./components/Opportunity";
@@ -47,7 +47,7 @@ export default function App() {
         <h1>arbcn 监控仪表盘</h1>
         {snap ? (
           <Chip tone={healthOk ? "good" : "critical"}>
-            {healthOk ? "ok" : `degraded · ${snap.health.reason}`}
+            {healthOk ? "正常" : `降级 · ${reasonText(snap.health.reason)}`}
           </Chip>
         ) : null}
         <span className="meta">{snap ? `更新于 ${fmtClock(snap.at)}` : "加载中…"}</span>

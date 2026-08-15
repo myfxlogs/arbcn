@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { fmtRel } from "../format";
+import { fmtRel, ruleLabel } from "../format";
 import type { UnackedAlert } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { LevelChip } from "./Chip";
 
@@ -92,7 +92,7 @@ export function Bell({
                 <li key={a.id.toString()}>
                   <div className="bell-item-head">
                     <LevelChip level={a.level} />
-                    <span className="bell-rule">{a.rule}</span>
+                    <span className="bell-rule">{ruleLabel(a.rule)}</span>
                     <time className="bell-ts">{fmtRel(a.ts)}</time>
                     <button
                       type="button"

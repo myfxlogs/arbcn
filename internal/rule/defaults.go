@@ -30,6 +30,29 @@ import (
 	"arbcn/internal/store"
 )
 
+// ruleLabels 规则名 → 中文标签（告警消息与前端展示共用语义；规则名本身是
+// 稳定标识符不改动，P3）。未知名回退原名（新规则未映射时优雅降级）。
+var ruleLabels = map[string]string{
+	"funding_warn":            "资金费率预警",
+	"funding_critical":        "资金费率激活",
+	"trx_funding_positive":    "TRX 费率转正",
+	"defi_large_tier_change":  "金额档利率变动",
+	"ladder_trap":             "阶梯陷阱识别",
+	"reverse_repo_timing":     "逆回购时点",
+	"usdcnh_buy_line":         "汇率加仓线",
+	"iv_opportunity":          "IV 机会",
+	"nonstable_quote_change":  "计价币种陷阱",
+	"collector_heartbeat":     "采集器心跳",
+}
+
+// ruleLabel 取规则中文标签；未知回退原名。
+func ruleLabel(name string) string {
+	if l, ok := ruleLabels[name]; ok {
+		return l
+	}
+	return name
+}
+
 // Defaults 返回首版 10 规则。
 func Defaults() []store.Rule {
 	return []store.Rule{
