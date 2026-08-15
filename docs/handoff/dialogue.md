@@ -189,3 +189,10 @@
 - **交付**：M1-g（bb8c399 + 818474f）——proto 5 方法（buf lint 过）、Go 服务（分页钳制/错误映射/Health 同源）、React 三视图（funding 矩阵/利率矩阵/IV/逆回购/倒计时 StatTile、触发器徽标、告警流+ack）、60s 轮询、深/浅主题；npm build + race + 真传输冒烟全过。
 - **决策层复审（5 项全批）**：①Store 接口 4 方法扩展（最小缺口，同 M1-f 模式）✅；②事实快照视图未做 ✅ 接受（M2 可并入机会面板）；③生成代码超限豁免 ✅（机器生成，源 91 行，同 arb proto 豁免先例）；④未评估规则投影 armed ✅（与引擎初态语义一致）；⑤web connect v2 + Go v1.20 跨版本 ✅（已冒烟验证）。
 - **下一步**：M1-h 派发（全链路接线联调：main.go 总装 + config.AlertEmail 清理 + Binance 换域试修 + check-lines 门禁脚本 + 30 分钟实测）。
+
+## #29 · 2026-08-15 · M1-h 交付复审 + M1 验收（决策层）
+- **参与方**：施工 agent #8、Claude
+- **交付**：M1-h（6cefbea + c9cdb91）——main.go 总装（10 源 + 心跳 + 规则 + 告警 + 仪表盘单端口）、webui 嵌入、check-lines 门禁接入 pre-commit、30 分钟实测（1,038 行 facts / 9 kind / 状态机 armed→active→resolved 全路径实测 / healthz 200 / 首页 200 / SIGTERM 干净退出 / 心跳值 ≤1.01 / defi 超时退避自愈）。
+- **决策层复审**：①armed 投影不落库 ✅（dialogue #28 裁决，双证据覆盖）；②SMTP 配置非法退出 → **D-032 裁决：降级禁用不崩进程**（与 PG 降级同口径）；③D-031 换域结论 ✅——data-api.binance.vision 无 fapi 路径（404 证据），fapi.binance.com 451 为间歇性已恢复 200 → 保留原域，Bybit/HTX 补源留待需要时另派。
+- **M1 验收结论**：**通过**（功能全链路达标；挂起项 = SMTP 真实投递待业主授权码、systemd 安装待业主）。
+- **下一步**：M1-i 补丁（SMTP 降级行为）→ 部署（业主两动作：SMTP 授权码 + systemd）→ M2。

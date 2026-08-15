@@ -120,6 +120,17 @@ type Rule struct {
 - 每 collector 独立 goroutine + 独立重试/退避；单源故障不影响其余。
 - 告警通道：邮件 SMTP（QQ/163）默认；微信 Server酱 可选。
 
+### 10.1 部署手册（M1-h 素材 · 决策层落档）
+
+| 步骤 | 命令/内容 |
+|------|----------|
+| ① 起库 | `docker compose up -d arbcn-postgres` |
+| ② 构建 web | `cd web && npm run build`（产出 dist，embed 依赖） |
+| ③ 构建二进制 | `go build -o bin/arbcn ./cmd/arbcn`（嵌入 dist） |
+| ④ systemd | `cp scripts/arbcn-monitor.service.example /etc/systemd/system/arbcn-monitor.service` → `systemctl daemon-reload` → `systemctl enable --now arbcn-monitor` |
+| SMTP 环境变量 | `ARBCN_SMTP_HOST/HOST:PORT/USER/PASS/FROM/TO`（逗号多收件人）；三要素（HOST/FROM/TO）齐才启动 Alerter；**D-032：配置非法 → 降级禁用不崩进程**，告警留在 alerts 表排队 |
+| 迁移 | 启动时自动执行（schema_migrations 记账，幂等） |
+
 ## 11. 测试硬要求（AGENTS.md §7.3 D 落地）
 
 - 对抗测试：喂合成 Fact 序列 → 断言对应告警必发；删规则引擎状态机关键行 → 测试必红。
