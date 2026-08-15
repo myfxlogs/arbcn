@@ -177,3 +177,9 @@
 - **交付**：M1-e（505d2af）——声明式 Cond 文法（avg/last/p25/chg + 窗口前移 @ + 缩放聚合 + 逻辑组合）、状态机（armed→active→resolved，转变才写 alerts）、首版 10 规则全落 + 幂等 Seed、每规则独立调度、对抗测试（删状态机关键行实测必红 + 生命周期全路径）、advisory 迁移锁修复（并行测试撞车）。race 全过。
 - **决策层复审（5 项全批）**：①阶梯陷阱用条件内显式 scope 聚合（更简等价）✅，数据源 = binance_ear 人工补录；②逆回购时点简化为 last_24h<=1 近似 ✅；③**元监控心跳契约定稿**（M1-f 必须遵守：kind=heartbeat、value=错过窗口数、发射方 = 独立定时器持续发射且值随停摆增长、阈值 >2）✅；④计价币种陷阱白名单 ETH/WBTC/BTC/WETH + chg ±0.5% ✅；⑤funding 预警 BTC,ETH 逐实体、TRX 不混入 ✅。
 - **下一步**：M1-f 派发（SMTP Alerter + 元监控，含未应用迁移 degraded 状态）。
+
+## #27 · 2026-08-15 · M1-f 交付复审（决策层）
+- **参与方**：施工 agent #6、Claude
+- **交付**：M1-f（88dbf9e + 12d7df1）——SMTP Alerter（假服务器全路径测试 + 失败重试 + at-least-once）、心跳发射方（独立定时器，停摆仍发射值增长，契约合规）、迁移 degraded（healthz 503 + reason 字段）、store 扩展、race 全过、三处删行必红实测。
+- **决策层复审（5 项全批）**：①STARTTLS/AUTH 真实联测留给业主凭据后人工验证，AUTH LOGIN 不预加（先核实再采纳）✅；②config.AlertEmail 遗留占位 → **M1-h 删除并改 SMTP.Configured() 门控** ✅；③心跳发射 30s 默认 ✅；④healthz reason 字段增量 ✅；⑤at-least-once 投递语义 ✅（重发优于漏报）。
+- **下一步**：M1-g 派发（Web 仪表盘最小集：机会面板/触发器/告警流；ConnectRPC 服务 + React）。
