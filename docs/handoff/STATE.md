@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **M2-a 前端交付（施工 agent #2）**——铃铛通知中心（未读红徽标 + 下拉抽屉逐条/全部 ack + 空态）+ 机会面板 freshness 状态点（live/stale/down，tooltip"最近更新 X 前 · 源间隔 Y · 状态 Z"；sourceForTile 纯映射）；轮询并入 useSnapshot 六 RPC 并行（不增定时器）。M2-a 全链路（后端 e26eea9 + 前端本提交）完成；M2-b（RMB 折算 + facts.md 导出 + 台账）下一项。
+- 现状: **M2-a 前端交付（施工 agent #2）**——铃铛通知中心（未读红徽标 + 下拉抽屉逐条/全部 ack + 空态）+ 机会面板 freshness 状态点（live/stale/down，tooltip"最近更新 X 前 · 源间隔 Y · 状态 Z"；sourceForTile 纯映射）；轮询并入 useSnapshot 六 RPC 并行（不增定时器）。M2-a 全链路（后端 e26eea9 + 前端 2afac33）完成；M2-b（RMB 折算 + facts.md 导出 + 台账）下一项。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
