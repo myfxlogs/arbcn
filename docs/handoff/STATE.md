@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: charter 完整（D-008~D-023）。方向 = 机会监控先行 + 加密为主（稳定币收益层 + 门禁套利层），币种敞口知情化（D-023）。待业主定混合比例（60/40 推荐 vs 75/25）。
+- 现状: M1-h 全链路接线完成并通过 30 分钟实测（10 源全活 / 1,038 行 facts / 状态机 armed→active→resolved 全路径）；D-031 保留 fapi.binance.com（data-api 无 fapi 路径，404 证据回报）。待业主定混合比例（60/40 推荐 vs 75/25）。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -34,5 +34,5 @@
   | 台账/归因 v2 | ⬜ | M2 |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
-- 下一步: M1-h 联调收口 → M1 验收（决策层全链路复审）→ 部署（systemd + SMTP 凭据人工验证）→ M2（RMB 折算 + facts.md 自动导出 + 台账）。
-- 清扫上翻: 本轮对话已落 dialogue.md（#16）；决策已落 decisions.md（D-026）；定稿结构已落 docs/design/01-plan.md §14。
+- 下一步: M1 验收（决策层全链路复审）→ 部署（systemd + SMTP 凭据人工验证，部署素材随 M1-h 回报）→ M2（RMB 折算 + facts.md 自动导出 + 台账）。
+- 清扫上翻: D-031 实测证据（data-api.binance.vision 仅 spot /api/v3，fapi 路径 404；fapi.binance.com 451 已恢复 200）已入 M1-h 回报，待决策层落 decisions/dialogue；armed 状态为投影不落库（dialogue #28 裁决）实测再确认。

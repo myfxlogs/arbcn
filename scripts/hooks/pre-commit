@@ -43,5 +43,11 @@ for f in $PROTECTED; do
   fi
 done
 
+# 3) 文件规模门禁（§7.3 C：>450 阻断 / >300 警告；生成代码与测试豁免）
+if ! "$ROOT/scripts/check-lines.sh"; then
+  echo "❌ check-lines 未过"
+  exit 1
+fi
+
 echo "✅ 通过"
 exit 0

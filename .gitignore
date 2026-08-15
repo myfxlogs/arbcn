@@ -1,6 +1,9 @@
 # Build artifacts
 out/
 dist/
+!web/dist/
+web/dist/*
+!web/dist/.gitkeep
 *.exe
 *.pb
 

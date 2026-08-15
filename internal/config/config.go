@@ -13,7 +13,7 @@ type Config struct {
 	Addr          string // HTTP 监听地址（ConnectRPC + 静态仪表盘共用单端口 :50052）
 	PGDSN         string // PostgreSQL DSN（arbcn-postgres 容器，宿主端口 5434）
 	MigrationsDir string // 版本化迁移 SQL 目录（启动时执行未记账文件，schema_migrations 记账）
-	AlertEmail    string // 遗留占位：M1-f 前无告警通道（main.go 仅日志打印）；M1-h 接线改读 SMTP.To 后删除
+	WebDir        string // 仪表盘静态资源目录（非空 = dev 模式覆盖嵌入 dist，见 arbcn/web 包）
 	SMTP          alert.SMTPConfig
 }
 
@@ -23,7 +23,7 @@ func Load() Config {
 		Addr:          getenv("ARBCN_ADDR", ":50052"),
 		PGDSN:         getenv("ARBCN_PG_DSN", "postgres://arbcn:arbcn@localhost:5434/arbcn?sslmode=disable"),
 		MigrationsDir: getenv("ARBCN_MIGRATIONS_DIR", "migrations"),
-		AlertEmail:    os.Getenv("ARBCN_ALERT_EMAIL"),
+		WebDir:        os.Getenv("ARBCN_WEB_DIR"),
 		SMTP: alert.SMTPConfig{
 			Host: os.Getenv("ARBCN_SMTP_HOST"),
 			User: os.Getenv("ARBCN_SMTP_USER"),

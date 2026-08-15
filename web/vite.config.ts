@@ -9,4 +9,9 @@ export default defineConfig({
       "/arbcn.dashboard.v1.DashboardService": "http://localhost:50052",
     },
   },
+  build: {
+    // 不整目录清空：dist/.gitkeep（git 跟踪，保证未构建树仍可 go build，
+    // 见 embed.go）须跨构建存活。旧哈希产物滞留无害（dist 内容 gitignored）。
+    emptyOutDir: false,
+  },
 });
