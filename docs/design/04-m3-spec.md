@@ -222,9 +222,10 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 - **包拆分（D-037 补充·派工前设计修正）**：key 承载层与 sim 核心**物理隔离**——
   - `internal/sim`：**保持零网络零密钥**（M3-a 复审验证的 D-010 属性不变，纵深防御：即使 sim 核心配置错误也碰不到网络/key）——纯计算：Driver 组装、结算数学、报告数学、Capital/白名单配置。
   - `internal/simtestnet`（新包）：**key 承载层**（S3 探针）——加载 `/etc/arbcn/arbcn-sim.env` `SIM_*`（独立文件 root:root 0600，D-034 ② 物理隔离），每 key 显式 `SIMULATED=true`，**缺标记拒绝加载**（对抗测试：删校验 → 必红）。
-- 只读探针（随 settle tick，key 可用时）：对 binance_testnet / okx_demo：
+- 只读探针（随 settle tick + 启动一次（D-040），key 可用时）：对 binance_testnet / okx_demo：
   - 公共行情 + 账户只读查询（余额/费率）验证 key 连通；
-  - 成功后经 `alert.Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx", now)` 登记 → 出现在 ListSourceHealth（复用 M2-a freshness 面，D-032 降级同口径：失败 warn 不退出）。
+  - 成功后经 `alert.Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx", now)` 登记 → 出现在 ListSourceHealth（复用 M2-a freshness 面，D-032 降级同口径：失败 warn 不退出）；
+  - **D-040 扩展**：余额解析为账户快照 → `sim_testnet_accounts`（migration 0006，source 主键 upsert，details JSONB）→ `GetTestnetAccounts` RPC → SimExec 测试网账户区。**equity_usd 口径因 source 而异（诚实标注）**：okx = `totalEq`（精确）；binance = 稳定币合计**近似**（无行情折算非稳定币，非全量净值）。启动一次探针让账户区立即有数据（不等 8h tick）。
   - **零下单路径**：simtestnet 不含任何下单端点代码；domains_test：sim 包**无任何网络域名**，simtestnet **仅 testnet/demo 域、无主网交易域、无 order/place 下单域**。
 - 依赖：testnet key 由业主提供（缺失 → S3 降级禁用 + degraded 提示，**不阻塞 S1/S2/S4/S5**）。
 

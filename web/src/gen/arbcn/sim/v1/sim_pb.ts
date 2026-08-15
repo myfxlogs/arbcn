@@ -16,7 +16,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file arbcn/sim/v1/sim.proto.
  */
 export const file_arbcn_sim_v1_sim: GenFile = /*@__PURE__*/
-  fileDesc("ChZhcmJjbi9zaW0vdjEvc2ltLnByb3RvEgxhcmJjbi5zaW0udjEi3QEKCFNpbU9yZGVyEgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCHNyY19ydWxlGAMgASgJEgwKBGtpbmQYBCABKAkSDQoFdmVudWUYBSABKAkSDgoGc3ltYm9sGAYgASgJEgwKBHNpZGUYByABKAkSCwoDcXR5GAggASgBEhEKCXJlZl9wcmljZRgJIAEoARIXCg9leHBlY3RlZF9zcHJlYWQYCiABKAESEgoKcmlza19mbGFncxgLIAMoCRIOCgZzdGF0dXMYDCABKAkSDAoEbm90ZRgNIAEoCSLUAQoLU2ltUG9zaXRpb24SCgoCaWQYASABKAMSEAoIb3JkZXJfaWQYAiABKAMSDQoFdHNfbXMYAyABKAMSDAoEa2luZBgEIAEoCRINCgV2ZW51ZRgFIAEoCRIOCgZzeW1ib2wYBiABKAkSDAoEc2lkZRgHIAEoCRILCgNxdHkYCCABKAESEQoJcmVmX3ByaWNlGAkgASgBEg8KB2Z1bmRpbmcYCiABKAgSCwoDcG5sGAsgASgBEg8KB3BubF9ybWIYDCABKAESDgoGc3RhdHVzGA0gASgJIiYKFExpc3RTaW1PcmRlcnNSZXF1ZXN0Eg4KBnN0YXR1cxgBIAEoCSI/ChVMaXN0U2ltT3JkZXJzUmVzcG9uc2USJgoGb3JkZXJzGAEgAygLMhYuYXJiY24uc2ltLnYxLlNpbU9yZGVyIiQKFkNvbmZpcm1TaW1PcmRlclJlcXVlc3QSCgoCaWQYASABKAMiUgoXQ29uZmlybVNpbU9yZGVyUmVzcG9uc2USJQoFb3JkZXIYASABKAsyFi5hcmJjbi5zaW0udjEuU2ltT3JkZXISEAoIYWNjZXB0ZWQYAiABKAgiGQoXTGlzdFNpbVBvc2l0aW9uc1JlcXVlc3QiSAoYTGlzdFNpbVBvc2l0aW9uc1Jlc3BvbnNlEiwKCXBvc2l0aW9ucxgBIAMoCzIZLmFyYmNuLnNpbS52MS5TaW1Qb3NpdGlvbiIVChNHZXRTaW1SZXBvcnRSZXF1ZXN0IkYKFEdldFNpbVJlcG9ydFJlc3BvbnNlEhAKCG1hcmtkb3duGAEgASgJEg4KBmV4aXN0cxgCIAEoCBIMCgRub3RlGAMgASgJMoADCgpTaW1TZXJ2aWNlElgKDUxpc3RTaW1PcmRlcnMSIi5hcmJjbi5zaW0udjEuTGlzdFNpbU9yZGVyc1JlcXVlc3QaIy5hcmJjbi5zaW0udjEuTGlzdFNpbU9yZGVyc1Jlc3BvbnNlEl4KD0NvbmZpcm1TaW1PcmRlchIkLmFyYmNuLnNpbS52MS5Db25maXJtU2ltT3JkZXJSZXF1ZXN0GiUuYXJiY24uc2ltLnYxLkNvbmZpcm1TaW1PcmRlclJlc3BvbnNlEmEKEExpc3RTaW1Qb3NpdGlvbnMSJS5hcmJjbi5zaW0udjEuTGlzdFNpbVBvc2l0aW9uc1JlcXVlc3QaJi5hcmJjbi5zaW0udjEuTGlzdFNpbVBvc2l0aW9uc1Jlc3BvbnNlElUKDEdldFNpbVJlcG9ydBIhLmFyYmNuLnNpbS52MS5HZXRTaW1SZXBvcnRSZXF1ZXN0GiIuYXJiY24uc2ltLnYxLkdldFNpbVJlcG9ydFJlc3BvbnNlQi5aLGFyYmNuL2ludGVybmFsL3NpbWFwaS9nZW4vYXJiY24vc2ltL3YxO3NpbXYxYgZwcm90bzM");
+  fileDesc("ChZhcmJjbi9zaW0vdjEvc2ltLnByb3RvEgxhcmJjbi5zaW0udjEi3QEKCFNpbU9yZGVyEgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCHNyY19ydWxlGAMgASgJEgwKBGtpbmQYBCABKAkSDQoFdmVudWUYBSABKAkSDgoGc3ltYm9sGAYgASgJEgwKBHNpZGUYByABKAkSCwoDcXR5GAggASgBEhEKCXJlZl9wcmljZRgJIAEoARIXCg9leHBlY3RlZF9zcHJlYWQYCiABKAESEgoKcmlza19mbGFncxgLIAMoCRIOCgZzdGF0dXMYDCABKAkSDAoEbm90ZRgNIAEoCSLUAQoLU2ltUG9zaXRpb24SCgoCaWQYASABKAMSEAoIb3JkZXJfaWQYAiABKAMSDQoFdHNfbXMYAyABKAMSDAoEa2luZBgEIAEoCRINCgV2ZW51ZRgFIAEoCRIOCgZzeW1ib2wYBiABKAkSDAoEc2lkZRgHIAEoCRILCgNxdHkYCCABKAESEQoJcmVmX3ByaWNlGAkgASgBEg8KB2Z1bmRpbmcYCiABKAgSCwoDcG5sGAsgASgBEg8KB3BubF9ybWIYDCABKAESDgoGc3RhdHVzGA0gASgJIiYKFExpc3RTaW1PcmRlcnNSZXF1ZXN0Eg4KBnN0YXR1cxgBIAEoCSI/ChVMaXN0U2ltT3JkZXJzUmVzcG9uc2USJgoGb3JkZXJzGAEgAygLMhYuYXJiY24uc2ltLnYxLlNpbU9yZGVyIiQKFkNvbmZpcm1TaW1PcmRlclJlcXVlc3QSCgoCaWQYASABKAMiUgoXQ29uZmlybVNpbU9yZGVyUmVzcG9uc2USJQoFb3JkZXIYASABKAsyFi5hcmJjbi5zaW0udjEuU2ltT3JkZXISEAoIYWNjZXB0ZWQYAiABKAgiGQoXTGlzdFNpbVBvc2l0aW9uc1JlcXVlc3QiSAoYTGlzdFNpbVBvc2l0aW9uc1Jlc3BvbnNlEiwKCXBvc2l0aW9ucxgBIAMoCzIZLmFyYmNuLnNpbS52MS5TaW1Qb3NpdGlvbiIVChNHZXRTaW1SZXBvcnRSZXF1ZXN0IkYKFEdldFNpbVJlcG9ydFJlc3BvbnNlEhAKCG1hcmtkb3duGAEgASgJEg4KBmV4aXN0cxgCIAEoCBIMCgRub3RlGAMgASgJIkoKFFRlc3RuZXRBY2NvdW50RGV0YWlsEg0KBWFzc2V0GAEgASgJEg8KB2JhbGFuY2UYAiABKAkSEgoKZXF1aXR5X3VzZBgDIAEoASKXAQoOVGVzdG5ldEFjY291bnQSDgoGc291cmNlGAEgASgJEhUKDWFjY291bnRfYWxpYXMYAiABKAkSEgoKZXF1aXR5X3VzZBgDIAEoARIzCgdkZXRhaWxzGAQgAygLMiIuYXJiY24uc2ltLnYxLlRlc3RuZXRBY2NvdW50RGV0YWlsEhUKDXVwZGF0ZWRfYXRfbXMYBSABKAMiGwoZR2V0VGVzdG5ldEFjY291bnRzUmVxdWVzdCJMChpHZXRUZXN0bmV0QWNjb3VudHNSZXNwb25zZRIuCghhY2NvdW50cxgBIAMoCzIcLmFyYmNuLnNpbS52MS5UZXN0bmV0QWNjb3VudDLpAwoKU2ltU2VydmljZRJYCg1MaXN0U2ltT3JkZXJzEiIuYXJiY24uc2ltLnYxLkxpc3RTaW1PcmRlcnNSZXF1ZXN0GiMuYXJiY24uc2ltLnYxLkxpc3RTaW1PcmRlcnNSZXNwb25zZRJeCg9Db25maXJtU2ltT3JkZXISJC5hcmJjbi5zaW0udjEuQ29uZmlybVNpbU9yZGVyUmVxdWVzdBolLmFyYmNuLnNpbS52MS5Db25maXJtU2ltT3JkZXJSZXNwb25zZRJhChBMaXN0U2ltUG9zaXRpb25zEiUuYXJiY24uc2ltLnYxLkxpc3RTaW1Qb3NpdGlvbnNSZXF1ZXN0GiYuYXJiY24uc2ltLnYxLkxpc3RTaW1Qb3NpdGlvbnNSZXNwb25zZRJVCgxHZXRTaW1SZXBvcnQSIS5hcmJjbi5zaW0udjEuR2V0U2ltUmVwb3J0UmVxdWVzdBoiLmFyYmNuLnNpbS52MS5HZXRTaW1SZXBvcnRSZXNwb25zZRJnChJHZXRUZXN0bmV0QWNjb3VudHMSJy5hcmJjbi5zaW0udjEuR2V0VGVzdG5ldEFjY291bnRzUmVxdWVzdBooLmFyYmNuLnNpbS52MS5HZXRUZXN0bmV0QWNjb3VudHNSZXNwb25zZUIuWixhcmJjbi9pbnRlcm5hbC9zaW1hcGkvZ2VuL2FyYmNuL3NpbS92MTtzaW12MWIGcHJvdG8z");
 
 /**
  * SimOrder 与 store.SimOrder 对应（04-m3-spec §1.1 建议订单；§10.2 C1）。
@@ -338,6 +338,115 @@ export const GetSimReportResponseSchema: GenMessage<GetSimReportResponse> = /*@_
   messageDesc(file_arbcn_sim_v1_sim, 9);
 
 /**
+ * TestnetAccountDetail 测试网账户单资产余额（D-040）。asset/balance 保留 API 原字符串
+ * （避免浮点精度）；equity_usd 有 USD 折算则填（okx eqUsd / binance 稳定币 = balance），
+ * 未知 = 0（前端标 —）。
+ *
+ * @generated from message arbcn.sim.v1.TestnetAccountDetail
+ */
+export type TestnetAccountDetail = Message<"arbcn.sim.v1.TestnetAccountDetail"> & {
+  /**
+   * @generated from field: string asset = 1;
+   */
+  asset: string;
+
+  /**
+   * @generated from field: string balance = 2;
+   */
+  balance: string;
+
+  /**
+   * @generated from field: double equity_usd = 3;
+   */
+  equityUsd: number;
+};
+
+/**
+ * Describes the message arbcn.sim.v1.TestnetAccountDetail.
+ * Use `create(TestnetAccountDetailSchema)` to create a new message.
+ */
+export const TestnetAccountDetailSchema: GenMessage<TestnetAccountDetail> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 10);
+
+/**
+ * TestnetAccount 测试网账户快照（D-040 测试网账户区数据面；探针余额查询结果）。
+ * equity_usd 口径因 source 而异（前端按 source 明示，诚实标注）：
+ *   sim_testnet_binance → 稳定币合计近似（无行情折算非稳定币，非全量净值）
+ *   sim_testnet_okx     → totalEq（交易所精确折算）
+ *
+ * @generated from message arbcn.sim.v1.TestnetAccount
+ */
+export type TestnetAccount = Message<"arbcn.sim.v1.TestnetAccount"> & {
+  /**
+   * sim_testnet_binance / sim_testnet_okx
+   *
+   * @generated from field: string source = 1;
+   */
+  source: string;
+
+  /**
+   * binance accountAlias / okx 无
+   *
+   * @generated from field: string account_alias = 2;
+   */
+  accountAlias: string;
+
+  /**
+   * @generated from field: double equity_usd = 3;
+   */
+  equityUsd: number;
+
+  /**
+   * @generated from field: repeated arbcn.sim.v1.TestnetAccountDetail details = 4;
+   */
+  details: TestnetAccountDetail[];
+
+  /**
+   * 最近余额查询成功时刻（毫秒，前端 bigint 承载）
+   *
+   * @generated from field: int64 updated_at_ms = 5;
+   */
+  updatedAtMs: bigint;
+};
+
+/**
+ * Describes the message arbcn.sim.v1.TestnetAccount.
+ * Use `create(TestnetAccountSchema)` to create a new message.
+ */
+export const TestnetAccountSchema: GenMessage<TestnetAccount> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 11);
+
+/**
+ * @generated from message arbcn.sim.v1.GetTestnetAccountsRequest
+ */
+export type GetTestnetAccountsRequest = Message<"arbcn.sim.v1.GetTestnetAccountsRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.sim.v1.GetTestnetAccountsRequest.
+ * Use `create(GetTestnetAccountsRequestSchema)` to create a new message.
+ */
+export const GetTestnetAccountsRequestSchema: GenMessage<GetTestnetAccountsRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 12);
+
+/**
+ * @generated from message arbcn.sim.v1.GetTestnetAccountsResponse
+ */
+export type GetTestnetAccountsResponse = Message<"arbcn.sim.v1.GetTestnetAccountsResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.sim.v1.TestnetAccount accounts = 1;
+   */
+  accounts: TestnetAccount[];
+};
+
+/**
+ * Describes the message arbcn.sim.v1.GetTestnetAccountsResponse.
+ * Use `create(GetTestnetAccountsResponseSchema)` to create a new message.
+ */
+export const GetTestnetAccountsResponseSchema: GenMessage<GetTestnetAccountsResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 13);
+
+/**
  * SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
  *
  * @generated from service arbcn.sim.v1.SimService
@@ -374,6 +483,14 @@ export const SimService: GenService<{
     methodKind: "unary";
     input: typeof GetSimReportRequestSchema;
     output: typeof GetSimReportResponseSchema;
+  },
+  /**
+   * @generated from rpc arbcn.sim.v1.SimService.GetTestnetAccounts
+   */
+  getTestnetAccounts: {
+    methodKind: "unary";
+    input: typeof GetTestnetAccountsRequestSchema;
+    output: typeof GetTestnetAccountsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_arbcn_sim_v1_sim, 0);

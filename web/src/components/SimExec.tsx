@@ -1,7 +1,11 @@
 import { Fragment, useState } from "react";
 
 import { fmtAmount } from "../format";
-import type { SimOrder, SimPosition } from "../gen/arbcn/sim/v1/sim_pb";
+import type {
+  SimOrder,
+  SimPosition,
+  TestnetAccount,
+} from "../gen/arbcn/sim/v1/sim_pb";
 import { useSim } from "../hooks";
 
 // —— 常量（C5 可检查锚点：SimExec.tsx 含固定 SIMULATED / 「模拟」渲染，grep 断言）——
@@ -255,6 +259,78 @@ function PositionZone({ positions }: { positions: SimPosition[] }) {
   );
 }
 
+// AccountCard 单账户快照卡（D-040 测试网账户区）。equity_usd 口径按 source 明示
+// （诚实标注）：binance = 稳定币合计近似（非全量净值，非稳定币无行情折算标 —）；
+// okx = totalEq（交易所精确折算）。
+function AccountCard({ a }: { a: TestnetAccount }) {
+  const isBinance = a.source === "sim_testnet_binance";
+  const name = isBinance ? "Binance Testnet" : "OKX Demo";
+  const eqLabel = isBinance
+    ? "权益 USD（稳定币合计近似 · 非全量净值）"
+    : "权益 USD（totalEq 精确）";
+  const updated = new Date(Number(a.updatedAtMs));
+  return (
+    <div className="testnet-account">
+      <h3>
+        {name} <SimTag />
+        {a.accountAlias ? <span className="muted">· {a.accountAlias}</span> : null}
+      </h3>
+      <p className="account-equity">
+        <span className="muted">{eqLabel}：</span>
+        <strong className="num">{fmtAmount(a.equityUsd)}</strong>
+      </p>
+      <p className="muted">
+        更新：{Number.isNaN(updated.getTime()) ? "—" : updated.toLocaleString()}
+      </p>
+      {a.details.length === 0 ? (
+        <p className="empty">暂无余额明细</p>
+      ) : (
+        <table className="rows">
+          <thead>
+            <tr>
+              <th scope="col">资产</th>
+              <th scope="col">余额</th>
+              <th scope="col">USD 折算</th>
+            </tr>
+          </thead>
+          <tbody>
+            {a.details.map((d) => (
+              <tr key={d.asset}>
+                <th scope="row">{d.asset}</th>
+                <td className="num">{d.balance || "—"}</td>
+                <td className={d.equityUsd === 0 ? "muted" : "num"}>
+                  {d.equityUsd === 0 ? "—" : fmtAmount(d.equityUsd)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// TestnetAccountZone 测试网账户区（D-040）：两路 testnet 模拟资金 + 账户信息。
+// 无数据 = 探针未启用 / 首次余额查询未完成（诚实空态，不编造）。
+function TestnetAccountZone({ accounts }: { accounts: TestnetAccount[] }) {
+  return (
+    <section className="card" aria-labelledby="sim-accounts-title">
+      <h2 id="sim-accounts-title">
+        测试网账户 <SimTag />
+      </h2>
+      {accounts.length === 0 ? (
+        <p className="empty">暂无测试网账户数据（探针未启用或首次余额查询未完成，8h tick 自动刷新）</p>
+      ) : (
+        <div className="testnet-accounts">
+          {accounts.map((a) => (
+            <AccountCard key={a.source} a={a} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ReportZone 对账报告入口：markdown 存在 → 渲染；否则显示生成周期说明。
 function ReportZone({ markdown, exists, note }: { markdown: string; exists: boolean; note: string }) {
   return (
@@ -272,7 +348,7 @@ function ReportZone({ markdown, exists, note }: { markdown: string; exists: bool
 // SimExec 模拟执行面板（04-m3-spec §10.5 C4）。确认后仍是模拟（SIMULATED），
 // 无任何通往真实资金的按钮/路径（§6/§8，不赌原则 D-019）。
 export function SimExec() {
-  const { orders, positions, report, error, confirm, reload } = useSim();
+  const { orders, positions, report, accounts, error, confirm, reload } = useSim();
   const [pending, setPending] = useState<bigint | null>(null);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
@@ -309,6 +385,7 @@ export function SimExec() {
 
       <OrderZone orders={orders} pending={pending} onConfirm={(id) => void onConfirm(id)} />
       <PositionZone positions={positions} />
+      <TestnetAccountZone accounts={accounts} />
       <ReportZone
         markdown={report?.markdown ?? ""}
         exists={report?.exists ?? false}

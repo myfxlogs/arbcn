@@ -375,3 +375,15 @@
 - **已知 degrade**：探针随 8h settle tick 跑，首次 heartbeat 登记待下一个 tick（key 连通已由 curl 实测证明，自动化登记等自然 tick）。
 - **决策号**：无新 D#（探针实现修正，practices #12 补协议格式教训）。
 - **下一步**：观察 8h tick 探针 heartbeat 登记（ListSourceHealth 应见 sim_testnet_binance/okx freshness）；S3 全链路闭环。
+
+## #49 · 2026-08-16 · 测试网账户区需求确认 + D-040 施工部署 · 业主 → 决策层
+- **参与方**：业主（提问/选型）、Claude（决策层，本 feature 直接施工——非大里程碑，D-039 同量级）
+- **议题**：业主提问「不显示两个账户的模拟资金和账户信息？」——S3 探针只验证连通（heartbeat），余额 body 丢弃。
+- **结论**：业主选型「SimExec tab 加测试网账户区」（对照项：ListSourceHealth 只显示 freshness 不含资金，不满足"账户信息"）。
+- **处置（D-040）**：
+  - 探针 `Run` 返回余额快照（binance `fapi/v2/balance` 稳定币合计近似；okx `account/balance` totalEq 精确）→ 新表 `sim_testnet_accounts`（0006）→ `GetTestnetAccounts` RPC → SimExec 账户区（SIMULATED 标注 + 权益/别名/资产明细）。
+  - main.go 启动即探针一次（不等 8h tick）→ 重启后账户区立即有真实数据。
+  - 对抗测试：删解析/删稳定币合计/删 totalEq → 必红（已实测 2 处红）。
+  - **部署实测**：binance equity 10000（USDT 5000+USDC 5000，非稳定币如实标 —）；okx equity 80673.55（BTC 1/OKB 100/USDT 5000/ETH 1，与业主核实的虚拟资金一致）；**ListSourceHealth 首次 heartbeat 已登记**（此前待 8h tick 的观察项随启动探针顺带闭环）；ListFacts 零回归。
+- **决策号**：D-040。
+- **下一步**：S3 全链路闭环（探针 + 账户区 + 结算正交）；出入金通道验证（业主）。

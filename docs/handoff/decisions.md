@@ -251,3 +251,13 @@
   ④ 未知 kind → fail-closed 拒（与 SignalToOrder L1 同口径）。
 - **理由**：fail-closed 语义**保持不放宽**——每类订单的**权威源**查不到 → 拒（宁缺毋滥，与生成侧同口径），只是把"权威源"从"ticker/funding"修正为按 kind 的正确事实源（reverse_repo / defi_rate 本就存在且是生成侧权威）。repo/carry 恒拒 = 确认流功能残缺，不是"从严"；不赌原则（D-019）要求 repo 天然无方向敞口，其唯一漂移风险（锁定利率变化）已由 reverse_repo 检查覆盖。
 - **结论**：spec §10.3/§10.4/C2 表格同步更新；service.go `confirmDrift` + 7 个新对抗测试（repo accept/reject/fail-closed + carry accept/ticker-drift/spread-reject/fail-closed，删 kind 分派必红）。全量测试 + vet 绿。
+
+## D-040 SimExec 测试网账户区（探针余额持久化 + RPC + UI）（2026-08-16）
+- **背景**：业主提问「不显示两个账户的模拟资金和账户信息？」——S3 探针只做连通性验证（余额 body 丢弃、仅 Record heartbeat），测试网账户区数据面缺失。业主选型「SimExec tab 加测试网账户区」（对话 #49）。
+- **决策**：
+  ① **探针 Run 返回余额快照**（`probe.Run(ctx) ([]store.TestnetAccount, error)`）：成功路解析余额返回 + 照旧 Record；失败路仍返回聚合错误（独立判断语义保持），调用方按快照持久化、按错误 warn（D-032 同口径）。零下单路径不变。
+  ② **快照持久化**：新表 `sim_testnet_accounts`（migration 0006，source 主键 upsert，details JSONB）→ `store.UpsertTestnetAccount`/`ListTestnetAccounts`。
+  ③ **equity_usd 口径因 source 而异（诚实标注，前端明示）**：OKX = `totalEq`（交易所精确折算）；binance = 稳定币（USDT/USDC/BUSD/FDUSD）合计**近似**（无行情折算非稳定币，非全量净值）。不做多一层的行情估值查询——测试网账户区用途是"目测虚拟资金"，稳定币合计 + 原值余额已够；全量净值若要精确是另一数据面（未来 D#）。
+  ④ **接线**：main.go 启动即探针一次（不等 8h tick，账户区立即有数据）+ 8h tick 刷新；sim.proto 加 `GetTestnetAccounts` RPC（独立域 codegen）；SimExec.tsx 加测试网账户区（SIMULATED 标注 + 每账户卡：权益/别名/更新时间/资产明细表）。
+- **理由**：与 S3 定位一致——testnet 只做 key 隔离 + 连通验证；余额展示是连通验证的自然延伸（数据已返回，只是此前丢弃）。诚实口径优先：binance 无行情估值就不编造全量净值（宁可标"近似"）。
+- **结论**：migration 0006 + store 两方法 + probe 解析（binance 稳定币近似 / okx totalEq）+ GetTestnetAccounts RPC + main.go 启动探针持久化 + SimExec 账户区 + 对抗测试（删解析/删合计必红）。部署实测：两路真实虚拟资金返回（binance equity 10000=USDT+USDC；okx totalEq 80673.55，BTC 1/OKB 100/USDT 5000/ETH 1）；ListSourceHealth 首次 heartbeat 已登记；全量测试 + vet 绿。

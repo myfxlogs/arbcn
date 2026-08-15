@@ -229,10 +229,26 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 	}
 
 	// M3-b §9.7 ④/⑤：8h 结算循环（simDriver 非 nil 时）+ testnet 探针随 settle tick。
+	// D-040：探针 Run 返回余额快照 → persist 持久化（sim_testnet_accounts，测试网账户区
+	// 数据面）；启动即探针一次（不等 8h tick，账户区立即有数据）。失败 warn 不退出（D-032）。
 	if simDriver != nil {
 		if probeOn {
 			if probe, ok := simtestnet.NewProbe(simnetCfg, hb); ok {
-				simDriver.Probe = probe.Run
+				persist := func(ctx context.Context) error {
+					accts, err := probe.Run(ctx)
+					for _, a := range accts {
+						if perr := st.UpsertTestnetAccount(ctx, a); perr != nil {
+							err = errors.Join(err, fmt.Errorf("persist testnet account %s: %w", a.Source, perr))
+						}
+					}
+					return err
+				}
+				simDriver.Probe = persist
+				go func() {
+					if err := persist(ctx); err != nil {
+						slog.Warn("testnet probe startup failed", "err", err)
+					}
+				}()
 			}
 		}
 		go func() { errCh <- simDriver.RunSettleLoop(ctx) }()

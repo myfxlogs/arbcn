@@ -63,10 +63,35 @@ message GetSimReportResponse {
   string note = 3;            // 未生成时说明"周频报告每 7×8h tick 渲染"
 }
 
+// TestnetAccountDetail 测试网账户单资产余额（D-040）。asset/balance 保留 API 原字符串
+// （避免浮点精度）；equity_usd 有 USD 折算则填（okx eqUsd / binance 稳定币 = balance），
+// 未知 = 0（前端标 —）。
+message TestnetAccountDetail {
+  string asset = 1;
+  string balance = 2;
+  double equity_usd = 3;
+}
+
+// TestnetAccount 测试网账户快照（D-040 测试网账户区数据面；探针余额查询结果）。
+// equity_usd 口径因 source 而异（前端按 source 明示，诚实标注）：
+//   sim_testnet_binance → 稳定币合计近似（无行情折算非稳定币，非全量净值）
+//   sim_testnet_okx     → totalEq（交易所精确折算）
+message TestnetAccount {
+  string source = 1;          // sim_testnet_binance / sim_testnet_okx
+  string account_alias = 2;   // binance accountAlias / okx 无
+  double equity_usd = 3;
+  repeated TestnetAccountDetail details = 4;
+  int64 updated_at_ms = 5;    // 最近余额查询成功时刻（毫秒，前端 bigint 承载）
+}
+
+message GetTestnetAccountsRequest {}
+message GetTestnetAccountsResponse { repeated TestnetAccount accounts = 1; }
+
 // SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
 service SimService {
   rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
   rpc ConfirmSimOrder(ConfirmSimOrderRequest) returns (ConfirmSimOrderResponse);
   rpc ListSimPositions(ListSimPositionsRequest) returns (ListSimPositionsResponse);
   rpc GetSimReport(GetSimReportRequest) returns (GetSimReportResponse);
+  rpc GetTestnetAccounts(GetTestnetAccountsRequest) returns (GetTestnetAccountsResponse);
 }

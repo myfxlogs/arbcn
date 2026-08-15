@@ -156,6 +156,26 @@ type SimPosition struct {
 	UpdatedAt time.Time // 最近结算时刻（读取时回填）
 }
 
+// TestnetAccount 是 sim_testnet_accounts 表的一行（D-040 测试网账户区数据面）。
+// Source 是主键（sim_testnet_binance / sim_testnet_okx）；UpdatedAt 读取时回填。
+// EquityUSD 口径因 Source 而异（诚实标注，前端明示）：binance = 稳定币合计近似
+// （无行情折算非稳定币），okx = totalEq（交易所精确）。
+type TestnetAccount struct {
+	Source       string                 // 探针源（simtestnet.SourceBinanceTestnet / SourceOKXDemo）
+	AccountAlias string                 // binance accountAlias / okx 无
+	EquityUSD    float64                // 折合 USD（口径见上）
+	Details      []TestnetAccountDetail // 每资产余额明细（JSONB）
+	UpdatedAt    time.Time              // 最近一次余额查询成功时刻（读取时回填）
+}
+
+// TestnetAccountDetail 单资产余额。Asset/Balance 保留 API 原字符串（避免浮点精度）；
+// EquityUSD 有 USD 折算则填（okx eqUsd / binance 稳定币 = balance），未知 = 0（前端标 —）。
+type TestnetAccountDetail struct {
+	Asset     string
+	Balance   string
+	EquityUSD float64
+}
+
 // SimOrder 值域（与 DB CHECK / spec 一致）。
 const (
 	SimStatusSuggested = "suggested" // 生成时默认（门禁全过）
@@ -250,6 +270,11 @@ type Store interface {
 	// TodaySimNotional 当日（[当日 00:00, now) 本地日）活跃订单
 	// （suggested/confirmed/filled）名义和——DAILY_OVER 门禁数据面（04-m3-spec §4）。
 	TodaySimNotional(ctx context.Context, now time.Time) (float64, error)
+	// UpsertTestnetAccount 幂等 upsert 测试网账户快照（source 主键；updated_at = DB now()）。
+	// Source 必填；Details 保留原序（D-040 探针成功路径）。
+	UpsertTestnetAccount(ctx context.Context, a TestnetAccount) error
+	// ListTestnetAccounts 返回全部账户快照（source ASC）；无数据 = 空切片。
+	ListTestnetAccounts(ctx context.Context) ([]TestnetAccount, error)
 	// InsertSimPosition 追加模拟成交腿；返回新行 id。order_id 必填，qty ≤ 0 拒绝。
 	InsertSimPosition(ctx context.Context, p SimPosition) (int64, error)
 	// ListSimPositions 按 ts DESC, id DESC 分页返回持仓腿（稳定排序）。

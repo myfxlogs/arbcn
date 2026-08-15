@@ -69,6 +69,12 @@ func (f *fakeStore) InsertSimOrder(context.Context, store.SimOrder) (int64, erro
 func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
 	panic("fakeStore: ListSimOrders not used")
 }
+func (f *fakeStore) UpsertTestnetAccount(context.Context, store.TestnetAccount) error {
+	panic("fakeStore: UpsertTestnetAccount not used")
+}
+func (f *fakeStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount, error) {
+	panic("fakeStore: ListTestnetAccounts not used")
+}
 func (f *fakeStore) GetSimOrder(context.Context, int64) (store.SimOrder, error) {
 	panic("fakeStore: GetSimOrder not used")
 }

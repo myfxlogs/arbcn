@@ -20,18 +20,20 @@ import type {
   GetSimReportResponse,
   SimOrder,
   SimPosition,
+  TestnetAccount,
 } from "./gen/arbcn/sim/v1/sim_pb";
 
 // POLL_MS 快照轮询间隔（只读数据，60s 足够跟住 collector 节奏）。
 const POLL_MS = 60_000;
 
-// useSim 模拟执行面板（M3-c C4，04-m3-spec §10.5）：建议订单 + 模拟持仓 + 对账报告。
-// 确认走 SimService.ConfirmSimOrder（后端唯一写路径，suggested 守卫原子成交）；
-// 确认成功后本地刷新三区。SIMULATED 徽标由 SimExec 组件固定渲染（可检查）。
+// useSim 模拟执行面板（M3-c C4，04-m3-spec §10.5）：建议订单 + 模拟持仓 + 对账报告
+// + 测试网账户（D-040）。确认走 SimService.ConfirmSimOrder（后端唯一写路径，suggested
+// 守卫原子成交）；确认成功后本地刷新各区。SIMULATED 徽标由 SimExec 组件固定渲染（可检查）。
 export function useSim(): {
   orders: SimOrder[];
   positions: SimPosition[];
   report: GetSimReportResponse | null;
+  accounts: TestnetAccount[];
   error: string;
   confirm: (id: bigint) => Promise<boolean>;
   reload: () => void;
@@ -39,6 +41,7 @@ export function useSim(): {
   const [orders, setOrders] = useState<SimOrder[]>([]);
   const [positions, setPositions] = useState<SimPosition[]>([]);
   const [report, setReport] = useState<GetSimReportResponse | null>(null);
+  const [accounts, setAccounts] = useState<TestnetAccount[]>([]);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
 
@@ -46,15 +49,17 @@ export function useSim(): {
     let alive = true;
     const load = async () => {
       try {
-        const [ordersRes, positionsRes, reportRes] = await Promise.all([
+        const [ordersRes, positionsRes, reportRes, accountsRes] = await Promise.all([
           sim.listSimOrders({}),
           sim.listSimPositions({}),
           sim.getSimReport({}),
+          sim.getTestnetAccounts({}),
         ]);
         if (!alive) return;
         setOrders(ordersRes.orders);
         setPositions(positionsRes.positions);
         setReport(reportRes);
+        setAccounts(accountsRes.accounts);
         setError("");
       } catch (e) {
         if (!alive) return;
@@ -70,7 +75,7 @@ export function useSim(): {
   const confirm = useCallback(async (id: bigint): Promise<boolean> => {
     try {
       const res = await sim.confirmSimOrder({ id });
-      setTick((n) => n + 1); // 刷新三区（订单状态 + 新持仓）
+      setTick((n) => n + 1); // 刷新各区（订单状态 + 新持仓）
       setError("");
       return res.accepted;
     } catch (e) {
@@ -83,6 +88,7 @@ export function useSim(): {
     orders,
     positions,
     report,
+    accounts,
     error,
     confirm,
     reload: useCallback(() => setTick((n) => n + 1), []),

@@ -673,6 +673,230 @@ func (x *GetSimReportResponse) GetNote() string {
 	return ""
 }
 
+// TestnetAccountDetail 测试网账户单资产余额（D-040）。asset/balance 保留 API 原字符串
+// （避免浮点精度）；equity_usd 有 USD 折算则填（okx eqUsd / binance 稳定币 = balance），
+// 未知 = 0（前端标 —）。
+type TestnetAccountDetail struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Asset         string                 `protobuf:"bytes,1,opt,name=asset,proto3" json:"asset,omitempty"`
+	Balance       string                 `protobuf:"bytes,2,opt,name=balance,proto3" json:"balance,omitempty"`
+	EquityUsd     float64                `protobuf:"fixed64,3,opt,name=equity_usd,json=equityUsd,proto3" json:"equity_usd,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestnetAccountDetail) Reset() {
+	*x = TestnetAccountDetail{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestnetAccountDetail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestnetAccountDetail) ProtoMessage() {}
+
+func (x *TestnetAccountDetail) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestnetAccountDetail.ProtoReflect.Descriptor instead.
+func (*TestnetAccountDetail) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *TestnetAccountDetail) GetAsset() string {
+	if x != nil {
+		return x.Asset
+	}
+	return ""
+}
+
+func (x *TestnetAccountDetail) GetBalance() string {
+	if x != nil {
+		return x.Balance
+	}
+	return ""
+}
+
+func (x *TestnetAccountDetail) GetEquityUsd() float64 {
+	if x != nil {
+		return x.EquityUsd
+	}
+	return 0
+}
+
+// TestnetAccount 测试网账户快照（D-040 测试网账户区数据面；探针余额查询结果）。
+// equity_usd 口径因 source 而异（前端按 source 明示，诚实标注）：
+//
+//	sim_testnet_binance → 稳定币合计近似（无行情折算非稳定币，非全量净值）
+//	sim_testnet_okx     → totalEq（交易所精确折算）
+type TestnetAccount struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Source        string                  `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`                                 // sim_testnet_binance / sim_testnet_okx
+	AccountAlias  string                  `protobuf:"bytes,2,opt,name=account_alias,json=accountAlias,proto3" json:"account_alias,omitempty"` // binance accountAlias / okx 无
+	EquityUsd     float64                 `protobuf:"fixed64,3,opt,name=equity_usd,json=equityUsd,proto3" json:"equity_usd,omitempty"`
+	Details       []*TestnetAccountDetail `protobuf:"bytes,4,rep,name=details,proto3" json:"details,omitempty"`
+	UpdatedAtMs   int64                   `protobuf:"varint,5,opt,name=updated_at_ms,json=updatedAtMs,proto3" json:"updated_at_ms,omitempty"` // 最近余额查询成功时刻（毫秒，前端 bigint 承载）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestnetAccount) Reset() {
+	*x = TestnetAccount{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestnetAccount) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestnetAccount) ProtoMessage() {}
+
+func (x *TestnetAccount) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TestnetAccount.ProtoReflect.Descriptor instead.
+func (*TestnetAccount) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *TestnetAccount) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *TestnetAccount) GetAccountAlias() string {
+	if x != nil {
+		return x.AccountAlias
+	}
+	return ""
+}
+
+func (x *TestnetAccount) GetEquityUsd() float64 {
+	if x != nil {
+		return x.EquityUsd
+	}
+	return 0
+}
+
+func (x *TestnetAccount) GetDetails() []*TestnetAccountDetail {
+	if x != nil {
+		return x.Details
+	}
+	return nil
+}
+
+func (x *TestnetAccount) GetUpdatedAtMs() int64 {
+	if x != nil {
+		return x.UpdatedAtMs
+	}
+	return 0
+}
+
+type GetTestnetAccountsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTestnetAccountsRequest) Reset() {
+	*x = GetTestnetAccountsRequest{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTestnetAccountsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTestnetAccountsRequest) ProtoMessage() {}
+
+func (x *GetTestnetAccountsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTestnetAccountsRequest.ProtoReflect.Descriptor instead.
+func (*GetTestnetAccountsRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{12}
+}
+
+type GetTestnetAccountsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Accounts      []*TestnetAccount      `protobuf:"bytes,1,rep,name=accounts,proto3" json:"accounts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetTestnetAccountsResponse) Reset() {
+	*x = GetTestnetAccountsResponse{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetTestnetAccountsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetTestnetAccountsResponse) ProtoMessage() {}
+
+func (x *GetTestnetAccountsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetTestnetAccountsResponse.ProtoReflect.Descriptor instead.
+func (*GetTestnetAccountsResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetTestnetAccountsResponse) GetAccounts() []*TestnetAccount {
+	if x != nil {
+		return x.Accounts
+	}
+	return nil
+}
+
 var File_arbcn_sim_v1_sim_proto protoreflect.FileDescriptor
 
 const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
@@ -725,13 +949,29 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	"\x14GetSimReportResponse\x12\x1a\n" +
 	"\bmarkdown\x18\x01 \x01(\tR\bmarkdown\x12\x16\n" +
 	"\x06exists\x18\x02 \x01(\bR\x06exists\x12\x12\n" +
-	"\x04note\x18\x03 \x01(\tR\x04note2\x80\x03\n" +
+	"\x04note\x18\x03 \x01(\tR\x04note\"e\n" +
+	"\x14TestnetAccountDetail\x12\x14\n" +
+	"\x05asset\x18\x01 \x01(\tR\x05asset\x12\x18\n" +
+	"\abalance\x18\x02 \x01(\tR\abalance\x12\x1d\n" +
+	"\n" +
+	"equity_usd\x18\x03 \x01(\x01R\tequityUsd\"\xce\x01\n" +
+	"\x0eTestnetAccount\x12\x16\n" +
+	"\x06source\x18\x01 \x01(\tR\x06source\x12#\n" +
+	"\raccount_alias\x18\x02 \x01(\tR\faccountAlias\x12\x1d\n" +
+	"\n" +
+	"equity_usd\x18\x03 \x01(\x01R\tequityUsd\x12<\n" +
+	"\adetails\x18\x04 \x03(\v2\".arbcn.sim.v1.TestnetAccountDetailR\adetails\x12\"\n" +
+	"\rupdated_at_ms\x18\x05 \x01(\x03R\vupdatedAtMs\"\x1b\n" +
+	"\x19GetTestnetAccountsRequest\"V\n" +
+	"\x1aGetTestnetAccountsResponse\x128\n" +
+	"\baccounts\x18\x01 \x03(\v2\x1c.arbcn.sim.v1.TestnetAccountR\baccounts2\xe9\x03\n" +
 	"\n" +
 	"SimService\x12X\n" +
 	"\rListSimOrders\x12\".arbcn.sim.v1.ListSimOrdersRequest\x1a#.arbcn.sim.v1.ListSimOrdersResponse\x12^\n" +
 	"\x0fConfirmSimOrder\x12$.arbcn.sim.v1.ConfirmSimOrderRequest\x1a%.arbcn.sim.v1.ConfirmSimOrderResponse\x12a\n" +
 	"\x10ListSimPositions\x12%.arbcn.sim.v1.ListSimPositionsRequest\x1a&.arbcn.sim.v1.ListSimPositionsResponse\x12U\n" +
-	"\fGetSimReport\x12!.arbcn.sim.v1.GetSimReportRequest\x1a\".arbcn.sim.v1.GetSimReportResponseB.Z,arbcn/internal/simapi/gen/arbcn/sim/v1;simv1b\x06proto3"
+	"\fGetSimReport\x12!.arbcn.sim.v1.GetSimReportRequest\x1a\".arbcn.sim.v1.GetSimReportResponse\x12g\n" +
+	"\x12GetTestnetAccounts\x12'.arbcn.sim.v1.GetTestnetAccountsRequest\x1a(.arbcn.sim.v1.GetTestnetAccountsResponseB.Z,arbcn/internal/simapi/gen/arbcn/sim/v1;simv1b\x06proto3"
 
 var (
 	file_arbcn_sim_v1_sim_proto_rawDescOnce sync.Once
@@ -745,36 +985,44 @@ func file_arbcn_sim_v1_sim_proto_rawDescGZIP() []byte {
 	return file_arbcn_sim_v1_sim_proto_rawDescData
 }
 
-var file_arbcn_sim_v1_sim_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_arbcn_sim_v1_sim_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_arbcn_sim_v1_sim_proto_goTypes = []any{
-	(*SimOrder)(nil),                 // 0: arbcn.sim.v1.SimOrder
-	(*SimPosition)(nil),              // 1: arbcn.sim.v1.SimPosition
-	(*ListSimOrdersRequest)(nil),     // 2: arbcn.sim.v1.ListSimOrdersRequest
-	(*ListSimOrdersResponse)(nil),    // 3: arbcn.sim.v1.ListSimOrdersResponse
-	(*ConfirmSimOrderRequest)(nil),   // 4: arbcn.sim.v1.ConfirmSimOrderRequest
-	(*ConfirmSimOrderResponse)(nil),  // 5: arbcn.sim.v1.ConfirmSimOrderResponse
-	(*ListSimPositionsRequest)(nil),  // 6: arbcn.sim.v1.ListSimPositionsRequest
-	(*ListSimPositionsResponse)(nil), // 7: arbcn.sim.v1.ListSimPositionsResponse
-	(*GetSimReportRequest)(nil),      // 8: arbcn.sim.v1.GetSimReportRequest
-	(*GetSimReportResponse)(nil),     // 9: arbcn.sim.v1.GetSimReportResponse
+	(*SimOrder)(nil),                   // 0: arbcn.sim.v1.SimOrder
+	(*SimPosition)(nil),                // 1: arbcn.sim.v1.SimPosition
+	(*ListSimOrdersRequest)(nil),       // 2: arbcn.sim.v1.ListSimOrdersRequest
+	(*ListSimOrdersResponse)(nil),      // 3: arbcn.sim.v1.ListSimOrdersResponse
+	(*ConfirmSimOrderRequest)(nil),     // 4: arbcn.sim.v1.ConfirmSimOrderRequest
+	(*ConfirmSimOrderResponse)(nil),    // 5: arbcn.sim.v1.ConfirmSimOrderResponse
+	(*ListSimPositionsRequest)(nil),    // 6: arbcn.sim.v1.ListSimPositionsRequest
+	(*ListSimPositionsResponse)(nil),   // 7: arbcn.sim.v1.ListSimPositionsResponse
+	(*GetSimReportRequest)(nil),        // 8: arbcn.sim.v1.GetSimReportRequest
+	(*GetSimReportResponse)(nil),       // 9: arbcn.sim.v1.GetSimReportResponse
+	(*TestnetAccountDetail)(nil),       // 10: arbcn.sim.v1.TestnetAccountDetail
+	(*TestnetAccount)(nil),             // 11: arbcn.sim.v1.TestnetAccount
+	(*GetTestnetAccountsRequest)(nil),  // 12: arbcn.sim.v1.GetTestnetAccountsRequest
+	(*GetTestnetAccountsResponse)(nil), // 13: arbcn.sim.v1.GetTestnetAccountsResponse
 }
 var file_arbcn_sim_v1_sim_proto_depIdxs = []int32{
-	0, // 0: arbcn.sim.v1.ListSimOrdersResponse.orders:type_name -> arbcn.sim.v1.SimOrder
-	0, // 1: arbcn.sim.v1.ConfirmSimOrderResponse.order:type_name -> arbcn.sim.v1.SimOrder
-	1, // 2: arbcn.sim.v1.ListSimPositionsResponse.positions:type_name -> arbcn.sim.v1.SimPosition
-	2, // 3: arbcn.sim.v1.SimService.ListSimOrders:input_type -> arbcn.sim.v1.ListSimOrdersRequest
-	4, // 4: arbcn.sim.v1.SimService.ConfirmSimOrder:input_type -> arbcn.sim.v1.ConfirmSimOrderRequest
-	6, // 5: arbcn.sim.v1.SimService.ListSimPositions:input_type -> arbcn.sim.v1.ListSimPositionsRequest
-	8, // 6: arbcn.sim.v1.SimService.GetSimReport:input_type -> arbcn.sim.v1.GetSimReportRequest
-	3, // 7: arbcn.sim.v1.SimService.ListSimOrders:output_type -> arbcn.sim.v1.ListSimOrdersResponse
-	5, // 8: arbcn.sim.v1.SimService.ConfirmSimOrder:output_type -> arbcn.sim.v1.ConfirmSimOrderResponse
-	7, // 9: arbcn.sim.v1.SimService.ListSimPositions:output_type -> arbcn.sim.v1.ListSimPositionsResponse
-	9, // 10: arbcn.sim.v1.SimService.GetSimReport:output_type -> arbcn.sim.v1.GetSimReportResponse
-	7, // [7:11] is the sub-list for method output_type
-	3, // [3:7] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0,  // 0: arbcn.sim.v1.ListSimOrdersResponse.orders:type_name -> arbcn.sim.v1.SimOrder
+	0,  // 1: arbcn.sim.v1.ConfirmSimOrderResponse.order:type_name -> arbcn.sim.v1.SimOrder
+	1,  // 2: arbcn.sim.v1.ListSimPositionsResponse.positions:type_name -> arbcn.sim.v1.SimPosition
+	10, // 3: arbcn.sim.v1.TestnetAccount.details:type_name -> arbcn.sim.v1.TestnetAccountDetail
+	11, // 4: arbcn.sim.v1.GetTestnetAccountsResponse.accounts:type_name -> arbcn.sim.v1.TestnetAccount
+	2,  // 5: arbcn.sim.v1.SimService.ListSimOrders:input_type -> arbcn.sim.v1.ListSimOrdersRequest
+	4,  // 6: arbcn.sim.v1.SimService.ConfirmSimOrder:input_type -> arbcn.sim.v1.ConfirmSimOrderRequest
+	6,  // 7: arbcn.sim.v1.SimService.ListSimPositions:input_type -> arbcn.sim.v1.ListSimPositionsRequest
+	8,  // 8: arbcn.sim.v1.SimService.GetSimReport:input_type -> arbcn.sim.v1.GetSimReportRequest
+	12, // 9: arbcn.sim.v1.SimService.GetTestnetAccounts:input_type -> arbcn.sim.v1.GetTestnetAccountsRequest
+	3,  // 10: arbcn.sim.v1.SimService.ListSimOrders:output_type -> arbcn.sim.v1.ListSimOrdersResponse
+	5,  // 11: arbcn.sim.v1.SimService.ConfirmSimOrder:output_type -> arbcn.sim.v1.ConfirmSimOrderResponse
+	7,  // 12: arbcn.sim.v1.SimService.ListSimPositions:output_type -> arbcn.sim.v1.ListSimPositionsResponse
+	9,  // 13: arbcn.sim.v1.SimService.GetSimReport:output_type -> arbcn.sim.v1.GetSimReportResponse
+	13, // 14: arbcn.sim.v1.SimService.GetTestnetAccounts:output_type -> arbcn.sim.v1.GetTestnetAccountsResponse
+	10, // [10:15] is the sub-list for method output_type
+	5,  // [5:10] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_arbcn_sim_v1_sim_proto_init() }
@@ -788,7 +1036,7 @@ func file_arbcn_sim_v1_sim_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_sim_v1_sim_proto_rawDesc), len(file_arbcn_sim_v1_sim_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

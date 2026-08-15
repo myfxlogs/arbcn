@@ -50,6 +50,9 @@ const (
 	SimServiceListSimPositionsProcedure = "/arbcn.sim.v1.SimService/ListSimPositions"
 	// SimServiceGetSimReportProcedure is the fully-qualified name of the SimService's GetSimReport RPC.
 	SimServiceGetSimReportProcedure = "/arbcn.sim.v1.SimService/GetSimReport"
+	// SimServiceGetTestnetAccountsProcedure is the fully-qualified name of the SimService's
+	// GetTestnetAccounts RPC.
+	SimServiceGetTestnetAccountsProcedure = "/arbcn.sim.v1.SimService/GetTestnetAccounts"
 )
 
 // SimServiceClient is a client for the arbcn.sim.v1.SimService service.
@@ -58,6 +61,7 @@ type SimServiceClient interface {
 	ConfirmSimOrder(context.Context, *connect.Request[v1.ConfirmSimOrderRequest]) (*connect.Response[v1.ConfirmSimOrderResponse], error)
 	ListSimPositions(context.Context, *connect.Request[v1.ListSimPositionsRequest]) (*connect.Response[v1.ListSimPositionsResponse], error)
 	GetSimReport(context.Context, *connect.Request[v1.GetSimReportRequest]) (*connect.Response[v1.GetSimReportResponse], error)
+	GetTestnetAccounts(context.Context, *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error)
 }
 
 // NewSimServiceClient constructs a client for the arbcn.sim.v1.SimService service. By default, it
@@ -95,15 +99,22 @@ func NewSimServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(simServiceMethods.ByName("GetSimReport")),
 			connect.WithClientOptions(opts...),
 		),
+		getTestnetAccounts: connect.NewClient[v1.GetTestnetAccountsRequest, v1.GetTestnetAccountsResponse](
+			httpClient,
+			baseURL+SimServiceGetTestnetAccountsProcedure,
+			connect.WithSchema(simServiceMethods.ByName("GetTestnetAccounts")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // simServiceClient implements SimServiceClient.
 type simServiceClient struct {
-	listSimOrders    *connect.Client[v1.ListSimOrdersRequest, v1.ListSimOrdersResponse]
-	confirmSimOrder  *connect.Client[v1.ConfirmSimOrderRequest, v1.ConfirmSimOrderResponse]
-	listSimPositions *connect.Client[v1.ListSimPositionsRequest, v1.ListSimPositionsResponse]
-	getSimReport     *connect.Client[v1.GetSimReportRequest, v1.GetSimReportResponse]
+	listSimOrders      *connect.Client[v1.ListSimOrdersRequest, v1.ListSimOrdersResponse]
+	confirmSimOrder    *connect.Client[v1.ConfirmSimOrderRequest, v1.ConfirmSimOrderResponse]
+	listSimPositions   *connect.Client[v1.ListSimPositionsRequest, v1.ListSimPositionsResponse]
+	getSimReport       *connect.Client[v1.GetSimReportRequest, v1.GetSimReportResponse]
+	getTestnetAccounts *connect.Client[v1.GetTestnetAccountsRequest, v1.GetTestnetAccountsResponse]
 }
 
 // ListSimOrders calls arbcn.sim.v1.SimService.ListSimOrders.
@@ -126,12 +137,18 @@ func (c *simServiceClient) GetSimReport(ctx context.Context, req *connect.Reques
 	return c.getSimReport.CallUnary(ctx, req)
 }
 
+// GetTestnetAccounts calls arbcn.sim.v1.SimService.GetTestnetAccounts.
+func (c *simServiceClient) GetTestnetAccounts(ctx context.Context, req *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error) {
+	return c.getTestnetAccounts.CallUnary(ctx, req)
+}
+
 // SimServiceHandler is an implementation of the arbcn.sim.v1.SimService service.
 type SimServiceHandler interface {
 	ListSimOrders(context.Context, *connect.Request[v1.ListSimOrdersRequest]) (*connect.Response[v1.ListSimOrdersResponse], error)
 	ConfirmSimOrder(context.Context, *connect.Request[v1.ConfirmSimOrderRequest]) (*connect.Response[v1.ConfirmSimOrderResponse], error)
 	ListSimPositions(context.Context, *connect.Request[v1.ListSimPositionsRequest]) (*connect.Response[v1.ListSimPositionsResponse], error)
 	GetSimReport(context.Context, *connect.Request[v1.GetSimReportRequest]) (*connect.Response[v1.GetSimReportResponse], error)
+	GetTestnetAccounts(context.Context, *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error)
 }
 
 // NewSimServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -165,6 +182,12 @@ func NewSimServiceHandler(svc SimServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(simServiceMethods.ByName("GetSimReport")),
 		connect.WithHandlerOptions(opts...),
 	)
+	simServiceGetTestnetAccountsHandler := connect.NewUnaryHandler(
+		SimServiceGetTestnetAccountsProcedure,
+		svc.GetTestnetAccounts,
+		connect.WithSchema(simServiceMethods.ByName("GetTestnetAccounts")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.sim.v1.SimService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SimServiceListSimOrdersProcedure:
@@ -175,6 +198,8 @@ func NewSimServiceHandler(svc SimServiceHandler, opts ...connect.HandlerOption) 
 			simServiceListSimPositionsHandler.ServeHTTP(w, r)
 		case SimServiceGetSimReportProcedure:
 			simServiceGetSimReportHandler.ServeHTTP(w, r)
+		case SimServiceGetTestnetAccountsProcedure:
+			simServiceGetTestnetAccountsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -198,4 +223,8 @@ func (UnimplementedSimServiceHandler) ListSimPositions(context.Context, *connect
 
 func (UnimplementedSimServiceHandler) GetSimReport(context.Context, *connect.Request[v1.GetSimReportRequest]) (*connect.Response[v1.GetSimReportResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.sim.v1.SimService.GetSimReport is not implemented"))
+}
+
+func (UnimplementedSimServiceHandler) GetTestnetAccounts(context.Context, *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.sim.v1.SimService.GetTestnetAccounts is not implemented"))
 }

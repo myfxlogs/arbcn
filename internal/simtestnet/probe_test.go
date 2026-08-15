@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"arbcn/internal/store"
 )
 
 // iso8601Regex 匹配 OKX 要求的 ISO 8601 UTC 时间戳（OK-ACCESS-TIMESTAMP 头）。
@@ -55,7 +57,12 @@ func probeFixtureServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`[]`))
+		// D-040 余额解析锚点：真实 testnet 虚拟资金形态（BTC + 稳定币）。
+		w.Write([]byte(`[
+			{"accountAlias":"s_testnet","asset":"BTC","balance":"0.01000000","crossWalletBalance":"0.01000000","crossUnPnl":"0.00000000","availableBalance":"0.01000000","maxWithdrawAmount":"0.01000000","marginAvailable":true,"updateTime":0},
+			{"accountAlias":"s_testnet","asset":"USDT","balance":"5000.00000000","crossWalletBalance":"5000.00000000","crossUnPnl":"0.00000000","availableBalance":"5000.00000000","maxWithdrawAmount":"5000.00000000","marginAvailable":true,"updateTime":0},
+			{"accountAlias":"s_testnet","asset":"USDC","balance":"5000.00000000","crossWalletBalance":"5000.00000000","crossUnPnl":"0.00000000","availableBalance":"5000.00000000","maxWithdrawAmount":"5000.00000000","marginAvailable":true,"updateTime":0}
+		]`))
 	})
 
 	// OKX demo：公共 time + 签名余额（x-simulated-trading:1）。
@@ -86,7 +93,8 @@ func probeFixtureServer(t *testing.T) *httptest.Server {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"code":"0","msg":"","data":[]}`))
+		// D-040 余额解析锚点：OKX demo 虚拟资金（USDT 5000 + BTC 1，totalEq 精确折算）。
+		w.Write([]byte(`{"code":"0","msg":"","data":[{"adjEq":"","balData":[],"details":[{"availBal":"","availEq":"","cashBal":"5000","ccy":"USDT","eq":"5000","eqUsd":"5000","frozenBal":"0","interest":"","upl":"","uplLiab":""},{"availBal":"","availEq":"","cashBal":"1","ccy":"BTC","eq":"1","eqUsd":"60000","frozenBal":"0","interest":"","upl":"","uplLiab":""}],"imr":"","isoEq":"","mgnRatio":"","mmr":"","notionalUsd":"","ordFroz":"","totalEq":"65000","ts":"1723708800000","uTime":"1723708800000"}]}`))
 	})
 
 	return httptest.NewServer(mux)
@@ -119,7 +127,7 @@ func TestProbeRunRecordsBoth(t *testing.T) {
 	defer srv.Close()
 	p, rec := testProbe(t, srv)
 
-	if err := p.Run(context.Background()); err != nil {
+	if _, err := p.Run(context.Background()); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if !rec.got(SourceBinanceTestnet) {
@@ -137,7 +145,7 @@ func TestProbeSignFail(t *testing.T) {
 	p, rec := testProbe(t, srv)
 	p.cfg.BinanceSecret = "wrong-secret" // 破坏 binance 签名
 
-	if err := p.Run(context.Background()); err == nil {
+	if _, err := p.Run(context.Background()); err == nil {
 		t.Fatal("Run(签名错) = nil, want error")
 	}
 	if rec.got(SourceBinanceTestnet) {
@@ -147,6 +155,77 @@ func TestProbeSignFail(t *testing.T) {
 	if !rec.got(SourceOKXDemo) {
 		t.Error("OKX 独立成功应 Record sim_testnet_okx")
 	}
+}
+
+// TestProbeRunReturnsSnapshots：[对抗测试锚点 D-040] 探针成功 → Run 返回两路余额快照
+// （测试网账户区数据面）。删余额解析 → 必红。
+//
+// binance：accountAlias=s_testnet；equity_usd = 稳定币合计（USDT 5000 + USDC 5000 = 10000，
+// 近似口径）；BTC 无行情折算 → EquityUSD=0。okx：equity_usd = totalEq 65000（精确）；
+// details 带 eqUsd。
+func TestProbeRunReturnsSnapshots(t *testing.T) {
+	srv := probeFixtureServer(t)
+	defer srv.Close()
+	p, _ := testProbe(t, srv)
+
+	accts, err := p.Run(context.Background())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(accts) != 2 {
+		t.Fatalf("Run 返回 %d 个账户快照, want 2（binance + okx）", len(accts))
+	}
+
+	bin, ok := findAccount(accts, SourceBinanceTestnet)
+	if !ok {
+		t.Fatal("缺少 sim_testnet_binance 快照")
+	}
+	if bin.AccountAlias != "s_testnet" {
+		t.Errorf("binance AccountAlias = %q, want s_testnet", bin.AccountAlias)
+	}
+	if bin.EquityUSD != 10000 {
+		t.Errorf("binance EquityUSD = %v, want 10000（USDT 5000 + USDC 5000 稳定币合计）", bin.EquityUSD)
+	}
+	if len(bin.Details) != 3 {
+		t.Fatalf("binance details = %d 项, want 3（BTC/USDT/USDC）", len(bin.Details))
+	}
+	for _, d := range bin.Details {
+		if d.Asset == "BTC" && d.EquityUSD != 0 {
+			t.Errorf("binance BTC EquityUSD = %v, want 0（非稳定币无行情折算）", d.EquityUSD)
+		}
+		if d.Asset == "USDT" && (d.Balance != "5000.00000000" || d.EquityUSD != 5000) {
+			t.Errorf("binance USDT detail = (%s, %v), want (5000.00000000, 5000)", d.Balance, d.EquityUSD)
+		}
+	}
+
+	okx, ok := findAccount(accts, SourceOKXDemo)
+	if !ok {
+		t.Fatal("缺少 sim_testnet_okx 快照")
+	}
+	if okx.EquityUSD != 65000 {
+		t.Errorf("okx EquityUSD = %v, want 65000（totalEq 精确折算）", okx.EquityUSD)
+	}
+	if len(okx.Details) != 2 {
+		t.Fatalf("okx details = %d 项, want 2（USDT/BTC）", len(okx.Details))
+	}
+	for _, d := range okx.Details {
+		if d.Asset == "USDT" && (d.Balance != "5000" || d.EquityUSD != 5000) {
+			t.Errorf("okx USDT detail = (%s, %v), want (5000, 5000)", d.Balance, d.EquityUSD)
+		}
+		if d.Asset == "BTC" && d.EquityUSD != 60000 {
+			t.Errorf("okx BTC EquityUSD = %v, want 60000（eqUsd）", d.EquityUSD)
+		}
+	}
+}
+
+// findAccount 按 source 找快照。
+func findAccount(accts []store.TestnetAccount, source string) (store.TestnetAccount, bool) {
+	for _, a := range accts {
+		if a.Source == source {
+			return a, true
+		}
+	}
+	return store.TestnetAccount{}, false
 }
 
 // TestNewProbeDegradesNoKeys：无 key → (nil, false)（S3 降级禁用，不阻塞其他子任务）。

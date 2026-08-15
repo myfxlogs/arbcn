@@ -14,10 +14,10 @@ import (
 
 	"connectrpc.com/connect"
 
-	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
-	"arbcn/internal/simapi/gen/arbcn/sim/v1/simv1connect"
 	"arbcn/internal/fact"
 	"arbcn/internal/sim"
+	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
+	"arbcn/internal/simapi/gen/arbcn/sim/v1/simv1connect"
 	"arbcn/internal/store"
 )
 
@@ -148,6 +148,21 @@ func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1
 	return connect.NewResponse(&simv1.ListSimPositionsResponse{Positions: out}), nil
 }
 
+// GetTestnetAccounts 测试网账户快照列表（D-040 SimExec 测试网账户区数据面）。
+// 数据 = 探针余额查询结果持久化（main.go 启动一次 + 8h tick 刷新）；空库 = 空列表
+// （探针未启用或尚未完成首次查询）。零网络零密钥：只读 store。
+func (s *Service) GetTestnetAccounts(ctx context.Context, _ *connect.Request[simv1.GetTestnetAccountsRequest]) (*connect.Response[simv1.GetTestnetAccountsResponse], error) {
+	accts, err := s.st.ListTestnetAccounts(ctx)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	out := make([]*simv1.TestnetAccount, 0, len(accts))
+	for _, a := range accts {
+		out = append(out, toTestnetAccount(a))
+	}
+	return connect.NewResponse(&simv1.GetTestnetAccountsResponse{Accounts: out}), nil
+}
+
 // GetSimReport 周频对账报告（04-m3-spec §5.3/§9.5）。文件由 sim.settleLoop 每 7×8h tick
 // 渲染到 cfg.ReportPath。文件不存在 → exists=false + note（说明渲染周期）；报告禁用
 // （HistoryDays≤0 / 路径未配置）→ 同样 exists=false + 说明。
@@ -263,6 +278,21 @@ func toSimOrder(o store.SimOrder) *simv1.SimOrder {
 		RefPrice: o.RefPrice, ExpectedSpread: o.ExpectedSpread,
 		RiskFlags: o.RiskFlags, Status: o.Status, Note: o.Note,
 	}
+}
+
+// toTestnetAccount 映射 store.TestnetAccount → proto（D-040）。updated_at 毫秒时间戳。
+func toTestnetAccount(a store.TestnetAccount) *simv1.TestnetAccount {
+	out := &simv1.TestnetAccount{
+		Source: a.Source, AccountAlias: a.AccountAlias, EquityUsd: a.EquityUSD,
+		UpdatedAtMs: a.UpdatedAt.UnixMilli(),
+	}
+	out.Details = make([]*simv1.TestnetAccountDetail, 0, len(a.Details))
+	for _, d := range a.Details {
+		out.Details = append(out.Details, &simv1.TestnetAccountDetail{
+			Asset: d.Asset, Balance: d.Balance, EquityUsd: d.EquityUSD,
+		})
+	}
+	return out
 }
 
 // toSimPosition 映射 store.SimPosition → proto（pnlRmb 由调用方按即期折算）。

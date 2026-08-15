@@ -216,6 +216,12 @@ func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosi
 func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
 	panic("fakeStore: ListOpenSimPositions not used")
 }
+func (f *fakeStore) UpsertTestnetAccount(context.Context, store.TestnetAccount) error {
+	panic("fakeStore: UpsertTestnetAccount not used")
+}
+func (f *fakeStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount, error) {
+	panic("fakeStore: ListTestnetAccounts not used")
+}
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("fakeStore: SettleSimPosition not used")
 }

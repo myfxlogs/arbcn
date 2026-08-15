@@ -13,9 +13,9 @@ import (
 
 	"connectrpc.com/connect"
 
-	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
 	"arbcn/internal/fact"
 	"arbcn/internal/sim"
+	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
 	"arbcn/internal/store"
 )
 
@@ -24,6 +24,7 @@ import (
 type fakeStore struct {
 	orders      []store.SimOrder
 	positions   []store.SimPosition
+	accounts    []store.TestnetAccount // D-040 GetTestnetAccounts 数据面
 	facts       []fact.Fact
 	nextOrderID int64
 
@@ -98,6 +99,25 @@ func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, 
 
 func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
 	return append([]store.SimPosition(nil), f.positions...), nil
+}
+
+// UpsertTestnetAccount 幂等 upsert（source 主键；D-040）。
+func (f *fakeStore) UpsertTestnetAccount(_ context.Context, a store.TestnetAccount) error {
+	for i := range f.accounts {
+		if f.accounts[i].Source == a.Source {
+			f.accounts[i] = a
+			return nil
+		}
+	}
+	f.accounts = append(f.accounts, a)
+	return nil
+}
+
+// ListTestnetAccounts 按 source ASC 返回（D-040）。
+func (f *fakeStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount, error) {
+	out := append([]store.TestnetAccount(nil), f.accounts...)
+	sort.Slice(out, func(i, j int) bool { return out[i].Source < out[j].Source })
+	return out, nil
 }
 
 func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
@@ -679,4 +699,62 @@ func TestGetSimReport(t *testing.T) {
 			t.Fatalf("markdown = %q, want 文件内容", resp.Msg.Markdown)
 		}
 	})
+}
+
+// TestGetTestnetAccounts：D-040 测试网账户区数据面——空库返回 [] 不报错；
+// 有快照按 source ASC 返回，details 与 equity_usd 口径原样透传。
+func TestGetTestnetAccounts(t *testing.T) {
+	st := newFakeStore()
+	s := service(st, sim.Config{})
+
+	// 空库 → []（非 nil）。
+	resp, err := s.GetTestnetAccounts(context.Background(), connect.NewRequest(&simv1.GetTestnetAccountsRequest{}))
+	if err != nil {
+		t.Fatalf("GetTestnetAccounts(empty): %v", err)
+	}
+	if resp.Msg.Accounts == nil || len(resp.Msg.Accounts) != 0 {
+		t.Fatalf("accounts = %#v, want 空 []", resp.Msg.Accounts)
+	}
+
+	// 两路快照（okx 先插 → 返回仍按 source ASC = binance 在前）。
+	_ = st.UpsertTestnetAccount(context.Background(), store.TestnetAccount{
+		Source: "sim_testnet_okx", AccountAlias: "", EquityUSD: 65000,
+		Details: []store.TestnetAccountDetail{
+			{Asset: "USDT", Balance: "5000", EquityUSD: 5000},
+			{Asset: "BTC", Balance: "1", EquityUSD: 60000},
+		},
+		UpdatedAt: t0,
+	})
+	_ = st.UpsertTestnetAccount(context.Background(), store.TestnetAccount{
+		Source: "sim_testnet_binance", AccountAlias: "s_testnet", EquityUSD: 10000,
+		Details: []store.TestnetAccountDetail{
+			{Asset: "BTC", Balance: "0.01000000", EquityUSD: 0},
+			{Asset: "USDT", Balance: "5000.00000000", EquityUSD: 5000},
+		},
+		UpdatedAt: t0,
+	})
+
+	resp, err = s.GetTestnetAccounts(context.Background(), connect.NewRequest(&simv1.GetTestnetAccountsRequest{}))
+	if err != nil {
+		t.Fatalf("GetTestnetAccounts: %v", err)
+	}
+	if len(resp.Msg.Accounts) != 2 {
+		t.Fatalf("accounts = %d, want 2", len(resp.Msg.Accounts))
+	}
+	bin, okx := resp.Msg.Accounts[0], resp.Msg.Accounts[1]
+	if bin.Source != "sim_testnet_binance" || okx.Source != "sim_testnet_okx" {
+		t.Fatalf("source 顺序 = %q, %q, want binance, okx（ASC）", bin.Source, okx.Source)
+	}
+	if bin.AccountAlias != "s_testnet" || bin.EquityUsd != 10000 {
+		t.Errorf("binance = (%q, %v), want (s_testnet, 10000)", bin.AccountAlias, bin.EquityUsd)
+	}
+	if okx.EquityUsd != 65000 || len(okx.Details) != 2 {
+		t.Errorf("okx = (%v, %d details), want (65000, 2)", okx.EquityUsd, len(okx.Details))
+	}
+	if bin.UpdatedAtMs != t0.UnixMilli() {
+		t.Errorf("binance UpdatedAtMs = %d, want %d（updated_at 毫秒透传）", bin.UpdatedAtMs, t0.UnixMilli())
+	}
+	if okx.Details[0].Asset != "USDT" || okx.Details[0].Balance != "5000" || okx.Details[0].EquityUsd != 5000 {
+		t.Errorf("okx detail[0] = %+v, want USDT 5000/5000", okx.Details[0])
+	}
 }

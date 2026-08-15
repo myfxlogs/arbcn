@@ -19,12 +19,12 @@ var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 // fakeStore：内存版 store.Store（dashboard 读取路径有真语义；
 // 写路径本包不经过，误用即红）。
 type fakeStore struct {
-	facts   []fact.Fact
-	alerts  []store.Alert
-	states  []store.RuleState
-	ledger  []store.LedgerEntry
-	nextID  int64 // 台账自增 id（fake 内存版）
-	err     error // 注入存储层故障
+	facts  []fact.Fact
+	alerts []store.Alert
+	states []store.RuleState
+	ledger []store.LedgerEntry
+	nextID int64 // 台账自增 id（fake 内存版）
+	err    error // 注入存储层故障
 }
 
 func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
@@ -238,6 +238,12 @@ func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosi
 }
 func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
 	panic("fakeStore: ListOpenSimPositions not used")
+}
+func (f *fakeStore) UpsertTestnetAccount(context.Context, store.TestnetAccount) error {
+	panic("fakeStore: UpsertTestnetAccount not used")
+}
+func (f *fakeStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount, error) {
+	panic("fakeStore: ListTestnetAccounts not used")
 }
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("fakeStore: SettleSimPosition not used")
