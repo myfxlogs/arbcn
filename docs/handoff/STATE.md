@@ -4,7 +4,7 @@
 
 ## 交接负载
 
-- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿 + 施工交付 + 复审修复 + S4 数据源修正部署验证**（D-037 + D-031 实证修订 + 本 commit：spec §9 S1–S5 全落地并已部署实测）。S1 规则→Signal 驱动（rule.OnActive 携带命中实体 + sim.Driver §3.1.1 映射表，删映射必红）；S2 8h 结算（(symbol,venue) 分组取真实市场 funding，跨 venue 污染必红）；S3 testnet 只读探针 + key 隔离（新包 internal/simtestnet，SIMULATED 缺标记拒绝加载，sim 包零网络由 domains_test 把关）；S4 历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频统计）——**数据源已修正并部署验证**（fapi.binance.com 满 365d + OKX funding-rate-history ~90d，见 D-031 修订；DB 实测 binance min_ts=2025-08-15）；S5 carry 白名单默认空（宁缺毋滥）。main.go 已接线：boot 历史回填（一次性幂等）+ simDriver（OnActive compose）+ 8h 结算循环 + testnet 探针随 settle tick；H1 洪水去重（8h 桶折叠 + Limit 2M）已含。**M3-c 细化设计定稿 + 施工交付 + 决策层复审修复**（D-038 + spec §10 C1–C5 全落地 5fd8f63；决策层复审发现并修复 repo/carry 二次门禁**恒拒**设计缺口——D-039 kind 分派数据面 + 7 对抗测试，spec §10.3/§10.4 同步）。**D-040 测试网账户区已闭环部署**（业主提问触发，对话 #49）：探针 Run 返回余额快照 → sim_testnet_accounts（migration 0006）→ GetTestnetAccounts RPC → SimExec 账户区；启动即探针一次（不等 8h tick）+ 8h tick 刷新；equity_usd 诚实口径（okx totalEq 精确 / binance 稳定币合计近似）；部署实测两路真实虚拟资金 + **sim_testnet heartbeat 首次登记已随启动探针闭环**（此前的观察项已消除）。**下一步 = 出入金通道验证（业主）**。
+- 现状: **M1/M2-a 追溯深审 + M3-a 施工复审全部闭环已部署**（D-035）；**M3 文档审计完成**（D-036：收敛口径修正 + G1–G5 全落 spec）；**M3-b 细化设计定稿 + 施工交付 + 复审修复 + S4 数据源修正部署验证**（D-037 + D-031 实证修订 + 本 commit：spec §9 S1–S5 全落地并已部署实测）。S1 规则→Signal 驱动（rule.OnActive 携带命中实体 + sim.Driver §3.1.1 映射表，删映射必红）；S2 8h 结算（(symbol,venue) 分组取真实市场 funding，跨 venue 污染必红）；S3 testnet 只读探针 + key 隔离（新包 internal/simtestnet，SIMULATED 缺标记拒绝加载，sim 包零网络由 domains_test 把关）；S4 历史收敛（exchange 历史 collector + 幂等回填 + sim_report 周频统计）——**数据源已修正并部署验证**（fapi.binance.com 满 365d + OKX funding-rate-history ~90d，见 D-031 修订；DB 实测 binance min_ts=2025-08-15）；S5 carry 白名单默认空（宁缺毋滥）。main.go 已接线：boot 历史回填（一次性幂等）+ simDriver（OnActive compose）+ 8h 结算循环 + testnet 探针随 settle tick；H1 洪水去重（8h 桶折叠 + Limit 2M）已含。**M3-c 细化设计定稿 + 施工交付 + 决策层复审修复**（D-038 + spec §10 C1–C5 全落地 5fd8f63；决策层复审发现并修复 repo/carry 二次门禁**恒拒**设计缺口——D-039 kind 分派数据面 + 7 对抗测试，spec §10.3/§10.4 同步）。**D-040 测试网账户区已闭环部署**（业主提问触发，对话 #49）：探针 Run 返回余额快照 → sim_testnet_accounts（migration 0006）→ GetTestnetAccounts RPC → SimExec 账户区；启动即探针一次（不等 8h tick）+ 8h tick 刷新；equity_usd 诚实口径（okx totalEq 精确 / binance 稳定币合计近似）；部署实测两路真实虚拟资金 + **sim_testnet heartbeat 首次登记已随启动探针闭环**（此前的观察项已消除）。**加密交易所出入金通道业主实测通过**（对话 #50）；TRX funding 跨所差异已核实为真实市场分歧非 bug（binance +2.3%~+2.7% 年化 vs okx −3.5%~−3.8%，实测量价一致，负 funding 不触发建单，宁缺毋滥）。**下一步 = 出入金通道验证 OTC 法币通道（1 万小额，业主）**。
 - 方向校验: 与 AGENTS.md §1 一致 —— 不赌原则（D-019）+ 收益最大×路径最短（D-020）+ 加密三档（D-021）+ 敞口知情（D-023）+ 无密钥铁律（D-010/§13，M3-a 复审复核：sim 包零网络零密钥）。
 - 施工表:
   | 子任务 | 状态 | 锚点 |
@@ -32,7 +32,8 @@
   | **M1 验收（决策层）** | ✅ | dialogue #29 |
   | **M1-i SMTP 降级补丁 → 施工 agent #9** | ✅ | 0d740b7 |
   | 部署 systemd 常驻（mluser 运行） | ✅ | 2026-08-15 实测 active |
-  | 出入金通道验证（1 万小额 OTC） | ⬜ | 业主执行 |
+  | 加密交易所出入金通道验证 | ✅ | 业主实测通过（2026-08-16，dialogue #50） |
+  | 出入金通道验证（1 万小额 OTC 法币通道） | ⬜ | 业主执行 |
   | **M2-a 后端：3 RPC（ListUnacked/AckAll/ListSourceHealth）+ 调度去重 → 施工 agent #1** | ✅ | e26eea9 |
   | **M2-a 前端：铃铛通知中心 + freshness 徽标 → 施工 agent #2** | ✅ | 2afac33 |
   | **i18n：页面硬编码英文 → 中文（前后端一致 ruleLabel/消息模板）** | ✅ | 34ae607 |

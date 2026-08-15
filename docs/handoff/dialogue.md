@@ -387,3 +387,17 @@
   - **部署实测**：binance equity 10000（USDT 5000+USDC 5000，非稳定币如实标 —）；okx equity 80673.55（BTC 1/OKB 100/USDT 5000/ETH 1，与业主核实的虚拟资金一致）；**ListSourceHealth 首次 heartbeat 已登记**（此前待 8h tick 的观察项随启动探针顺带闭环）；ListFacts 零回归。
 - **决策号**：D-040。
 - **下一步**：S3 全链路闭环（探针 + 账户区 + 结算正交）；出入金通道验证（业主）。
+
+## #50 · 2026-08-16 · 加密交易所出入金实测通过 + TRX funding 跨所差异核实 · 业主 → 决策层
+- **参与方**：业主（实测确认 + 提问）、Claude（决策层，先核实再采纳 D-028）
+- **议题**：① 出入金通道；② 机会面板 TRX 在 binance 显示 2.27%、okx 显示 −3.78%，业主质疑是否 bug。
+- **结论**：
+  - ① 两个加密交易所出入金**实测通过**（施工表「加密交易所出入金通道验证」✅）；**OTC 法币通道（1 万小额）仍待验证**。
+  - ② TRX 跨所差异 = **真实市场分歧，非管线 bug**。核实证据：
+    - 实时 curl 实测（部署机）：binance TRXUSDT `lastFundingRate` +0.002472%/8h → 年化 +2.71%（面板 2.27% 为上次轮询值）；okx TRX-USDT-SWAP `fundingRate` −0.003170%/8h → 年化 −3.47%（面板 −3.78% 为上次轮询值）。
+    - DB facts（ListFacts）：binance TRX 2.269935 / okx TRX −3.784851，同为 16:09 轮询，与面板一致。
+    - 年化系数核对（`annualize = rate×8760/interval×100`，8h→×1095）正确。
+    - 根因：funding 由各所**内部盘口溢价**决定（永续价 vs 指数价），binance TRX 永续溢价（多付空）/ okx 折价（空付多）→ 同标的跨所真实分歧；瞬时且会持续数日，不会收敛同一值。
+- **系统行为确认**：`funding_warn/critical` 仅 BTC,ETH 且条件 `avg_30d > 15/20`（正阈值）；`trx_funding_positive` 条件 `avg_24h > 0`——okx 负 funding 不满足 → **不建单**（宁缺毋滥）；binance 正 funding 触发费率转正 → 经典 carry（现货多吃质押 + 永续空收 funding）。负 funding 反向机会（现货空 + 永续多）操作不便，系统正确地不追逐。
+- **决策号**：无新 D#（数据核实，无设计变更）。
+- **下一步**：OTC 法币通道验证（1 万小额，业主）。
