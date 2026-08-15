@@ -147,3 +147,9 @@
 - **议题**：业主问 Go 与 Rust 之选；三问答复（web 先用着/部署同意/里程碑同意）。
 - **裁决**：语言维持 Go（瓶颈是 I/O 非 CPU，Go 超需求两个数量级；真实约束 = 开发速度 + 施工出错率 + 交接成本；高频执行层若出现另立 D# 重议 Rust）；客户端 = web 先行 + PWA 后置 + 原生 App 挂起；部署与里程碑确认。
 - **决策号**：D-030。M1 施工任务清单（8 项）入 STATE，M1-a 派发首个施工 agent。
+
+## #22 · 2026-08-15 · M1-a 交付复审（决策层）
+- **参与方**：施工 agent #1、Claude
+- **交付**：M1-a 脚手架（e999f8e + 9877a1c）——go.mod、arbcn-postgres 容器、4 表 DDL、config、/healthz+slog、systemd 样例、race 测试；验收实测通过（含 docker 真机验收）；A–F 自审全过。
+- **决策层复审（5 项裁决）**：①healthz 200/503 degraded 语义 ✅ 批准（正是 §10 元监控所需）；②PG 不可达只 warn 不崩 ✅ 批准（监控自身可用性优先，degraded 状态由 M1-f 告警）；③迁移用 docker-entrypoint 首次建库 ✅ 接受，**版本化迁移工具列入 M1-b 任务项**（schema 将演进）；④DDL CHECK 约束 + alerts ts 索引 ✅ 批准（值域约束 = P4 可检查性）；⑤dialogue 留决策者落档 ✅ 分工正确（本条目即落档）。
+- **下一步**：M1-b 派发（Fact 模型 + 存储层接口 + PG 实现 + 版本化迁移）。

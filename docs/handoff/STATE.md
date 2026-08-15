@@ -23,7 +23,7 @@
   | 监控系统架构设计 | ✅ | D-029（02-monitor-architecture.md） |
   | Go 裁决 + 客户端形态 + 三问确认 | ✅ | D-030 |
   | **M1-a 脚手架 → 施工 agent #1** | ✅ | e999f8e |
-  | M1-b Fact 模型+存储层 | ⬜ | 待 M1-a |
+  | **M1-b Fact 模型+存储层 → 施工 agent #2** | 🔄 | 本会话派发 |
   | M1-c Exchange collector | ⬜ | 待 M1-b |
   | M1-d DeFiRates/Domestic/Calendar/IV | ⬜ | 待 M1-c |
   | M1-e 规则引擎+对抗测试 | ⬜ | 待 M1-d |
