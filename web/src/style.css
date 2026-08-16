@@ -1009,6 +1009,14 @@ button.btn-close:disabled {
 .card[aria-labelledby="sim-orders-title"] table.rows td {
   text-align: left;
 }
+/* 备注列（拒单理由）桌面端右对齐（业主明确，对话 #84 后续⑤）：长理由文本贴
+   右缘，与数量/预期数字列右缘对齐线一致；移动端保持左对齐（300px 窄列多行
+   中文右对齐撕裂可读性）。:nth-child(8) 特异性 (0,4,2) > 基础 td (0,3,2) 覆盖。 */
+@media (min-width: 601px) {
+  .card[aria-labelledby="sim-orders-title"] table.rows td:nth-child(8) {
+    text-align: right;
+  }
+}
 .card[aria-labelledby="sim-orders-title"] .note-cell {
   max-width: none;
   overflow: visible;
