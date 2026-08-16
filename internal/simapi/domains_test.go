@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"arbcn/internal/store"
 )
 
 // TestNoRealTradeTokens：simapi 独立域（arbcn.sim.v1，D-038 ①）零真实账户/下单路径
@@ -85,6 +87,32 @@ func TestSimExecBadgeRenderable(t *testing.T) {
 		if !strings.Contains(string(b), "SimulatedBadge") {
 			t.Errorf("%s 缺 SimulatedBadge 引用（模拟执行面板顶部须渲染 SIMULATED 徽标）", p)
 		}
+	}
+}
+
+// TestSimKindLabelCoverage：前端 SimKind 中文映射单一来源（D-047 F1）——曾有两份
+// 映射文案不同（Opportunity.kindLabel vs sim.kindText，P3 双源），已收敛为 sim.tsx
+// kindText 一份。本测试断言 kindText 覆盖 store.SimKind* 三字面量：新增 kind 漏改
+// 映射表 → 必红（practices #18：枚举映射全量对齐，删 kindText case 必红）。
+func TestSimKindLabelCoverage(t *testing.T) {
+	simSrc := filepath.Join("..", "..", "web", "src", "components", "sim.tsx")
+	body, err := os.ReadFile(simSrc)
+	if err != nil {
+		t.Fatalf("read %s: %v（web 源缺失 = 交付不完整）", simSrc, err)
+	}
+	for _, lit := range []string{store.SimKindFundingHedge, store.SimKindCarryAsset, store.SimKindRepo} {
+		if !strings.Contains(string(body), `"`+lit+`"`) {
+			t.Errorf("%s 缺 SimKind 字面量 %q（kindText 须覆盖 store.SimKind* 全集，D-047 F1）", simSrc, lit)
+		}
+	}
+	// kindText 已从 Opportunity.tsx 移除本地重复映射（防回退：再加回双源 = 必红）。
+	oppSrc := filepath.Join("..", "..", "web", "src", "components", "Opportunity.tsx")
+	oppBody, err := os.ReadFile(oppSrc)
+	if err != nil {
+		t.Fatalf("read %s: %v", oppSrc, err)
+	}
+	if strings.Contains(string(oppBody), "funding_hedge") {
+		t.Errorf("%s 不得含 SimKind 字面量（须 import kindText from ./sim，D-047 F1 收敛双源）", oppSrc)
 	}
 }
 

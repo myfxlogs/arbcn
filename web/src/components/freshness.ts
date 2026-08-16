@@ -21,10 +21,6 @@ export function sourceForTile(kind: string, venue: string): string | null {
       return "repo";
     case "calendar":
       return "calendar";
-    case "fx":
-      return "fx";
-    case "bank_rate":
-      return "bank_rate";
     default:
       return null;
   }

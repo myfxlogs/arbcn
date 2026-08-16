@@ -37,6 +37,7 @@ type Converted struct {
 	RMBValue    float64 // RMB 净收益视角；覆盖 kind 且汇率可用 = Value − 年化升值（点数）；否则 = Value
 	FXRate      float64 // 当日 USDCNH；0 = 不可用
 	FXAvailable bool    // 汇率可用（false → 前端显示"汇率不可用"，不静默用错值）
+	Covered     bool    // 本行 kind 是否 RMB 折算覆盖（与 CoveredKinds 同源，单一真相源；D-047）
 }
 
 // AnnualizedRMBAppreciation 由 fx 事实序列（ts 升序）计算年化人民币升值率
@@ -68,7 +69,7 @@ func AnnualizedRMBAppreciation(series []fact.Fact) float64 {
 func Convert(facts []fact.Fact, fx *fact.Fact, appreciation float64) []Converted {
 	out := make([]Converted, 0, len(facts))
 	for _, f := range facts {
-		c := Converted{Fact: f, RMBValue: f.Value}
+		c := Converted{Fact: f, RMBValue: f.Value, Covered: CoveredKinds[f.Kind]}
 		if !CoveredKinds[f.Kind] {
 			out = append(out, c) // 不折算（RMB 计价或 N/A）
 			continue

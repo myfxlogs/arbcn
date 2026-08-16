@@ -58,7 +58,10 @@ message ConfirmSimOrderResponse {
   bool accepted = 2;          // true = 成交；false = 二次门禁拒单
 }
 message ListSimPositionsRequest  {}
-message ListSimPositionsResponse { repeated SimPosition positions = 1; }
+message ListSimPositionsResponse {
+  repeated SimPosition positions = 1;
+  bool fx_available = 2;  // 即期 USDCNH 可用（false → 前端按「USD 原值」标注，非真零 PnL；D-047 消除 0 占位启发式）
+}
 message GetSimReportRequest {}
 message GetSimReportResponse {
   string markdown = 1;        // 报告内容（文件不存在 = 空 + note 说明）

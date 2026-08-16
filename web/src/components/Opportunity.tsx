@@ -3,6 +3,7 @@ import type { Fact, OpportunityCard, SourceHealth } from "../gen/arbcn/dashboard
 import { Chip, type ChipTone } from "./Chip";
 import { dotFor, healthMap } from "./freshness";
 import { MatrixTable, type MatrixCell } from "./Matrix";
+import { kindText } from "./sim";
 import { StatTile } from "./StatTile";
 
 const KIND_FUNDING = "funding";
@@ -109,20 +110,6 @@ function ratingTone(r: string): ChipTone {
   }
 }
 
-// kindLabel 卡类型 → 中文（store SimKind* 口径）。
-function kindLabel(k: string): string {
-  switch (k) {
-    case "funding_hedge":
-      return "对冲套利";
-    case "carry_asset":
-      return "持有生息";
-    case "repo":
-      return "逆回购";
-    default:
-      return k;
-  }
-}
-
 // oppValue 数值 → 展示串（NaN = 样本不足/不适用 → 「—」，不编造 0）。
 function oppValue(v: number, suffix: (n: number) => string): string {
   return Number.isNaN(v) ? "—" : suffix(v);
@@ -212,7 +199,7 @@ export function Opportunity({
             <li key={`${c.kind}:${c.venue}:${c.symbol}`} className="opp-card">
               <div className="opp-card-head">
                 <Chip tone={ratingTone(c.rating)}>{ratingLabel(c.rating)}</Chip>
-                <span className="opp-card-kind">{kindLabel(c.kind)}</span>
+                <span className="opp-card-kind">{kindText(c.kind)}</span>
                 <span className="opp-card-who">
                   {c.venue} · {c.symbol}
                 </span>

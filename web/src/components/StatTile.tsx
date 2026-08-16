@@ -1,4 +1,5 @@
 import type { FreshDot } from "./freshness";
+import { FreshDot as FreshDotDot } from "./FreshDot";
 
 // StatTile KPI 瓦片：单一当前值（无图表的正确形态）。
 export function StatTile({
@@ -17,9 +18,7 @@ export function StatTile({
   return (
     <div className="stat" title={title}>
       <div className="stat-label">
-        {dot ? (
-          <i className={`fresh-dot fresh-dot-${dot.status}`} title={dot.title} aria-hidden="true" />
-        ) : null}
+        {dot ? <FreshDotDot dot={dot} /> : null}
         {label}
       </div>
       <div className="stat-value">{value}</div>

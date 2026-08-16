@@ -1,4 +1,5 @@
 import type { FreshDot } from "./freshness";
+import { FreshDot as FreshDotDot } from "./FreshDot";
 
 export interface MatrixCell {
   value: string;
@@ -46,13 +47,7 @@ export function MatrixTable({
                   <td key={c} title={v?.title} className={v?.neg ? "neg" : undefined}>
                     {v ? (
                       <>
-                        {v.dot ? (
-                          <i
-                            className={`fresh-dot fresh-dot-${v.dot.status}`}
-                            title={v.dot.title}
-                            aria-hidden="true"
-                          />
-                        ) : null}
+                        {v.dot ? <FreshDotDot dot={v.dot} /> : null}
                         {v.value}
                       </>
                     ) : (

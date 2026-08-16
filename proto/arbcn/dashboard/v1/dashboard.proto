@@ -166,6 +166,7 @@ message FactRmb {
   double rmb_value = 8;   // RMB 净收益视角；汇率缺失 = value（USD 原值）
   double fx_rate = 9;     // 当日 USDCNH；0 = 不可用
   bool fx_available = 10; // 汇率可用（false → 前端显示「汇率不可用」）
+  bool covered = 11;      // 本行 kind 是否 RMB 折算覆盖（与 rmb.CoveredKinds 同源；D-047 消除前端重复集合）
 }
 
 message ListFactsRequest {

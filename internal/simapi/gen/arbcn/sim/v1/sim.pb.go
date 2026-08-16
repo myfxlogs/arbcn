@@ -560,6 +560,7 @@ func (*ListSimPositionsRequest) Descriptor() ([]byte, []int) {
 type ListSimPositionsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Positions     []*SimPosition         `protobuf:"bytes,1,rep,name=positions,proto3" json:"positions,omitempty"`
+	FxAvailable   bool                   `protobuf:"varint,2,opt,name=fx_available,json=fxAvailable,proto3" json:"fx_available,omitempty"` // 即期 USDCNH 可用（false → 前端按「USD 原值」标注，非真零 PnL；D-047 消除 0 占位启发式）
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -599,6 +600,13 @@ func (x *ListSimPositionsResponse) GetPositions() []*SimPosition {
 		return x.Positions
 	}
 	return nil
+}
+
+func (x *ListSimPositionsResponse) GetFxAvailable() bool {
+	if x != nil {
+		return x.FxAvailable
+	}
+	return false
 }
 
 type GetSimReportRequest struct {
@@ -969,9 +977,10 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	"\x17ConfirmSimOrderResponse\x12,\n" +
 	"\x05order\x18\x01 \x01(\v2\x16.arbcn.sim.v1.SimOrderR\x05order\x12\x1a\n" +
 	"\baccepted\x18\x02 \x01(\bR\baccepted\"\x19\n" +
-	"\x17ListSimPositionsRequest\"S\n" +
+	"\x17ListSimPositionsRequest\"v\n" +
 	"\x18ListSimPositionsResponse\x127\n" +
-	"\tpositions\x18\x01 \x03(\v2\x19.arbcn.sim.v1.SimPositionR\tpositions\"\x15\n" +
+	"\tpositions\x18\x01 \x03(\v2\x19.arbcn.sim.v1.SimPositionR\tpositions\x12!\n" +
+	"\ffx_available\x18\x02 \x01(\bR\vfxAvailable\"\x15\n" +
 	"\x13GetSimReportRequest\"^\n" +
 	"\x14GetSimReportResponse\x12\x1a\n" +
 	"\bmarkdown\x18\x01 \x01(\tR\bmarkdown\x12\x16\n" +

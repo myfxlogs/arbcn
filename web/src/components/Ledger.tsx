@@ -1,12 +1,12 @@
 import { create } from "@bufbuild/protobuf";
 import { useState } from "react";
 
-import { fmtAmount, fmtTs, tierLabel } from "../format";
+import { fmtAmount, fmtTs, ledgerDate, tierLabel } from "../format";
 import {
   AddLedgerEntryRequestSchema,
   type TierSummary,
 } from "../gen/arbcn/dashboard/v1/dashboard_pb";
-import { ledgerDate, useLedger } from "../hooks";
+import { useLedger } from "../hooks";
 
 // TIERS 档位下拉（D-026 三档 + 持有层；空 = 未分类）。值与 store Tier* 常量一致。
 const TIERS = [

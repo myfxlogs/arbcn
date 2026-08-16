@@ -169,7 +169,9 @@ func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1
 		}
 		out = append(out, toSimPosition(p, rmb, curPrice, expectedAnn, unrealized))
 	}
-	return connect.NewResponse(&simv1.ListSimPositionsResponse{Positions: out}), nil
+	// fx_available：真实可用信号（D-047）——前端据此区分「汇率缺失（USD 原值）」与
+	// 「真零 PnL（显示 0）」，不再用 pnl_rmb=0 兼表两义。
+	return connect.NewResponse(&simv1.ListSimPositionsResponse{Positions: out, FxAvailable: fxOK}), nil
 }
 
 // GetTestnetAccounts 测试网账户快照列表（D-040 SimExec 测试网账户区数据面）。

@@ -1144,6 +1144,7 @@ type FactRmb struct {
 	RmbValue      float64                `protobuf:"fixed64,8,opt,name=rmb_value,json=rmbValue,proto3" json:"rmb_value,omitempty"`          // RMB 净收益视角；汇率缺失 = value（USD 原值）
 	FxRate        float64                `protobuf:"fixed64,9,opt,name=fx_rate,json=fxRate,proto3" json:"fx_rate,omitempty"`                // 当日 USDCNH；0 = 不可用
 	FxAvailable   bool                   `protobuf:"varint,10,opt,name=fx_available,json=fxAvailable,proto3" json:"fx_available,omitempty"` // 汇率可用（false → 前端显示「汇率不可用」）
+	Covered       bool                   `protobuf:"varint,11,opt,name=covered,proto3" json:"covered,omitempty"`                            // 本行 kind 是否 RMB 折算覆盖（与 rmb.CoveredKinds 同源；D-047 消除前端重复集合）
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1244,6 +1245,13 @@ func (x *FactRmb) GetFxRate() float64 {
 func (x *FactRmb) GetFxAvailable() bool {
 	if x != nil {
 		return x.FxAvailable
+	}
+	return false
+}
+
+func (x *FactRmb) GetCovered() bool {
+	if x != nil {
+		return x.Covered
 	}
 	return false
 }
@@ -2514,7 +2522,7 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\tR\x06status\"\x19\n" +
 	"\x17ListSourceHealthRequest\"R\n" +
 	"\x18ListSourceHealthResponse\x126\n" +
-	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.SourceHealthR\x05items\"\x8c\x02\n" +
+	"\x05items\x18\x01 \x03(\v2 .arbcn.dashboard.v1.SourceHealthR\x05items\"\xa6\x02\n" +
 	"\aFactRmb\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05venue\x18\x02 \x01(\tR\x05venue\x12\x16\n" +
@@ -2526,7 +2534,8 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\trmb_value\x18\b \x01(\x01R\brmbValue\x12\x17\n" +
 	"\afx_rate\x18\t \x01(\x01R\x06fxRate\x12!\n" +
 	"\ffx_available\x18\n" +
-	" \x01(\bR\vfxAvailable\"T\n" +
+	" \x01(\bR\vfxAvailable\x12\x18\n" +
+	"\acovered\x18\v \x01(\bR\acovered\"T\n" +
 	"\x10ListFactsRequest\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
 	"\x05venue\x18\x02 \x01(\tR\x05venue\x12\x16\n" +

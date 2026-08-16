@@ -4,9 +4,9 @@ import { factValue, fmtRel, fmtTs, fxText, unitText } from "../format";
 import type { FactRmb } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { Chip } from "./Chip";
 
-// COVERED_KINDS：展示层做 RMB 折算的 kind（与后端 rmb.CoveredKinds 同语义；
-// 非覆盖 kind 原样显示，不折算）。
-const COVERED_KINDS = new Set(["funding", "defi_rate", "deposit_rate"]);
+// 展示层做 RMB 折算的 kind 判定直接取后端下发的事实级 covered 标志（D-047 F2：
+// 删除前端重复集合 COVERED_KINDS，单一真相源在后端 rmb.CoveredKinds，经 proto
+// FactRmb.covered 下发——后端加覆盖 kind 前端自动同步，不再双源漂移）。
 
 // kindLabel 事实 kind → 中文（快照表可读性）。
 function kindLabel(kind: string): string {
@@ -102,7 +102,7 @@ export function FactsSnapshot({
             </thead>
             <tbody>
               {rows.map((f) => {
-                const covered = COVERED_KINDS.has(f.kind);
+                const covered = f.covered;
                 return (
                   <tr key={`${f.kind}:${f.symbol}:${f.venue}`}>
                     <th scope="row">{kindLabel(f.kind)}</th>

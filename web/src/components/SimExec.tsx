@@ -12,14 +12,13 @@ import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
 //   - 预期年化 = 当前 funding 年化%（仅生息腿；现货腿/查不到标 —）。
 //   - 实时收益 = 已结算 pnl + 未实现浮动（funding_hedge 两腿对冲浮动≈0，主要体现资金费）。
 // funding 生息腿明示。
-function PositionZone({ positions }: { positions: SimPosition[] }) {
-  const fxMissing = positions.length > 0 && positions.every((p) => p.pnlRmb === 0);
+function PositionZone({ positions, fxAvailable }: { positions: SimPosition[]; fxAvailable: boolean }) {
   return (
     <section className="card" aria-labelledby="sim-positions-title">
       <h2 id="sim-positions-title">模拟持仓 <SimTag /></h2>
       <p className="muted">
         实时收益 = 已结算 PnL + 未实现浮动（当前价 − 开仓价）；pnl_rmb 按即期 USDCNH 折算
-        {fxMissing ? "（当前汇率不可用，标注 USD 原值）" : ""}。
+        {fxAvailable ? "" : "（当前汇率不可用，标注 USD 原值）"}。
       </p>
       {positions.length === 0 ? (
         <p className="empty">暂无模拟持仓</p>
@@ -62,8 +61,8 @@ function PositionZone({ positions }: { positions: SimPosition[] }) {
                   </td>
                   <td className="num">{fmtAmount(p.pnl)}</td>
                   <td className="num">{fmtAmount(p.pnl + p.unrealizedPnl)}</td>
-                  <td className={p.pnlRmb === 0 ? "muted" : "num"}>
-                    {p.pnlRmb === 0 ? "USD 原值" : fmtAmount(p.pnlRmb)}
+                  <td className={fxAvailable ? "num" : "muted"}>
+                    {fxAvailable ? fmtAmount(p.pnlRmb) : "USD 原值"}
                   </td>
                   <td>{p.funding ? <span className="sim-tag">生息腿</span> : "—"}</td>
                 </tr>
@@ -170,12 +169,14 @@ export function SimExec({
   positions,
   accounts,
   report,
+  fxAvailable,
   error,
   reload,
 }: {
   positions: SimPosition[];
   accounts: TestnetAccount[];
   report: GetSimReportResponse | null;
+  fxAvailable: boolean;
   error: string;
   reload: () => void;
 }) {
@@ -192,7 +193,7 @@ export function SimExec({
           模拟执行加载失败：{error}
         </div>
       ) : null}
-      <PositionZone positions={positions} />
+      <PositionZone positions={positions} fxAvailable={fxAvailable} />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone
         markdown={report?.markdown ?? ""}

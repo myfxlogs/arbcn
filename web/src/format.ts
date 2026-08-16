@@ -1,4 +1,4 @@
-import { timestampDate } from "@bufbuild/protobuf/wkt";
+import { timestampDate, timestampFromDate } from "@bufbuild/protobuf/wkt";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 
 // pct 年化/百分比格式化（value 已按 % 口径存储）。
@@ -36,6 +36,16 @@ export const fmtRel = (t?: Timestamp): string => {
   const h = Math.floor(m / 60);
   if (h < 24) return `${h} 小时前`;
   return `${Math.floor(h / 24)} 天前`;
+};
+
+// ledgerDate 把 datetime-local 字符串（YYYY-MM-DDTHH:mm）转 proto Timestamp
+// （台账表单用；D-047 F5 从 hooks.ts 移入 format.ts——纯转换函数归置显示工具层）。
+export const ledgerDate = (
+  input: string,
+): ReturnType<typeof timestampFromDate> | undefined => {
+  if (!input) return undefined;
+  const d = new Date(input);
+  return Number.isNaN(d.getTime()) ? undefined : timestampFromDate(d);
 };
 
 // fmtInterval 源轮询间隔（秒 → 中文）。

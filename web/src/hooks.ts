@@ -1,4 +1,3 @@
-import { timestampFromDate } from "@bufbuild/protobuf/wkt";
 import type { Timestamp } from "@bufbuild/protobuf/wkt";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -32,11 +31,15 @@ const POLL_MS = 60_000;
 // useSim 模拟执行面板（M3-c C4，04-m3-spec §10.5）：建议订单 + 模拟持仓 + 对账报告
 // + 测试网账户（D-040）。确认走 SimService.ConfirmSimOrder（后端唯一写路径，suggested
 // 守卫原子成交）；确认成功后本地刷新各区。SIMULATED 徽标由 SimExec 组件固定渲染（可检查）。
-export function useSim(): {
+// D-047 P0：本 hook 由使用它的页面组件挂载（OverviewPage/SimPage），hook 生命周期 =
+// 视图生命周期；加 60s 轮询（8h 结算新单可被确认面板捕获，不再只靠手动刷新）。
+// refreshKey：顶部全局刷新信号（App 递增）→ effect 重载。
+export function useSim(refreshKey?: number): {
   orders: SimOrder[];
   positions: SimPosition[];
   report: GetSimReportResponse | null;
   accounts: TestnetAccount[];
+  fxAvailable: boolean;
   error: string;
   confirm: (id: bigint) => Promise<boolean>;
   reload: () => void;
@@ -45,6 +48,7 @@ export function useSim(): {
   const [positions, setPositions] = useState<SimPosition[]>([]);
   const [report, setReport] = useState<GetSimReportResponse | null>(null);
   const [accounts, setAccounts] = useState<TestnetAccount[]>([]);
+  const [fxAvailable, setFxAvailable] = useState(false);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
 
@@ -63,6 +67,7 @@ export function useSim(): {
         setPositions(positionsRes.positions);
         setReport(reportRes);
         setAccounts(accountsRes.accounts);
+        setFxAvailable(positionsRes.fxAvailable); // D-047 F4：真实汇率可用信号（区分「USD 原值」与真零 PnL）
         setError("");
       } catch (e) {
         if (!alive) return;
@@ -70,10 +75,12 @@ export function useSim(): {
       }
     };
     void load();
+    const timer = setInterval(() => void load(), POLL_MS);
     return () => {
       alive = false;
+      clearInterval(timer);
     };
-  }, [tick]);
+  }, [tick, refreshKey]);
 
   const confirm = useCallback(async (id: bigint): Promise<boolean> => {
     try {
@@ -92,6 +99,7 @@ export function useSim(): {
     positions,
     report,
     accounts,
+    fxAvailable,
     error,
     confirm,
     reload: useCallback(() => setTick((n) => n + 1), []),
@@ -212,16 +220,10 @@ export function useLedger(): {
   };
 }
 
-// ledgerDate 把 datetime-local 字符串（YYYY-MM-DDTHH:mm）转 proto Timestamp。
-export function ledgerDate(input: string): ReturnType<typeof timestampFromDate> | undefined {
-  if (!input) return undefined;
-  const d = new Date(input);
-  return Number.isNaN(d.getTime()) ? undefined : timestampFromDate(d);
-}
-
 // useKnowledge 市场结构经验库（D-046）：浏览已核实模式条目。只读、低频（仅在 D#
 // 吸收/复核部署时变化），故挂载加载 + 手动刷新，不加入 60s 轮询（省一路 RPC）。
-export function useKnowledge(): {
+// refreshKey：顶部全局刷新信号（D-047 P0，总览页经验库随全局刷新联动）。
+export function useKnowledge(refreshKey?: number): {
   entries: KnowledgeEntry[];
   error: string;
   reload: () => void;
@@ -247,7 +249,7 @@ export function useKnowledge(): {
     return () => {
       alive = false;
     };
-  }, [tick]);
+  }, [tick, refreshKey]);
 
   return {
     entries,

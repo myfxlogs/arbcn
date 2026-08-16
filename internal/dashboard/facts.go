@@ -99,5 +99,6 @@ func toFactRmb(c rmb.Converted) *dashboardv1.FactRmb {
 		RmbValue:    c.RMBValue,
 		FxRate:      c.FXRate,
 		FxAvailable: c.FXAvailable,
+		Covered:     c.Covered,
 	}
 }
