@@ -56,6 +56,7 @@
   | **M3-c 部署验收（spec §10.6）** | ✅ | 343f6a6 部署实测：重启 healthz ok + SimService 2 RPC 200 + dashboard 零回归（ListFacts 真实数据）+ 前端 index 200；确认流单测 8 场景全覆盖（真实 suggested 订单端到端冒烟依赖规则命中，库空时以单测+连通冒烟替代，诚实标注） |
   | **S3 testnet 探针启用（业主 key）** | ✅ | /etc/arbcn/arbcn-sim.env（mluser:mluser 0600，SIMULATED+全量 key）；binance/okx 连通 curl 实测 200；OKX ts ISO 格式探针 bug 修复（50102，practices #12）；首次 heartbeat 待 8h tick |
   | **D-040 测试网账户区（探针余额持久化 + RPC + UI）** | ✅ | migration 0006 sim_testnet_accounts + store 两方法 + probe Run 返回快照（binance 稳定币近似/okx totalEq）+ GetTestnetAccounts RPC + main 启动探针持久化 + SimExec 账户区（诚实口径标注）；部署实测两路真实虚拟资金 + 启动探针 heartbeat 登记（对话 #49） |
+  | 告警流高度封顶修复（触发器脱节） | ✅ | web/src/style.css .timeline max-height:min(60vh,480px)+overflow-y:auto；部署实测（对话 #54） |
 - 阻塞/待决策:
   - 无阻塞。TRX 独立处置（业主自定，费率转正触发器已入监控规格）。
   - SMTP 授权码待办**已移除**（D-033：业主不做邮件推送，浏览器铃铛为主通道）。
@@ -67,4 +68,4 @@
   - **D-031 实证修订**：data-api.binance.vision 不镜像 /fapi/*（404）；历史回填源回落 fapi.binance.com（部署机直连 200、满 365d）；OKX 历史端点为 funding-rate-history（funding-history 404），仅保留 ~90d（OKX 部分覆盖，sim_report/avg_30d 受窗口限制，已知 degrade）。
   - 待决策观察（不阻塞）：repo 信号经 SignalToOrder 时仍受 5% 门槛（SPREAD_LOW）约束——平时逆回购 2-4% 会被拒单，仅季末/年末上冲 ≥5% 时放行；与"时点逆回购"策略意图一致（宁缺毋滥），但若业主希望 repo 绕过价差门槛须走 D# 调整。
 - 下一步: **出入金通道全部闭环**（加密交易所 #50 + OTC 法币 1 万小额 #53，业主实测）。全部通道打通，资金进出双向可行；下一可行动作 = 业主按机会面板/台账决定是否开始实际建仓（首笔可从小额起）。
-- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）+ **#13（门禁/折算数据面按实体类型分派，D-039 教训）**；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；**M3-c 复审修复（repo/carry 恒拒）入 D-039**；S3 启用 + OKX 探针 ts 格式教训入 practices #12 + dialogue #48；**D-040 测试网账户区入 D-040**；跨数据源同名数值口径标注教训入 practices #14；对话落 dialogue.md #39~#53（含 #51 轮询 vs 事件驱动架构确认、#52 机会盘点 + 微盘陷阱实证、#53 OTC 法币通道实测通过）。
+- 清扫上翻: 本次 review 教训入 practices.md #6-#10（刻度统一/NaN 门禁/状态+从属行原子/信任边界标注/时钟注入覆盖全路径）+ #11（统计效力）+ #12（数据源端点必须部署机实测）+ **#13（门禁/折算数据面按实体类型分派，D-039 教训）**；追溯深审 + M3-a 复审结论入 decisions.md D-035；M3 文档审计结论入 D-036（收敛口径修正 + G1–G5）；M3-b 细化设计入 D-037（spec §9 + 结算数据源裁决）；S4 数据源实证修订入 D-031（data-api 前提否定 + fapi 回落 + OKX 端点修正）；M3-c 细化设计入 D-038（spec §10 C1–C5）；**M3-c 复审修复（repo/carry 恒拒）入 D-039**；S3 启用 + OKX 探针 ts 格式教训入 practices #12 + dialogue #48；**D-040 测试网账户区入 D-040**；跨数据源同名数值口径标注教训入 practices #14；对话落 dialogue.md #39~#54（含 #51 轮询 vs 事件驱动架构确认、#52 机会盘点 + 微盘陷阱实证、#53 OTC 法币通道实测通过、#54 告警流高度封顶修复）。

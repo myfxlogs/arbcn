@@ -249,10 +249,14 @@ td.neg {
   color: var(--ink-3);
 }
 /* —— 告警时间线 —— */
+/* 高度封顶：后端一次最多返回 500 条，不设上限会把下方触发器顶出视口（页面被撑高）。
+   卡片内滚动，整页保持紧凑；铃铛通知中心（70vh 浮动层）已覆盖全量浏览。 */
 .timeline {
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
 }
 .timeline li {
   padding: 10px 0;

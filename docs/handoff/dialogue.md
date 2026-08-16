@@ -431,3 +431,11 @@
 - **影响**：施工表「出入金通道验证（1 万小额 OTC 法币通道）」⬜→✅；资金进出双向可行，实际建仓的前置条件全部就绪（机会监控 + 模拟盘 + 出入金通道）。
 - **决策号**：无新 D#（业主实测确认，无设计变更）。
 - **下一步**：业主决定是否开始实际建仓（首笔可从小额起，对照机会面板/台账执行）；若建仓则台账记 ledger（channel/amount/fee/tier）。
+
+## #54 · 2026-08-16 · 告警流高度封顶修复（页面被撑高 → 触发器脱节）· 业主报障 → 决策层
+- **参与方**：业主（报障）、Claude（决策层）
+- **议题**：仪表盘「监控总览」告警流把页面撑得太高，触发器表被顶出视口（脱节）。
+- **根因**：后端 `maxAlertLimit=500`（internal/dashboard/service.go）一次最多回 500 条，前端 `.timeline`（告警流 `<ol>`）无高度上限 → 双栏 `.row` 网格（`align-items:start`）被无限撑高，下方 Triggers 卡片被顶飞。
+- **修复**：`web/src/style.css` `.timeline` 加 `max-height: min(60vh, 480px)` + `overflow-y: auto`（卡片内滚动；铃铛通知中心 70vh 浮动层已覆盖全量浏览，语义不重复）。纯 CSS，无 TS/后端改动。
+- **部署**：`npm run build`（新哈希 index-BfWXmvtq.css）+ `go build -o bin/arbcn ./cmd/arbcn` + systemd restart（sudo 正常路径，新 PID 2695905）；healthz 200，托管页面引用新 CSS，托管 CSS 实测含 `max-height:min(60vh,480px)`；ListAlerts 零回归（当前 18 条）。
+- **决策号**：无新 D#（纯 UI 布局修复，未触及架构/合规/资金面）。
