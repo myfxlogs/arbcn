@@ -360,3 +360,15 @@
   ④ **D-048 U2 反转留痕**：业主新优先级 = **数据监控置顶（眼睛扫描起点）+ 操作区放鼠标顺手高度（中右）**，取代 D-048「裁决先于数据、确认置顶」——布局迭代中业主可反转上一版子决策，走 D# 记录（决策在环，§0）。
 - **理由**：布局输入 = 业主的人体工学与信息架构直觉（左上 = 扫描起点、中右 = 鼠标热区），第一眼原则同源但维度不同（信息架构 vs 操作 ergonomics）；纯前端，零后端/RPC/门禁改动；删除 Alerts.tsx 满足 C 洁净（唯一引用 OverviewPage 已移除）。
 - **结论**：`MarketMatrix.tsx`（新）+ `Opportunity.tsx`（实算卡瘦身）+ `OverviewPage.tsx`（3×2 网格 + 删 Alerts/ackBusy/ack）+ `App.tsx`（OverviewPage props 同步）+ 删 `Alerts.tsx` + style.css（`.row`→`.grid` 3fr/2fr + 删 `.timeline*` 死规则）。grep 锚点恒绿（Opportunity 仍 import kindText 无字面量、ConfirmPanel 仍引 SimulatedBadge）；全量 go test/vet/npm build 绿；部署重启 + 实测 healthz ok + 新 inode 匹配 + served bundle == 新 dist（index-Bkl8ybxZ.js）。**纯前端布局，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——确认下单仍 SIMULATED + 人工确认。**
+
+## D-051 移动/小屏自适应（对话 #69，业主指令「有做移动小屏自适应吗？这个需要做」）（2026-08-16）
+- **背景**：业主追问是否做了移动/小屏自适应。审计结论 = 已有**桌面优先兜底**（viewport meta + `.grid` 860px 折叠单栏 + 铃铛 600px 全屏抽屉 + `.table-scroll` 横向滚动 + 瓦片 auto-fill + header/tabs flex-wrap），但**真移动适配缺失**：触摸目标过小（`button.icon`≈25px / `.ack`≈22px / `.bell-btn` 34×30 / `.tab`≈31px / `.collapse-summary`≈30px，指南 ≥44px）、iOS 聚焦输入 <16px 自动缩放页面、14px 基准字号小屏偏小、表格无惯性滚动、双击缩放未禁用。
+- **决策**：
+  ① **断点对齐既有**：主移动断点 `max-width:600px`（与铃铛全屏一致），极窄 `480px`（台账表单），回归校验 `860px`（网格折叠，既有）。
+  ② **触摸目标 ≥44px**：600px 内 `button.icon/tab/ack/.collapse-summary { min-height:44px }`、`.bell-btn` 44×44、折叠块 padding 12px——仅移动断点内生效，桌面不受污染（实测 1280px 按钮仍 31px）。
+  ③ **iOS 输入防缩放**：600px 内 `.ledger-form input/select { font-size:16px }`（Safari 聚焦 <16px 输入强制放大页面）。
+  ④ **可读性 + 惯性滚动**：600px 内 body 15px、main padding 16px/12px + `env(safe-area-inset-bottom)` 渐进增强（无效自动回退 40px）、卡片 padding 12px、`.table-scroll` 加 `-webkit-overflow-scrolling:touch`；极窄 480px 台账表单单栏（输入全宽）。
+  ⑤ **触屏体验**：按钮/collapse-summary 加 `touch-action:manipulation`（消双击缩放与 300ms 延迟）+ `-webkit-tap-highlight-color:transparent`；`@media(hover:none)` 下 `:active{opacity:.7}` 按压反馈（桌面鼠标无感）。
+  ⑥ **修复 375px 实测抓到的两个真 bug**：a) `.grid` 860px 折叠原为 `grid-template-columns:1fr`，`1fr` 隐式最小 = `auto`，宽矩阵表 min-content（556px）把轨道撑破视口（实测 docScrollWidth 594）→ 改 `minmax(0,1fr)` 让 `.table-scroll` 内部滚动；b) 台账表单 480px 规则 `.ledger-note{grid-column:1/-1}` 特异性 (0,1,0) 不敌基础 `.ledger-form .ledger-note{grid-column:span 2}` (0,2,0)，note 保持 span 2 在单栏网格撑出隐式第二列（258+218=486px 溢出，实测 docScrollWidth 511）→ 媒体块改用同特异性后代选择器 `.ledger-form .ledger-note`。
+- **理由**：纯 CSS 媒体查询增量（style.css），零新依赖/零 JSX/零后端/RPC/门禁改动；A 原则复用既有 class 名不引入新组件；触摸目标/字号/iOS 缩放是移动可用性硬约束（非风格偏好）；真实视口实测（无头 chromium CDP，375/768/1280 三档）替代纯理论推断，两个溢出 bug 只有实测才暴露。
+- **结论**：style.css 追加 3 个媒体块（600px 主适配 / 480px 表单 / hover:none 按压）+ 2 处基础规则扩展（button 与 .collapse-summary 的 touch-action/tap-highlight）+ 修复 860px `minmax(0,1fr)` + 480px ledger-note 特异性。**实测三档视口全过**：375px 单栏无溢出 + 44px 触摸目标 + 台账单栏；768px 单栏网格无溢出 + 按钮不被 600px 规则污染；1280px 双栏 3fr/2fr 无溢出 + 14px 字号。全量 go test/vet/npm build/tsc 绿；部署重启 + 实测 inode 匹配 + served bundle == 新 dist（index-CRNqUktn.js / index-Cjd-E_-V.css）。**纯前端 CSS，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）。**
