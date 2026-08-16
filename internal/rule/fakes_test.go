@@ -232,6 +232,10 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
+func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+	panic("fakeStore: ReviewKnowledgeEntry not used")
+}
+
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()
 	defer f.mu.Unlock()

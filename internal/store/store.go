@@ -308,4 +308,8 @@ type Store interface {
 	// UpsertKnowledgeEntry 按 signature 确保条目存在并返回 id（镜像 UpsertRule：已存在
 	// **不覆盖**，保留 DB 后续人工修订）。seed 落盘幂等。
 	UpsertKnowledgeEntry(ctx context.Context, e KnowledgeEntry) (int64, error)
+	// ReviewKnowledgeEntry 人工复核（D-054）：写 validated_at=now + 生命周期 status +
+	// 可选 verdict 判定文本（空 = 保留原判定）+ validation_note，只改判定记录不改规则/
+	// 门禁；未知 signature 返回 ErrNotFound。
+	ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note string) error
 }

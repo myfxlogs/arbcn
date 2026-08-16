@@ -286,6 +286,27 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
+// ReviewKnowledgeEntry 复核（D-054 服务测试真语义）：写 validated_at=now + status +
+// 可选 verdict + note（verdict 空 = 保留原判定）。
+func (f *fakeStore) ReviewKnowledgeEntry(_ context.Context, signature, status, verdict, note string) error {
+	if f.err != nil {
+		return f.err
+	}
+	for i := range f.knowledge {
+		if f.knowledge[i].Signature == signature {
+			now := time.Now().UTC()
+			f.knowledge[i].ValidatedAt = &now
+			f.knowledge[i].Status = status
+			if verdict != "" {
+				f.knowledge[i].Verdict = verdict
+			}
+			f.knowledge[i].ValidationNote = note
+			return nil
+		}
+	}
+	return store.ErrNotFound
+}
+
 // —— 其余写路径：dashboard 服务不经过（只读 + ack），误用即红 ——
 
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {

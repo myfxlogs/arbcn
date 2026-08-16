@@ -143,6 +143,70 @@ func TestListKnowledgeEntries(t *testing.T) {
 	}
 }
 
+// TestReviewKnowledgeEntry：人工复核成功写 validated_at/verdict/note（回读核对）；
+// 空 signature / 空 note / 非法 verdict → InvalidArgument；未知 signature → Unavailable。
+// [对抗测试锚点] 删服务端 verdict 白名单校验 → 非法值不红。
+func TestReviewKnowledgeEntry(t *testing.T) {
+	ctx := context.Background()
+	sig := knowledge.SignatureFundingSpikeTrap
+	st := &fakeStore{knowledge: []store.KnowledgeEntry{
+		{Signature: sig, Verdict: "坑", Rationale: "尖峰陷阱", Status: "active"},
+	}}
+	svc := New(st, nil, nil, nil)
+	client := newTestServer(t, svc)
+
+	// 校验失败路径。
+	for _, tc := range []struct {
+		name, signature, status, note string
+	}{
+		{"empty signature", "", "active", "x"},
+		{"empty note", sig, "active", ""},
+		{"bad status", sig, "nope", "x"},
+	} {
+		_, err := client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+			Signature: tc.signature, Status: tc.status, ValidationNote: tc.note,
+		}))
+		if connect.CodeOf(err) != connect.CodeInvalidArgument {
+			t.Fatalf("%s: code = %v, want InvalidArgument", tc.name, connect.CodeOf(err))
+		}
+	}
+
+	// 成功：写 validated_at + status + verdict + note。
+	resp, err := client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+		Signature: sig, Status: knowledge.StatusRetracted, Verdict: "结构变化判定", ValidationNote: "结构变化，撤回",
+	}))
+	if err != nil {
+		t.Fatalf("review: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("nil response")
+	}
+
+	// 回读核对（fake 内 validated_at 已置）。
+	list, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(list.Msg.Entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(list.Msg.Entries))
+	}
+	e := list.Msg.Entries[0]
+	if e.ValidatedAt == nil {
+		t.Fatal("validated_at 未写入（复核闭环断裂）")
+	}
+	if e.Status != knowledge.StatusRetracted || e.Verdict != "结构变化判定" || e.ValidationNote != "结构变化，撤回" {
+		t.Fatalf("复核后 = status %q verdict %q note %q", e.Status, e.Verdict, e.ValidationNote)
+	}
+
+	// 未知 signature → 存储层错误（storeErr 映射 Unavailable）。
+	_, err = client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+		Signature: "unknown:sig", Status: knowledge.StatusActive, ValidationNote: "x",
+	}))
+	if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("unknown sig: code = %v, want Unavailable", connect.CodeOf(err))
+	}
+}
+
 // TestListInsightsKnowledgeMatch：端到端——ListInsights 出现 knowledge_match 信号
 // （与四信号并存的完整性）。
 func TestListInsightsKnowledgeMatch(t *testing.T) {

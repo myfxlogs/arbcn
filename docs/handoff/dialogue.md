@@ -156,3 +156,14 @@
 - **真机视口实测（CDP 1280/375）**：桌面 docH **4781→2305**、机会面板 **3092→618**、确认下单 y121 首行、6 卡有序（矩阵|确认 / 机会|经验库 / 建议|触发器）各排对齐；移动 375 docSW==innerW 无横向溢出、确认下单第 2 位（y1229）、机会面板 450。矩阵仍 875px = 4 个紧凑分节累加（funding 134 + defi 202 + IV 97 + repo 202），无单节超 cap，业主指定全展开的主数据面保留。
 - **验证/部署**：全量 go test（含锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable，均 PASS）/vet/npm build/tsc 绿；构建 → SIGKILL 部署（arbcn-monitor.service，restart counter 8）→ healthz ok + inode 匹配（21244415→21244416）+ served bundle == 新 dist（index-DQsLtvVN.js / index-C170oVwK.css）。（practices #19 闭环）
 - **决策号**：D-052（高度协调 + 提上去）；教训入 practices #28（长列表用高度封顶卡内滚动防无限延伸 + DOM 序 = 布局序，重排即提权 + 移动单列序是业主观察视图）。
+
+## #71 · 2026-08-16 · 右1 双卡堆叠等高矩阵 + 进化建议右2 等高机会面板 + 经验库「如何复核」（D-053 + D-054）· 业主指定 → 决策层施工 + 实测
+- **参与方**：业主（指定布局 + 问复核）、Claude（决策层 + 施工 + 真机视口实测）
+- **议题 1（布局）**：业主「左1 是市场数据矩阵，右1 排两个卡片，市场结构经验库在上，确认下单在下，两个+在一起高度跟市场数据矩阵一样高」「进化建议排右2，跟左2 的机会面板一样高」。
+- **决策（D-053）**：`.right-stack` flex column 单网格 cell 包 KnowledgeBoard（上）+ ConfirmPanel（下）；删 `.grid` 的 `align-items: start`（恢复默认 stretch）→ 同排单元格沿行高拉伸，**right-stack 自动 = 矩阵高、进化建议自动 = 机会面板高，零逐卡高度规则**。DOM 序 = 矩阵 → right-stack(经验库+确认下单) → 机会 → 进化建议 → 触发器。
+- **议题 2（复核）**：业主「如何复核（待复核）」。
+- **决策（D-054）**：复核 = **人工在环**（owner 决策层行为，系统永不自动复核）。新 RPC `ReviewKnowledgeEntry` + Store 方法：signature 必填 + status 三态白名单（active/superseded/retracted）+ verdict 自由文本（**留空 = COALESCE 保留原判定**）+ validation_note 必填留痕。**语义关键：verdict 是判定文本（如「坑」），status 是生命周期枚举，绝不混写**（初稿曾把枚举写进 verdict 列，自审纠正）。只改判定记录，不触规则/门禁/D-016/MinSpread/CarryMinSpread/白名单。前端 KnowledgeBoard 每行「复核/再次复核」按钮 → 内联表单（状态 select + 判定文本留空=保留 + 必填结论 + 确认/取消）。
+- **施工**：OverviewPage.tsx（right-stack + review prop）+ style.css（.right-stack / .review-form 系，删 align-items:start）+ proto + buf 再生成 + store.go + pgstore/knowledge.go + dashboard/knowledge.go + knowledge 状态常量 + 6 处 fake 接口对齐 + hooks.ts（review 增 status 参数）+ KnowledgeBoard.tsx（ReviewForm 内联表单）。
+- **真机视口实测（CDP 1280/375）**：桌面 matrix y121 h875 == right-stack y121 h875（经验库 603 + 确认下单 119 @ y755）、opp y1012 h618 == insights y1012 h618、trig y1645 h188、docH 1881；**D-054 加复核按钮后复测仍 875==875、618==618**（scroll-cap 封顶防撑破）；移动 375 docSW==innerW 无溢出、单列序 = 矩阵→经验库→确认下单→机会面板。
+- **验证/部署**：全量 go test（含锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable 均 PASS + pgstore roundtrip + service 校验）/vet/npm build/tsc 绿；构建 → SIGKILL 部署 → healthz ok + inode 匹配（21244439→21244442）+ served bundle == 新 dist（index-BRFIYzsI.js / index-_h0_Ebl1.css）。**RPC 实测**：空 note / 非法 status → 400 InvalidArgument、未知签名 → 503 Unavailable 三条拒绝路径 live 命中；CDP 复核表单渲染（select 三态、verdict 预填「坑·核实」、note 必填占位、确认复核按钮）。**零执行门禁/规则/阈值/D-016 改动；不接 LLM（D-043）；不赌（D-019）。**（practices #19 闭环）
+- **决策号**：D-053（布局第 3 版）+ D-054（人工复核闭环）。

@@ -382,3 +382,21 @@
   ④ **「分页还是无限延伸」答案**：均不——有界 + 卡内滚动，永不无限延伸；矩阵仍 875px（4 个紧凑分节累加，无单节超 cap），是业主指定全展开的主数据面，保留。
 - **理由**：全局阅读协调 = 消除「一张长卡把后续卡顶出视口」的病态（页高 4781→2305）；三处列表同机制（单一 `.scroll-cap`，A 原则）；确认下单提上去直映业主「该我行动第一眼可见」（D-048 U1 原则回归，D-050「鼠标顺手高度」保留且上移）；桌面右列 confirm 下方约 700px 留白 = 数据驱动网格的固有代价（左列三卡 2105px / 右列三卡 910px），总量不因布局变，均匀分布（D-050 原序）与集中留白（本序）二选一，业主「提上去」优先故取集中。
 - **结论**：style.css 加 `.scroll-cap` + 矩阵表护栏 + 600px 内降级；Opportunity/KnowledgeBoard/Insights 三处列表接 `.scroll-cap`；OverviewPage DOM 重排（确认下单右上1/移动第2）。**实测（CDP 真实视口）**：桌面 docH 2305（原 4781）、机会面板 3092→618、确认下单 y121 首行、6 卡有序各排对齐；移动 375 docSW==innerW 无溢出、确认下单第 2 位（y1229）、机会面板 450。全量 go test（含锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable）/vet/npm build/tsc 绿；部署重启 + 实测 inode 匹配 + served bundle == 新 dist（index-DQsLtvVN.js）。**纯前端，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——确认下单仍 SIMULATED + 人工确认。**
+
+## D-053 总览页布局第 3 版：右1 双卡堆叠等高矩阵 / 进化建议右2 等高机会面板（对话 #71，业主指定）
+- **背景**：业主指令两条：① 「右1 排两个卡片，市场结构经验库在上、确认下单在下，两个加在一起高度跟市场数据矩阵一样高」；② 「进化建议排右2，跟左2 的机会面板一样高」。D-050 网格（矩阵/经验库/机会/确认下单/建议/触发器）与 D-052 序（确认下单右上1）需再按业主指定收敛为「数据矩阵 + 右列堆叠」形态。
+- **决策**：
+  ① **右1 用 `.right-stack` 单网格 cell**：`<div class="right-stack">` 包 KnowledgeBoard（上）+ ConfirmPanel（下），flex column `gap:16px; min-height:0`——两个卡片是**一个网格单元**，堆叠关系由 flex 表达，不再占两个 grid cell（D-050 两格并排方案废弃）。
+  ② **等高 = 恢复网格默认 `align-items: stretch`**：删 D-050 为对齐加的 `.grid { align-items: start }`。默认 stretch 下同排单元格沿行高拉伸——right-stack 自动 = 矩阵高（875px），进化建议自动 = 机会面板高（618px）。**零逐卡高度规则**，等高是网格行高的自然推论，新增卡不破坏。
+  ③ **DOM 序** = MarketMatrix → right-stack(经验库+确认下单) → Opportunity → Insights → Triggers。auto-flow 落位：左上矩阵、右1 堆叠、左2 机会、右2 进化建议、左3 触发器。确认下单从「右上1」变为「右1 堆叠的下半」，仍首屏。
+- **理由**：CSS grid 单 cell 包装 + 默认 stretch 是「两卡等高」的最简实现（B 原则）；不用 per-card `height:` 硬编码（新增内容破坏等高）；堆叠卡内由 `min-height:0` 保证 scroll-cap 列表可收缩而非撑破等高。
+- **结论**：style.css 加 `.right-stack`、删 `.grid` 的 `align-items: start`、`.grid > .card` 选择器扩为 `.grid > .card, .grid > .right-stack`；OverviewPage DOM 重排。**实测（CDP 真实视口 1280）**：matrix y121 h875 == right-stack y121 h875（经验库 603 + 确认下单 119 @ y755 贴合）；opp y1012 h618 == insights y1012 h618；trig y1645 h188；docH 1881；移动 375 docSW==innerW 无溢出、单列序 = 矩阵→经验库→确认下单→机会面板。D-054 加复核按钮后复测仍 875==875、618==618。**纯前端，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动。**
+
+## D-054 市场结构经验库人工复核（「待复核」闭环 · 对话 #71 业主问「如何复核」）
+- **背景**：D-046 经验库条目分「已复核/待复核」（`validated_at` 有无）。业主问「如何复核」。已核实全库**无设置 `validated_at` 的写路径**（`pgstore.UpsertKnowledgeEntry` INSERT 不写 validated_at、ON CONFLICT DO NOTHING；仅 List 读路径）——「待复核」实际永远无法转为已复核，闭环断裂（此前复核 = 人工 D# 落盘，practices #20 同源，但 UI 无从操作）。
+- **决策**：
+  ① **复核 = 人工在环，系统永不自动复核**：新增 RPC `ReviewKnowledgeEntry` + `Store.ReviewKnowledgeEntry`。请求 = signature（必填）+ status（生命周期三态 active/superseded/retracted，服务端白名单校验）+ verdict（**自由文本判定，留空 = COALESCE 保留原判定**）+ validation_note（复核结论，必填留痕）。**语义关键：verdict 是判定文本（如「坑」），status 是生命周期枚举——两者绝不混写**（初稿曾把枚举写进 verdict 列，已自审纠正）。
+  ② **只改判定记录，不改规则/门禁**：UPDATE 仅置 `validated_at=now()/status/verdict(可选)/validation_note`；不触任何规则表、门禁阈值、D-016/MinSpread/CarryMinSpread/白名单（practices #20 只读证据表面）；未知 signature → `ErrNotFound` → Unavailable。
+  ③ **前端内联表单**：KnowledgeBoard 每行「复核」（已复核显示「再次复核」）按钮 → 行内表单（状态 select 生效中/已更新/已撤销 + 判定文本输入留空=保留 + 必填复核结论 + 确认复核/取消）；提交走 RPC，成功后重拉列表，`validated_at` 落值 → 「待复核」变「复核 <ts>」。
+- **理由**：经验库是「决策资产」，复核必须是决策层行为（owner 在环），不由系统自动写（避免自说自话的「已复核」）；note 必填保证留痕可追溯（F 文档）；verdict 可留空保留 = 常见复核只改状态不改判定的最简路径。
+- **结论**：proto + buf 再生成（Service 自动接线，漏实现即编译失败）+ Store 接口 + pgstore UPDATE（COALESCE 保留路径）+ 服务校验 + 6 处 fake 接口对齐 + hook（status 参数）。**测试全绿**：pgstore roundtrip（validated_at 置值/status/verdict/note、空 verdict 保留、未知签名 ErrNotFound）+ service（空 sig/空 note/非法 status → InvalidArgument、成功回读、未知签名 → Unavailable）+ 锚点 TestSimKindLabelCoverage/TestSimExecBadgeRenderable；tsc/npm build/go build 绿。**部署 + 实测**：RPC 拒空 note/拒非法 status（400）/未知签名（503）三条拒绝路径 live 命中；CDP 复核表单渲染（select 三态、verdict 预填「坑·核实」、note 必填占位、确认复核按钮）；1280 等高不破坏。**零执行门禁/规则/阈值/D-016 改动；不接 LLM（D-043）；不赌（D-019）。**

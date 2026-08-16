@@ -79,6 +79,9 @@ const (
 	// DashboardServiceListKnowledgeEntriesProcedure is the fully-qualified name of the
 	// DashboardService's ListKnowledgeEntries RPC.
 	DashboardServiceListKnowledgeEntriesProcedure = "/arbcn.dashboard.v1.DashboardService/ListKnowledgeEntries"
+	// DashboardServiceReviewKnowledgeEntryProcedure is the fully-qualified name of the
+	// DashboardService's ReviewKnowledgeEntry RPC.
+	DashboardServiceReviewKnowledgeEntryProcedure = "/arbcn.dashboard.v1.DashboardService/ReviewKnowledgeEntry"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -118,6 +121,11 @@ type DashboardServiceClient interface {
 	// ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
 	// 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
 	ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error)
+	// ReviewKnowledgeEntry 人工复核经验条目（D-054）：决策层评估后填复核结论——
+	// validated_at=now + 生命周期 status（active/superseded/retracted）+ 可选更新判定
+	// 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
+	// signature 条目的判定记录（呈现面），不改任何规则/门禁。
+	ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -221,6 +229,12 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("ListKnowledgeEntries")),
 			connect.WithClientOptions(opts...),
 		),
+		reviewKnowledgeEntry: connect.NewClient[v1.ReviewKnowledgeEntryRequest, v1.ReviewKnowledgeEntryResponse](
+			httpClient,
+			baseURL+DashboardServiceReviewKnowledgeEntryProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ReviewKnowledgeEntry")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -241,6 +255,7 @@ type dashboardServiceClient struct {
 	listInsights         *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
 	listOppCards         *connect.Client[v1.ListOppCardsRequest, v1.ListOppCardsResponse]
 	listKnowledgeEntries *connect.Client[v1.ListKnowledgeEntriesRequest, v1.ListKnowledgeEntriesResponse]
+	reviewKnowledgeEntry *connect.Client[v1.ReviewKnowledgeEntryRequest, v1.ReviewKnowledgeEntryResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -318,6 +333,11 @@ func (c *dashboardServiceClient) ListKnowledgeEntries(ctx context.Context, req *
 	return c.listKnowledgeEntries.CallUnary(ctx, req)
 }
 
+// ReviewKnowledgeEntry calls arbcn.dashboard.v1.DashboardService.ReviewKnowledgeEntry.
+func (c *dashboardServiceClient) ReviewKnowledgeEntry(ctx context.Context, req *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error) {
+	return c.reviewKnowledgeEntry.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -355,6 +375,11 @@ type DashboardServiceHandler interface {
 	// ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
 	// 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
 	ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error)
+	// ReviewKnowledgeEntry 人工复核经验条目（D-054）：决策层评估后填复核结论——
+	// validated_at=now + 生命周期 status（active/superseded/retracted）+ 可选更新判定
+	// 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
+	// signature 条目的判定记录（呈现面），不改任何规则/门禁。
+	ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -454,6 +479,12 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("ListKnowledgeEntries")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceReviewKnowledgeEntryHandler := connect.NewUnaryHandler(
+		DashboardServiceReviewKnowledgeEntryProcedure,
+		svc.ReviewKnowledgeEntry,
+		connect.WithSchema(dashboardServiceMethods.ByName("ReviewKnowledgeEntry")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -486,6 +517,8 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceListOppCardsHandler.ServeHTTP(w, r)
 		case DashboardServiceListKnowledgeEntriesProcedure:
 			dashboardServiceListKnowledgeEntriesHandler.ServeHTTP(w, r)
+		case DashboardServiceReviewKnowledgeEntryProcedure:
+			dashboardServiceReviewKnowledgeEntryHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -553,4 +586,8 @@ func (UnimplementedDashboardServiceHandler) ListOppCards(context.Context, *conne
 
 func (UnimplementedDashboardServiceHandler) ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ReviewKnowledgeEntry is not implemented"))
 }

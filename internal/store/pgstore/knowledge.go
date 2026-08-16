@@ -59,3 +59,24 @@ func (s *Store) UpsertKnowledgeEntry(ctx context.Context, e store.KnowledgeEntry
 	}
 	return id, err
 }
+
+// ReviewKnowledgeEntry 人工复核（D-054）：置 validated_at=now + 生命周期 status +
+// 可选判定文本 verdict（NULLIF 空串 = 保留原判定）+ validation_note。
+// 只改判定记录（呈现面），不碰规则/门禁；未知 signature 返回 store.ErrNotFound。
+func (s *Store) ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note string) error {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE knowledge_entries
+		SET validated_at = now(),
+		    status = $2,
+		    verdict = COALESCE(NULLIF($3, ''), verdict),
+		    validation_note = $4
+		WHERE signature = $1`,
+		signature, status, verdict, note)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return store.ErrNotFound
+	}
+	return nil
+}

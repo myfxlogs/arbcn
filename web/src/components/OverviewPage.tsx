@@ -35,18 +35,27 @@ export function OverviewPage({
           加载失败：{error}
         </div>
       ) : null}
-      {/* 3×2 网格：行序 = 左上/右上 / 左中/右中 / 左下/右下，auto-flow 天然落位 */}
+      {/* 网格（D-050 3×2 + D-052 提权 + D-053 右列堆叠）：行序 = 左上矩阵 /
+          右1 [经验库+确认下单] 堆叠（align-self:stretch 对齐矩阵高） / 左2 机会 /
+          右2 进化建议（stretch 对齐机会高） / 左3 触发器，auto-flow 天然落位 */}
       <div className="grid">
-        {/* D-052：确认下单紧跟矩阵（桌面右上1/移动第2），机会面板保持左2 */}
         <MarketMatrix facts={snap.facts} sourceHealth={snap.sourceHealth} />
-        <ConfirmPanel orders={sim.orders} confirm={sim.confirm} error={sim.error} reload={sim.reload} />
+        <div className="right-stack">
+          <KnowledgeBoard
+            entries={knowledge.entries}
+            error={knowledge.error}
+            onReload={knowledge.reload}
+            defaultOpen
+            review={knowledge.review}
+          />
+          <ConfirmPanel
+            orders={sim.orders}
+            confirm={sim.confirm}
+            error={sim.error}
+            reload={sim.reload}
+          />
+        </div>
         <Opportunity cards={snap.cards} />
-        <KnowledgeBoard
-          entries={knowledge.entries}
-          error={knowledge.error}
-          onReload={knowledge.reload}
-          defaultOpen
-        />
         <Insights insights={snap.insights} />
         <Triggers states={snap.states} />
       </div>

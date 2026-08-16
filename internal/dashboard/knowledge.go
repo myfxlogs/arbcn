@@ -4,6 +4,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -31,6 +32,28 @@ func (s *Service) ListKnowledgeEntries(ctx context.Context, _ *connect.Request[d
 		out = append(out, toKnowledgeEntryProto(e))
 	}
 	return connect.NewResponse(&dashboardv1.ListKnowledgeEntriesResponse{Entries: out}), nil
+}
+
+// ReviewKnowledgeEntry 人工复核经验条目（D-054）：写 validated_at=now + verdict +
+// validation_note。只改该 signature 条目的判定记录（呈现面），不改任何规则/门禁
+// （D-046 边界，practices #20 同源）——复核 = 决策层人工在环动作，系统永不自动复核。
+func (s *Service) ReviewKnowledgeEntry(ctx context.Context, req *connect.Request[dashboardv1.ReviewKnowledgeEntryRequest]) (*connect.Response[dashboardv1.ReviewKnowledgeEntryResponse], error) {
+	if req.Msg.Signature == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("signature required"))
+	}
+	if req.Msg.ValidationNote == "" {
+		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("validation_note required（复核结论留痕）"))
+	}
+	switch req.Msg.Status {
+	case knowledge.StatusActive, knowledge.StatusSuperseded, knowledge.StatusRetracted:
+	default:
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("status must be one of %s/%s/%s", knowledge.StatusActive, knowledge.StatusSuperseded, knowledge.StatusRetracted))
+	}
+	if err := s.st.ReviewKnowledgeEntry(ctx, req.Msg.Signature, req.Msg.Status, req.Msg.Verdict, req.Msg.ValidationNote); err != nil {
+		return nil, storeErr(err)
+	}
+	return connect.NewResponse(&dashboardv1.ReviewKnowledgeEntryResponse{}), nil
 }
 
 // knowledgeMatches 经验库签名匹配（D-046 信号 5）：确定性探测器对当前事实算签名 → 命中

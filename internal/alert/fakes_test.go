@@ -212,6 +212,10 @@ func (m *memStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (
 	panic("memStore: UpsertKnowledgeEntry not used")
 }
 
+func (m *memStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+	panic("memStore: ReviewKnowledgeEntry not used")
+}
+
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }
 

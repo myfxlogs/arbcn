@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { fmtTs } from "../format";
 import type { KnowledgeEntry } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { Chip, type ChipTone } from "./Chip";
@@ -45,21 +46,109 @@ function sigLabel(sig: string): string {
   }
 }
 
-// KnowledgeBoard 市场结构经验库（D-046）：只读呈现已核实的模式条目（吸收=人工 D# 落盘，
+// 复核表单行（D-054）：决策层人工在环——选择生命周期状态 + 可选改判定文本（留空 =
+// 保留原判定）+ 必填复核结论（留痕）。服务端白名单校验状态三态；note 必填。
+function ReviewForm({
+  entry,
+  onSubmit,
+  onCancel,
+}: {
+  entry: KnowledgeEntry;
+  onSubmit: (status: string, verdict: string, note: string) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [status, setStatus] = useState(entry.status || "active");
+  const [verdict, setVerdict] = useState(entry.verdict || "");
+  const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState("");
+
+  return (
+    <form
+      className="review-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!note.trim()) {
+          setErr("复核结论必填（决策留痕）");
+          return;
+        }
+        setSubmitting(true);
+        onSubmit(status, verdict, note).catch((e2) => {
+          setErr(String(e2));
+          setSubmitting(false);
+        });
+      }}
+    >
+      <label>
+        生命周期
+        <select
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          disabled={submitting}
+        >
+          <option value="active">生效中</option>
+          <option value="superseded">已更新</option>
+          <option value="retracted">已撤销</option>
+        </select>
+      </label>
+      <label>
+        判定文本
+        <input
+          type="text"
+          value={verdict}
+          onChange={(e) => setVerdict(e.target.value)}
+          placeholder="留空 = 保留原判定"
+          disabled={submitting}
+        />
+      </label>
+      <label className="review-note">
+        复核结论
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="必填：本次复核的依据/结论"
+          disabled={submitting}
+        />
+      </label>
+      <div className="review-actions">
+        <button type="button" className="facts-reload" onClick={onCancel} disabled={submitting}>
+          取消
+        </button>
+        <button type="submit" className="review-submit" disabled={submitting}>
+          {submitting ? "提交中…" : "确认复核"}
+        </button>
+      </div>
+      {err ? (
+        <p className="review-err" role="alert">
+          {err}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+// KnowledgeBoard 市场结构经验库（D-046）：呈现已核实的模式条目（吸收=人工 D# 落盘，
 // git 跟踪；系统只匹配与呈现，不自动吸收）。复核状态：validated_at 有值 = 已复核，
-// 缺省 = 待复核。D-048 U3 第一眼原则：低频参考面默认折叠，仅系统检测到同签名命中
-// （knowledge_match → 进化建议提示）时由上层以 defaultOpen 展开呈现裁决对照。
+// 缺省 = 待复核。复核 = 人工在环（D-054），按钮展开内联表单，仅写判定记录不改规则。
+// D-048 U3 第一眼原则：低频参考面默认折叠，仅系统检测到同签名命中（knowledge_match →
+// 进化建议提示）时由上层以 defaultOpen 展开呈现裁决对照。
 export function KnowledgeBoard({
   entries,
   error,
   onReload,
   defaultOpen = false,
+  review,
 }: {
   entries: KnowledgeEntry[];
   error: string;
   onReload: () => void;
   defaultOpen?: boolean;
+  review: (signature: string, status: string, verdict: string, note: string) => Promise<void>;
 }) {
+  // editing：正在复核的签名（同时只开一个表单）；完成后置 null。
+  const [editing, setEditing] = useState<string | null>(null);
+
   return (
     <section className="card" aria-labelledby="knowledge-title">
       <h2 id="knowledge-title">
@@ -95,6 +184,25 @@ export function KnowledgeBoard({
                   </li>
                   {e.validationNote ? <li>复核结论：{e.validationNote}</li> : null}
                 </ul>
+                <div className="review-bar">
+                  {editing === e.signature ? (
+                    <ReviewForm
+                      entry={e}
+                      onSubmit={(status, verdict, note) =>
+                        review(e.signature, status, verdict, note).then(() => setEditing(null))
+                      }
+                      onCancel={() => setEditing(null)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="review-open"
+                      onClick={() => setEditing(e.signature)}
+                    >
+                      {e.validatedAt ? "再次复核" : "复核"}
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

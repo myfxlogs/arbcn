@@ -46,6 +46,11 @@ service DashboardService {
   // ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
   // 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
   rpc ListKnowledgeEntries(ListKnowledgeEntriesRequest) returns (ListKnowledgeEntriesResponse);
+  // ReviewKnowledgeEntry 人工复核经验条目（D-054）：决策层评估后填复核结论——
+  // validated_at=now + 生命周期 status（active/superseded/retracted）+ 可选更新判定
+  // 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
+  // signature 条目的判定记录（呈现面），不改任何规则/门禁。
+  rpc ReviewKnowledgeEntry(ReviewKnowledgeEntryRequest) returns (ReviewKnowledgeEntryResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -289,3 +294,13 @@ message ListKnowledgeEntriesRequest {}
 message ListKnowledgeEntriesResponse {
   repeated KnowledgeEntry entries = 1;
 }
+
+// ReviewKnowledgeEntry 请求/响应（D-054 人工复核）。
+message ReviewKnowledgeEntryRequest {
+  string signature = 1;        // 要复核的条目签名
+  string status = 2;           // 复核后生命周期状态（active / superseded / retracted）
+  string verdict = 3;          // 复核后判定文本（可选；留空 = 保留原判定）
+  string validation_note = 4;  // 复核结论（中文，必填给决策留痕）
+}
+
+message ReviewKnowledgeEntryResponse {}

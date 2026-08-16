@@ -27,6 +27,14 @@ const (
 // Factor 尖峰判定倍率（与 dashboard.defiAnomalies 中位数×2 同口径；regime shift 稳健）。
 const Factor = 2.0
 
+// Status 全集（knowledge_entries.status 受控值；前端 KnowledgeBoard.statusLabel 对照本集合，
+// practices #18 后端常量单源）。
+const (
+	StatusActive     = "active"
+	StatusSuperseded = "superseded"
+	StatusRetracted  = "retracted"
+)
+
 // minCrossVenueSpread 跨所分歧最小价差点数（年化百分点）。TRX 案例 binance +2.3 vs
 // okx −3.5 → 差 5.8 ≥ 4；低于此的常规噪音不标分歧。
 const minCrossVenueSpread = 4.0

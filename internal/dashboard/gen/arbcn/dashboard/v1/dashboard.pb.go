@@ -2449,6 +2449,111 @@ func (x *ListKnowledgeEntriesResponse) GetEntries() []*KnowledgeEntry {
 	return nil
 }
 
+// ReviewKnowledgeEntry 请求/响应（D-054 人工复核）。
+type ReviewKnowledgeEntryRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Signature      string                 `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`                                 // 要复核的条目签名
+	Status         string                 `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`                                       // 复核后生命周期状态（active / superseded / retracted）
+	Verdict        string                 `protobuf:"bytes,3,opt,name=verdict,proto3" json:"verdict,omitempty"`                                     // 复核后判定文本（可选；留空 = 保留原判定）
+	ValidationNote string                 `protobuf:"bytes,4,opt,name=validation_note,json=validationNote,proto3" json:"validation_note,omitempty"` // 复核结论（中文，必填给决策留痕）
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ReviewKnowledgeEntryRequest) Reset() {
+	*x = ReviewKnowledgeEntryRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewKnowledgeEntryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewKnowledgeEntryRequest) ProtoMessage() {}
+
+func (x *ReviewKnowledgeEntryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewKnowledgeEntryRequest.ProtoReflect.Descriptor instead.
+func (*ReviewKnowledgeEntryRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *ReviewKnowledgeEntryRequest) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+func (x *ReviewKnowledgeEntryRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ReviewKnowledgeEntryRequest) GetVerdict() string {
+	if x != nil {
+		return x.Verdict
+	}
+	return ""
+}
+
+func (x *ReviewKnowledgeEntryRequest) GetValidationNote() string {
+	if x != nil {
+		return x.ValidationNote
+	}
+	return ""
+}
+
+type ReviewKnowledgeEntryResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReviewKnowledgeEntryResponse) Reset() {
+	*x = ReviewKnowledgeEntryResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewKnowledgeEntryResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewKnowledgeEntryResponse) ProtoMessage() {}
+
+func (x *ReviewKnowledgeEntryResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewKnowledgeEntryResponse.ProtoReflect.Descriptor instead.
+func (*ReviewKnowledgeEntryResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{42}
+}
+
 var File_arbcn_dashboard_v1_dashboard_proto protoreflect.FileDescriptor
 
 const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
@@ -2620,7 +2725,13 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x0fvalidation_note\x18\v \x01(\tR\x0evalidationNote\"\x1d\n" +
 	"\x1bListKnowledgeEntriesRequest\"\\\n" +
 	"\x1cListKnowledgeEntriesResponse\x12<\n" +
-	"\aentries\x18\x01 \x03(\v2\".arbcn.dashboard.v1.KnowledgeEntryR\aentries2\xf1\v\n" +
+	"\aentries\x18\x01 \x03(\v2\".arbcn.dashboard.v1.KnowledgeEntryR\aentries\"\x96\x01\n" +
+	"\x1bReviewKnowledgeEntryRequest\x12\x1c\n" +
+	"\tsignature\x18\x01 \x01(\tR\tsignature\x12\x16\n" +
+	"\x06status\x18\x02 \x01(\tR\x06status\x12\x18\n" +
+	"\averdict\x18\x03 \x01(\tR\averdict\x12'\n" +
+	"\x0fvalidation_note\x18\x04 \x01(\tR\x0evalidationNote\"\x1e\n" +
+	"\x1cReviewKnowledgeEntryResponse2\xec\f\n" +
 	"\x10DashboardService\x12j\n" +
 	"\x0fListLatestFacts\x12*.arbcn.dashboard.v1.ListLatestFactsRequest\x1a+.arbcn.dashboard.v1.ListLatestFactsResponse\x12[\n" +
 	"\n" +
@@ -2637,7 +2748,8 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\rLedgerSummary\x12(.arbcn.dashboard.v1.LedgerSummaryRequest\x1a).arbcn.dashboard.v1.LedgerSummaryResponse\x12a\n" +
 	"\fListInsights\x12'.arbcn.dashboard.v1.ListInsightsRequest\x1a(.arbcn.dashboard.v1.ListInsightsResponse\x12a\n" +
 	"\fListOppCards\x12'.arbcn.dashboard.v1.ListOppCardsRequest\x1a(.arbcn.dashboard.v1.ListOppCardsResponse\x12y\n" +
-	"\x14ListKnowledgeEntries\x12/.arbcn.dashboard.v1.ListKnowledgeEntriesRequest\x1a0.arbcn.dashboard.v1.ListKnowledgeEntriesResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
+	"\x14ListKnowledgeEntries\x12/.arbcn.dashboard.v1.ListKnowledgeEntriesRequest\x1a0.arbcn.dashboard.v1.ListKnowledgeEntriesResponse\x12y\n" +
+	"\x14ReviewKnowledgeEntry\x12/.arbcn.dashboard.v1.ReviewKnowledgeEntryRequest\x1a0.arbcn.dashboard.v1.ReviewKnowledgeEntryResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
 
 var (
 	file_arbcn_dashboard_v1_dashboard_proto_rawDescOnce sync.Once
@@ -2651,7 +2763,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 	return file_arbcn_dashboard_v1_dashboard_proto_rawDescData
 }
 
-var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
 var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*Fact)(nil),                         // 0: arbcn.dashboard.v1.Fact
 	(*ListLatestFactsRequest)(nil),       // 1: arbcn.dashboard.v1.ListLatestFactsRequest
@@ -2694,32 +2806,34 @@ var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
 	(*KnowledgeEntry)(nil),               // 38: arbcn.dashboard.v1.KnowledgeEntry
 	(*ListKnowledgeEntriesRequest)(nil),  // 39: arbcn.dashboard.v1.ListKnowledgeEntriesRequest
 	(*ListKnowledgeEntriesResponse)(nil), // 40: arbcn.dashboard.v1.ListKnowledgeEntriesResponse
-	(*timestamppb.Timestamp)(nil),        // 41: google.protobuf.Timestamp
+	(*ReviewKnowledgeEntryRequest)(nil),  // 41: arbcn.dashboard.v1.ReviewKnowledgeEntryRequest
+	(*ReviewKnowledgeEntryResponse)(nil), // 42: arbcn.dashboard.v1.ReviewKnowledgeEntryResponse
+	(*timestamppb.Timestamp)(nil),        // 43: google.protobuf.Timestamp
 }
 var file_arbcn_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	41, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
+	43, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
 	0,  // 1: arbcn.dashboard.v1.ListLatestFactsResponse.facts:type_name -> arbcn.dashboard.v1.Fact
-	41, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
+	43, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
 	3,  // 3: arbcn.dashboard.v1.ListAlertsResponse.alerts:type_name -> arbcn.dashboard.v1.Alert
-	41, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
+	43, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
 	8,  // 5: arbcn.dashboard.v1.ListTriggerStatesResponse.states:type_name -> arbcn.dashboard.v1.TriggerState
-	41, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
+	43, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
 	13, // 7: arbcn.dashboard.v1.ListUnackedResponse.items:type_name -> arbcn.dashboard.v1.UnackedAlert
-	41, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
-	41, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
+	43, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
+	43, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
 	18, // 10: arbcn.dashboard.v1.ListSourceHealthResponse.items:type_name -> arbcn.dashboard.v1.SourceHealth
-	41, // 11: arbcn.dashboard.v1.FactRmb.ts:type_name -> google.protobuf.Timestamp
+	43, // 11: arbcn.dashboard.v1.FactRmb.ts:type_name -> google.protobuf.Timestamp
 	21, // 12: arbcn.dashboard.v1.ListFactsResponse.facts:type_name -> arbcn.dashboard.v1.FactRmb
-	41, // 13: arbcn.dashboard.v1.ListFactsResponse.fx_ts:type_name -> google.protobuf.Timestamp
-	41, // 14: arbcn.dashboard.v1.LedgerEntry.date:type_name -> google.protobuf.Timestamp
-	41, // 15: arbcn.dashboard.v1.AddLedgerEntryRequest.date:type_name -> google.protobuf.Timestamp
+	43, // 13: arbcn.dashboard.v1.ListFactsResponse.fx_ts:type_name -> google.protobuf.Timestamp
+	43, // 14: arbcn.dashboard.v1.LedgerEntry.date:type_name -> google.protobuf.Timestamp
+	43, // 15: arbcn.dashboard.v1.AddLedgerEntryRequest.date:type_name -> google.protobuf.Timestamp
 	24, // 16: arbcn.dashboard.v1.ListLedgerEntriesResponse.entries:type_name -> arbcn.dashboard.v1.LedgerEntry
 	30, // 17: arbcn.dashboard.v1.LedgerSummaryResponse.items:type_name -> arbcn.dashboard.v1.TierSummary
-	41, // 18: arbcn.dashboard.v1.Insight.at:type_name -> google.protobuf.Timestamp
+	43, // 18: arbcn.dashboard.v1.Insight.at:type_name -> google.protobuf.Timestamp
 	32, // 19: arbcn.dashboard.v1.ListInsightsResponse.insights:type_name -> arbcn.dashboard.v1.Insight
 	35, // 20: arbcn.dashboard.v1.ListOppCardsResponse.cards:type_name -> arbcn.dashboard.v1.OpportunityCard
-	41, // 21: arbcn.dashboard.v1.KnowledgeEntry.ts:type_name -> google.protobuf.Timestamp
-	41, // 22: arbcn.dashboard.v1.KnowledgeEntry.validated_at:type_name -> google.protobuf.Timestamp
+	43, // 21: arbcn.dashboard.v1.KnowledgeEntry.ts:type_name -> google.protobuf.Timestamp
+	43, // 22: arbcn.dashboard.v1.KnowledgeEntry.validated_at:type_name -> google.protobuf.Timestamp
 	38, // 23: arbcn.dashboard.v1.ListKnowledgeEntriesResponse.entries:type_name -> arbcn.dashboard.v1.KnowledgeEntry
 	1,  // 24: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
 	4,  // 25: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
@@ -2736,23 +2850,25 @@ var file_arbcn_dashboard_v1_dashboard_proto_depIdxs = []int32{
 	33, // 36: arbcn.dashboard.v1.DashboardService.ListInsights:input_type -> arbcn.dashboard.v1.ListInsightsRequest
 	36, // 37: arbcn.dashboard.v1.DashboardService.ListOppCards:input_type -> arbcn.dashboard.v1.ListOppCardsRequest
 	39, // 38: arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries:input_type -> arbcn.dashboard.v1.ListKnowledgeEntriesRequest
-	2,  // 39: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
-	5,  // 40: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
-	7,  // 41: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
-	10, // 42: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
-	12, // 43: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
-	15, // 44: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
-	17, // 45: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
-	20, // 46: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
-	23, // 47: arbcn.dashboard.v1.DashboardService.ListFacts:output_type -> arbcn.dashboard.v1.ListFactsResponse
-	26, // 48: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:output_type -> arbcn.dashboard.v1.AddLedgerEntryResponse
-	28, // 49: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:output_type -> arbcn.dashboard.v1.ListLedgerEntriesResponse
-	31, // 50: arbcn.dashboard.v1.DashboardService.LedgerSummary:output_type -> arbcn.dashboard.v1.LedgerSummaryResponse
-	34, // 51: arbcn.dashboard.v1.DashboardService.ListInsights:output_type -> arbcn.dashboard.v1.ListInsightsResponse
-	37, // 52: arbcn.dashboard.v1.DashboardService.ListOppCards:output_type -> arbcn.dashboard.v1.ListOppCardsResponse
-	40, // 53: arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries:output_type -> arbcn.dashboard.v1.ListKnowledgeEntriesResponse
-	39, // [39:54] is the sub-list for method output_type
-	24, // [24:39] is the sub-list for method input_type
+	41, // 39: arbcn.dashboard.v1.DashboardService.ReviewKnowledgeEntry:input_type -> arbcn.dashboard.v1.ReviewKnowledgeEntryRequest
+	2,  // 40: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
+	5,  // 41: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
+	7,  // 42: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
+	10, // 43: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
+	12, // 44: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
+	15, // 45: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
+	17, // 46: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
+	20, // 47: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
+	23, // 48: arbcn.dashboard.v1.DashboardService.ListFacts:output_type -> arbcn.dashboard.v1.ListFactsResponse
+	26, // 49: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:output_type -> arbcn.dashboard.v1.AddLedgerEntryResponse
+	28, // 50: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:output_type -> arbcn.dashboard.v1.ListLedgerEntriesResponse
+	31, // 51: arbcn.dashboard.v1.DashboardService.LedgerSummary:output_type -> arbcn.dashboard.v1.LedgerSummaryResponse
+	34, // 52: arbcn.dashboard.v1.DashboardService.ListInsights:output_type -> arbcn.dashboard.v1.ListInsightsResponse
+	37, // 53: arbcn.dashboard.v1.DashboardService.ListOppCards:output_type -> arbcn.dashboard.v1.ListOppCardsResponse
+	40, // 54: arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries:output_type -> arbcn.dashboard.v1.ListKnowledgeEntriesResponse
+	42, // 55: arbcn.dashboard.v1.DashboardService.ReviewKnowledgeEntry:output_type -> arbcn.dashboard.v1.ReviewKnowledgeEntryResponse
+	40, // [40:56] is the sub-list for method output_type
+	24, // [24:40] is the sub-list for method input_type
 	24, // [24:24] is the sub-list for extension type_name
 	24, // [24:24] is the sub-list for extension extendee
 	0,  // [0:24] is the sub-list for field type_name
@@ -2770,7 +2886,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_dashboard_v1_dashboard_proto_rawDesc), len(file_arbcn_dashboard_v1_dashboard_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   41,
+			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

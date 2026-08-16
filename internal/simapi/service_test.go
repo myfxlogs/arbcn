@@ -259,6 +259,10 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
+func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+	panic("fakeStore: ReviewKnowledgeEntry not used")
+}
+
 // t0 / t0Facts：服务测试统一锚定时钟（practices #10：时钟注入覆盖确认成交腿时间戳）。
 var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 
