@@ -455,3 +455,19 @@
   ③ **订单历史（OrderHistoryZone，模拟执行 tab）**：全量 sim_orders（ts DESC，含 suggested/confirmed/filled/rejected/expired/closed 六态）+ 状态中文徽标（sim.tsx `statusText`，practices #18 对照后端 SimStatus* 六态全集）+ **rejected 拒单负样本保留 note（拒单原因）**——业主「第二门槛拦下的订单有没有记录」的直接答复（live 库实测 id=18 rejected SPREAD_DRIFT 53.28% 展示）。
 - **理由**：复核"对应不上"的根因 = 条目 rationale 是历史案例，当前数据没对照——自动证据直答「现在的数据这条经验还成立吗」（探测器是确定性纯函数，复用 D-046 已核实探测器与数据面口径，无新判定逻辑）；人工确认 = 复核仍是 HITL 动作（D-054 边界，系统永不自动复核）；平仓卡填右列空白 = 行动（平仓）与行动（确认）同区相邻，第一眼原则延续（D-048/D-050）；拒单负样本 = 门禁复盘依据（fail-closed 是设计内，但要有记录才能判断门禁是否过严）。
 - **结论**：后端 proto + evidence 编排 + 三 helper + 7 测试 + 前端 ClosePanel / ConfirmPanel scroll-cap / OrderHistoryZone / KnowledgeBoard 证据行 + note 预填 + sim.tsx statusText，全部部署应用（served bundle index-DRVZi1Rk.js 匹配 dist，live 实测 ListKnowledgeEntries 三条 evidence 正确——defi 未命中 4.39%、spike_trap 命中 ETH 10.95% vs 均值 3.75%（×2.9）、cross_venue 命中 BTC 7.5pp/ETH 8.3pp——+ ListSimOrders 拒单 18 负样本在库）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；复核仍人工在环；平仓/确认仍 SIMULATED 人工触发（D-019 不赌不动）；不接 LLM（D-043）。**
+
+## D-060 复核方向快照 + 自动翻转检测 + 待决策层清单（对话 #82/#83；业主四连概念问后选路线 A，明确「不做 B 接 LLM 的理由」必须落文档有痕可查）
+- **背景**：对话 #82 布局收尾后业主四连概念问：①「再次复核在什么情况下触发？」②「我没有判断信号的能力，怎么知道要不要再次复核？」③「系统上线后就没有 claude 跟着了，系统怎么做判断？」④「要不要接入 LLM？接入能做到 claude 这么聪明吗？」→ 我给出路线 A（不接 LLM：复核方向快照 + 自动翻转检测 + 待决策层清单）vs 路线 B（接 LLM 自动判断）；业主「同意你的建议」选 A，并明确要求「不做 B 的理由也要落文档，后期有痕可查」。
+- **决策**：
+  ① **不接 LLM（维持 D-043）——不做 B 的理由（业主点名留痕）**：
+    - **判断力错配**：B 想解决的是「没人跟着系统怎么知道要不要复核」。但复核判断的本质是「当前数据对照复核时的数据」——这是布尔比较（方向翻没翻），不是智能推理；LLM 是概率性推理，用在不需要推理的确定性命中对照上 = 引入不可靠判断源，把系统判断力从「确定」降成「或然」，违背审计第一性原则（先核实再采纳）。
+    - **成本与复杂度**：自托管 LLM 达可用判断力需 GPU + 运维 + 持续对齐调参，与省 token、7×24 自治冲突；接云端 LLM 则持仓/金额/市场判断数据出域给外部模型，合规与隐私不可控。
+    - **责任不可归属**：LLM 误判时无法区分「规则错 / 模型幻觉 / 数据错」，复核根因追踪被污染；确定性规则每条判定可逐条核对（P4 可检查性）。D-043 已评估自托管 LLM 达不到 Claude 级判断力——达不到还引入 = 只为「看起来智能」牺牲确定性。
+    - **D-043 缺口维持开放**：D-043 留的「未来解读用模板叙述」缺口继续开放，但本次路线 A 不需要；若将来用，也只作叙述层，永不进决策/执行门禁。
+  ② **路线 A 机制 = 判断编码为「复核时快照 + 翻转比较」，系统永不判断、只比较**：
+    - **复核方向快照**：migration 0010 `knowledge_entries.review_direction`（hit/miss/NULL）。`ReviewKnowledgeEntry` 服务端在复核时对当前数据重算证据方向并落库（方向记「证据当时说什么」，不记「人怎么判」，与 verdict/status 解耦）；数据面不可判定 → 方向留空，存储 COALESCE 保留旧快照不覆盖历史。
+    - **自动方向翻转检测**：`knowledgeEvidence` 三 helper 重构为 `evidenceResult{text, hit, known}`（方向在生成时刻同源产出，不反解析展示文本，P3）；`ListKnowledgeEntries` 对每条「已复核 + 有快照 + 当前方向可判定」条目比较当前 vs 快照 → `recheck_needed`（proto #14）：翻转 = 建议复核；一致 = 仍适用；未复核 / 无快照（复核早于 D-060）/ 当前不可判定 → 不标记（宁缺毋滥，不可比数据不吓人）。
+    - **待决策层清单（前端呈现，改判仍人工 D#）**：KnowledgeBoard 条目四态徽标（待复核 / 已复核[无快照] / 仍适用 / 建议复核）+ 建议复核置顶 + 警示条「建议复核 N 条」+ warn 徽标 + 「建议复核」警示按钮 + 「上次核验 命中/未命中」透明化。清单是可视化汇聚，动作（改判）仍在决策层会话走 D#（practices #20 边界：系统只标记、不裁决）。
+  ③ **三角色运营模型落定**（回应「上线后没有 claude」）：系统 7×24 自治做确定性命中对照与翻转检测；业主只做二选确认；判定变更走决策层定期会话（D#）。Claude 从随时在线降为定期维护——这正是路线 A 让系统自给的原因。
+- **理由**：业主问的是「没人跟着，系统怎么知道要不要复核」——答案不是让系统「想」而是让系统「比」：复核时存下证据方向，之后每次只做布尔比较，翻转即提醒。与 D-019（不赌：收益来自价差收敛与息差不来自方向判断）、D-043（不接 LLM）、practices #20（只读证据面永不自动改判）全部同源——系统层永远确定性、永远不裁决。
+- **结论**：已部署。migration 0010 + store ReviewKnowledgeEntry 加 direction + evidenceResult 重构 + recheckNeeded + 前端四态 UI + 新增测试（快照/翻转/仍适用/无快照守卫/数据面故障不覆盖/COALESCE 保留/NULL scan 回归）。**上线即抓真实事故**：ListInsights 503 = pgstore 扫 NULL review_direction 进 string（fake 用零值测不出、真库存量行有 NULL）→ *string 兜底 + NULL scan 回归测试，浏览器实测比单测先暴露。served bundle index-_k06EENF.js 匹配 dist；CDP 实测正常态（3 条「生效中+已复核」无警示、间距 12px、右列序 经验库/确认下单/平仓、无横向溢出）与翻转态（Fetch 拦截注入 recheck → 警示条「建议复核 1 条」+ 资金费率尖峰陷阱置顶 warn 徽标 + 警示按钮 + 「上次核验 未命中」）均正确。**零执行门禁/规则/阈值/D-016 改动；复核仍人工在环；不接 LLM（D-043 维持）；翻转检测只影响呈现标注，永不自动改 verdict/status。**

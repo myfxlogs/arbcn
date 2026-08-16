@@ -288,6 +288,8 @@ message KnowledgeEntry {
   google.protobuf.Timestamp validated_at = 10; // 复核时刻；缺省 = 待复核
   string validation_note = 11;            // 复核结论
   string current_evidence = 12;           // 当前核验证据（D-059：自动探测器对最新数据核验，供人工复核裁决；只读，不写判定）
+  string review_direction = 13;           // 复核时证据方向快照（D-060：hit=命中 / miss=未命中；空 = 未快照）。仅呈现，不参与规则/门禁
+  bool recheck_needed = 14;               // 方向翻转检测（D-060）：已复核 + 有快照 + 当前方向可判定，且当前方向 ≠ 快照方向 = 翻转 → 建议复核；一致 = 仍适用
 }
 
 message ListKnowledgeEntriesRequest {}

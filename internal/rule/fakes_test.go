@@ -241,7 +241,7 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
-func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string, string) error {
 	panic("fakeStore: ReviewKnowledgeEntry not used")
 }
 func (f *fakeStore) CloseSimOrder(context.Context, int64, string, []store.SimLegClose) (int, error) {

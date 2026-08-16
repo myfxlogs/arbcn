@@ -221,7 +221,7 @@ func (m *memStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (
 	panic("memStore: UpsertKnowledgeEntry not used")
 }
 
-func (m *memStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+func (m *memStore) ReviewKnowledgeEntry(context.Context, string, string, string, string, string) error {
 	panic("memStore: ReviewKnowledgeEntry not used")
 }
 func (m *memStore) CloseSimOrder(context.Context, int64, string, []store.SimLegClose) (int, error) {

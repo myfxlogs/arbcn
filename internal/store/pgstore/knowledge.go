@@ -16,7 +16,7 @@ import (
 func (s *Store) ListKnowledgeEntries(ctx context.Context) ([]store.KnowledgeEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, ts, signature, venue, symbol, verdict, rationale, source, status,
-		       validated_at, validation_note
+		       validated_at, validation_note, review_direction
 		FROM knowledge_entries ORDER BY signature`)
 	if err != nil {
 		return nil, err
@@ -28,14 +28,18 @@ func (s *Store) ListKnowledgeEntries(ctx context.Context) ([]store.KnowledgeEntr
 		var (
 			e  store.KnowledgeEntry
 			va pgtype.Timestamptz
+			rd *string // review_direction 可 NULL（复核早于 D-060 / 复核时数据面不可判定）
 		)
 		if err := rows.Scan(&e.ID, &e.Ts, &e.Signature, &e.Venue, &e.Symbol, &e.Verdict,
-			&e.Rationale, &e.Source, &e.Status, &va, &e.ValidationNote); err != nil {
+			&e.Rationale, &e.Source, &e.Status, &va, &e.ValidationNote, &rd); err != nil {
 			return nil, err
 		}
 		if va.Valid {
 			t := va.Time
 			e.ValidatedAt = &t
+		}
+		if rd != nil {
+			e.ReviewDirection = *rd
 		}
 		out = append(out, e)
 	}
@@ -60,18 +64,20 @@ func (s *Store) UpsertKnowledgeEntry(ctx context.Context, e store.KnowledgeEntry
 	return id, err
 }
 
-// ReviewKnowledgeEntry 人工复核（D-054）：置 validated_at=now + 生命周期 status +
-// 可选判定文本 verdict（NULLIF 空串 = 保留原判定）+ validation_note。
+// ReviewKnowledgeEntry 人工复核（D-054/D-060）：置 validated_at=now + 生命周期 status +
+// 可选判定文本 verdict（NULLIF 空串 = 保留原判定）+ validation_note + 复核方向快照
+// direction（NULLIF 空串 = 数据面不可判定，保留旧快照，不覆盖历史）。
 // 只改判定记录（呈现面），不碰规则/门禁；未知 signature 返回 store.ErrNotFound。
-func (s *Store) ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note string) error {
+func (s *Store) ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note, direction string) error {
 	tag, err := s.pool.Exec(ctx, `
 		UPDATE knowledge_entries
 		SET validated_at = now(),
 		    status = $2,
 		    verdict = COALESCE(NULLIF($3, ''), verdict),
-		    validation_note = $4
+		    validation_note = $4,
+		    review_direction = COALESCE(NULLIF($5, ''), review_direction)
 		WHERE signature = $1`,
-		signature, status, verdict, note)
+		signature, status, verdict, note, direction)
 	if err != nil {
 		return err
 	}

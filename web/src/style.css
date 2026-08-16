@@ -407,6 +407,16 @@ td.neg {
   color: var(--ink-3);
   font-size: 12px;
 }
+/* D-060 建议复核警示条：证据方向翻转 → 待决策层清单入口（只警示，不自动改判定） */
+.recheck-banner {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--warn);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  color: var(--ink);
+  font-size: 12px;
+}
 .insights {
   list-style: none;
   margin: 0;
@@ -484,6 +494,12 @@ td.neg {
 }
 .review-open:hover {
   background: var(--surface);
+}
+/* D-060 建议复核按钮：方向翻转时用警示色，与「仍适用/待复核」的普通按钮区分 */
+.review-open.recheck-open {
+  border-color: var(--warn);
+  color: var(--warn);
+  font-weight: 600;
 }
 .review-form {
   display: grid;

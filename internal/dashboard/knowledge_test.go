@@ -208,6 +208,123 @@ func TestReviewKnowledgeEntry(t *testing.T) {
 	}
 }
 
+// TestReviewDirectionSnapshotAndFlip：复核方向快照 + 翻转检测（D-060）端到端——
+// 平数据面复核 → 快照 miss；数据面翻转（尖峰命中）→ RecheckNeeded=true（建议复核）；
+// 翻转后再复核（此刻证据命中）→ 快照更新 hit → 一致 → RecheckNeeded=false（仍适用）。
+// [对抗测试锚点] 删 recheckNeeded 的 hit 比较（恒 false）→ 翻转后断言必红。
+func TestReviewDirectionSnapshotAndFlip(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	// 平 funding 数据面（瞬时=均值=5.0，比值 1.0）→ 未命中。
+	st := &fakeStore{
+		facts: []fact.Fact{
+			{Kind: fact.KindFunding, Venue: "okx", Symbol: "ETHUSDT", Value: 5.0, Ts: now.Add(-30 * 24 * time.Hour)},
+			{Kind: fact.KindFunding, Venue: "okx", Symbol: "ETHUSDT", Value: 5.0, Ts: now.Add(-time.Hour)},
+		},
+		knowledge: []store.KnowledgeEntry{{
+			Signature: knowledge.SignatureFundingSpikeTrap, Verdict: "坑", Rationale: "尖峰陷阱", Status: "active",
+		}},
+	}
+	svc := New(st, nil, nil, nil)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
+
+	review := func(status string) {
+		if _, err := client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+			Signature: knowledge.SignatureFundingSpikeTrap, Status: status, ValidationNote: "x",
+		})); err != nil {
+			t.Fatalf("review: %v", err)
+		}
+	}
+	entry := func() *dashboardv1.KnowledgeEntry {
+		resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		if len(resp.Msg.Entries) != 1 {
+			t.Fatalf("entries = %d, want 1", len(resp.Msg.Entries))
+		}
+		return resp.Msg.Entries[0]
+	}
+
+	// 平数据面复核 → 快照 miss，当前一致 → 不标记。
+	review(knowledge.StatusActive)
+	if e := entry(); e.ReviewDirection != "miss" || e.RecheckNeeded {
+		t.Fatalf("平数据面复核后 = direction %q recheck %v, want miss/false", e.ReviewDirection, e.RecheckNeeded)
+	}
+
+	// 数据面翻转（尖峰命中）→ 建议复核。
+	st.facts = fundingSpikeFacts(now)
+	if e := entry(); e.ReviewDirection != "miss" || !e.RecheckNeeded {
+		t.Fatalf("翻转后 = direction %q recheck %v, want miss/true（建议复核）", e.ReviewDirection, e.RecheckNeeded)
+	}
+
+	// 翻转后再复核（此刻证据命中）→ 快照更新 hit → 一致 → 不再标记。
+	review(knowledge.StatusActive)
+	if e := entry(); e.ReviewDirection != "hit" || e.RecheckNeeded {
+		t.Fatalf("再复核后 = direction %q recheck %v, want hit/false（仍适用）", e.ReviewDirection, e.RecheckNeeded)
+	}
+}
+
+// TestReviewDirectionNotClobbered：数据面故障时复核 → 方向留空 → 旧快照保留（不覆盖
+// 历史；翻转检测仍基于最近一次可判定快照，诚实）。
+func TestReviewDirectionNotClobbered(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	st := &fakeStore{
+		facts:     fundingSpikeFacts(now), // 命中 → 快照 hit
+		knowledge: []store.KnowledgeEntry{{Signature: knowledge.SignatureFundingSpikeTrap, Verdict: "坑", Status: "active"}},
+	}
+	svc := New(st, nil, nil, nil)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
+
+	if _, err := client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+		Signature: knowledge.SignatureFundingSpikeTrap, Status: "active", ValidationNote: "x",
+	})); err != nil {
+		t.Fatalf("review: %v", err)
+	}
+
+	// 数据面故障时再复核 → 服务端方向留空 → 存储层保留旧快照。
+	st.factsErr = errors.New("data face down")
+	if _, err := client.ReviewKnowledgeEntry(ctx, connect.NewRequest(&dashboardv1.ReviewKnowledgeEntryRequest{
+		Signature: knowledge.SignatureFundingSpikeTrap, Status: "active", ValidationNote: "x2",
+	})); err != nil {
+		t.Fatalf("review@down: %v", err)
+	}
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if e := resp.Msg.Entries[0]; e.ReviewDirection != "hit" {
+		t.Fatalf("数据面故障复核后 direction = %q, want 保留旧快照 hit", e.ReviewDirection)
+	}
+}
+
+// TestRecheckNeededGuards：翻转检测的门槛守卫——已复核但无快照（复核早于 D-060）与
+// 未复核条目，即使当前证据命中也不标记（无从比较 / 未复核非翻转语义，宁缺毋滥）。
+func TestRecheckNeededGuards(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	va := now.Add(-24 * time.Hour)
+	st := &fakeStore{knowledge: []store.KnowledgeEntry{
+		{Signature: knowledge.SignatureFundingSpikeTrap, Verdict: "坑", Status: "active", ValidatedAt: &va},
+		{Signature: knowledge.SignatureDefiSinglePoolSpike, Verdict: "坑·核实", Status: "active"},
+	}}
+	svc := New(st, nil, nil, nil)
+	client := newTestServer(t, svc)
+
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	for _, e := range resp.Msg.Entries {
+		if e.RecheckNeeded {
+			t.Errorf("%s: recheck = true, want false（无快照/未复核不可标记）", e.Signature)
+		}
+	}
+}
+
 // TestListInsightsKnowledgeMatch：端到端——ListInsights 出现 knowledge_match 信号
 // （与四信号并存的完整性）。
 func TestListInsightsKnowledgeMatch(t *testing.T) {

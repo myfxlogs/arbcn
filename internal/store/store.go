@@ -191,6 +191,10 @@ type KnowledgeEntry struct {
 	Status         string     // active / superseded / retracted（D# 演进）
 	ValidatedAt    *time.Time // 复核时刻；nil = 待复核
 	ValidationNote string     // 复核结论
+	// ReviewDirection 复核时证据方向快照（D-060）：hit=命中 / miss=未命中；空 = 未快照
+	// （复核早于本特性 / 复核时数据面不可判定）。系统据此做方向翻转检测（建议复核），
+	// 不参与任何规则/门禁——只影响呈现面的「仍适用 / 建议复核」标注。
+	ReviewDirection string // 复核方向快照（hit/miss；空 = 未快照）
 }
 
 // SimLegClose 单腿平仓参数（D-055/D-056）：AddPnl = 调用方按当前价计算的浮动 PnL
@@ -367,8 +371,9 @@ type Store interface {
 	// UpsertKnowledgeEntry 按 signature 确保条目存在并返回 id（镜像 UpsertRule：已存在
 	// **不覆盖**，保留 DB 后续人工修订）。seed 落盘幂等。
 	UpsertKnowledgeEntry(ctx context.Context, e KnowledgeEntry) (int64, error)
-	// ReviewKnowledgeEntry 人工复核（D-054）：写 validated_at=now + 生命周期 status +
-	// 可选 verdict 判定文本（空 = 保留原判定）+ validation_note，只改判定记录不改规则/
-	// 门禁；未知 signature 返回 ErrNotFound。
-	ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note string) error
+	// ReviewKnowledgeEntry 人工复核（D-054/D-060）：写 validated_at=now + 生命周期 status +
+	// 可选 verdict 判定文本（空 = 保留原判定）+ validation_note + 复核方向快照 direction
+	// （hit/miss；空 = 数据面不可判定，不覆盖旧快照——COALESCE 保留）。只改判定记录不改
+	// 规则/门禁；未知 signature 返回 ErrNotFound。
+	ReviewKnowledgeEntry(ctx context.Context, signature, status, verdict, note, direction string) error
 }

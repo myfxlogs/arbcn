@@ -296,9 +296,10 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
-// ReviewKnowledgeEntry 复核（D-054 服务测试真语义）：写 validated_at=now + status +
-// 可选 verdict + note（verdict 空 = 保留原判定）。
-func (f *fakeStore) ReviewKnowledgeEntry(_ context.Context, signature, status, verdict, note string) error {
+// ReviewKnowledgeEntry 复核（D-054/D-060 服务测试真语义）：写 validated_at=now + status +
+// 可选 verdict + note（verdict 空 = 保留原判定）+ 方向快照 direction（空 = 不覆盖旧快照，
+// 镜像 pgstore COALESCE 语义）。
+func (f *fakeStore) ReviewKnowledgeEntry(_ context.Context, signature, status, verdict, note, direction string) error {
 	if f.err != nil {
 		return f.err
 	}
@@ -311,6 +312,9 @@ func (f *fakeStore) ReviewKnowledgeEntry(_ context.Context, signature, status, v
 				f.knowledge[i].Verdict = verdict
 			}
 			f.knowledge[i].ValidationNote = note
+			if direction != "" {
+				f.knowledge[i].ReviewDirection = direction
+			}
 			return nil
 		}
 	}

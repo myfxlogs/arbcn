@@ -369,7 +369,7 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
-func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
+func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string, string) error {
 	panic("fakeStore: ReviewKnowledgeEntry not used")
 }
 

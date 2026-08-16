@@ -252,3 +252,15 @@
 - **施工（纯前端 CSS + OverviewPage DOM 序，零后端/RPC/门禁改动）**：①③ `main` max-width 1100→1440px；`.grid` 3fr:2fr→5fr:4fr（右列 ~421→619px、左列 631→773px 同步加宽无回归，860px 折叠单栏不受影响）；② `.review-actions` 显式 `grid-column` + 右对齐；④ `.right-stack > .card{margin-bottom:0}` 消双倍间距 + `.right-stack` gap 16→12px（三卡更紧凑聚合）+ OverviewPage 交换 ConfirmPanel/ClosePanel 顺序 = [经验库, 确认下单, 平仓]；⑤ 复核表单 `grid-template-columns:110px 1fr auto`，复核结论 span 2 + 按钮 `grid-column:3` 同行右对齐（align-items:end 底部与输入对齐），手机 ≤640px 改回 `span 2` 整行（基础 col 3 在 2 列网格会隐式建第三轨道）。
 - **部署实测**（CDP 1280/375）：右列间距 31/32→**11/12px**；DOM 序 = 经验库→确认下单→平仓；页高 2055→**1999**（矩阵 998→941 回落，右列不再撑高左1）；复核表单按钮与复核结论输入底对齐 0px（同行 ✓）；375px 无横向溢出 + 手机 actions 整行落复核结论下方（触屏友好）；served bundle == 新 dist（index-Cyt2Tw60.js / index-Dok6zbWG.css）+ healthz ok；全量测试/vet 未受影响（纯 CSS）。
 - **决策号**：—（纯呈现层，无方向改动；D-050/D-052/D-053 布局演进延续）。
+
+## #83 · 2026-08-16 · 复核触发机制 + 无 claude 时系统如何判断 + 是否接 LLM · 业主四连概念问 → 选路线 A（不接 LLM）
+- **参与方**：业主（四连问 + 确认 + 点名落「不做 B 的理由」）、Claude（概念澄清 + 方案对比 + 施工部署）
+- **议题**：①「再次复核在什么情况下触发？」②「我没有判断信号的能力，怎么知道要不要再次复核？」③「系统上线后就没有 claude 了，系统怎么做判断？」④「要不要接入 LLM？接入能做到 claude 这么聪明吗？」；收尾明示「不做 B 的理由也要落文档，后期有痕可查」。
+- **澄清与决策**：
+  ① **复核触发（现状）**：当前无自动触发——validated_at 仅 ReviewKnowledgeEntry 人工写入；知识命中（knowledge_match）只在「进化建议」提示、不自动改判定。
+  ② **「没有判断信号的能力」→ 业主不需要判断**：系统按 D-059 自动证据 + 本次翻转检测给结论性提示（建议复核 / 仍适用），业主只需二选确认。
+  ③ **「上线后没有 claude」→ 三角色运营模型**：系统 7×24 自治（采集/计算/检测/证据/候选过滤）+ 业主二选确认 + 决策层定期会话（D# 判定变更）；Claude 从随时在线降为定期维护。
+  ④ **LLM**：路线 A（不接 LLM，维持 D-043；复核方向快照 + 自动翻转检测 + 待决策层清单）vs 路线 B（接 LLM 自动判断）；**业主「同意你的建议」选 A**。不做 B 的理由（判断力错配 / 成本复杂度 / 责任不可归属——详见 D-060）按业主要求落决策记录留痕。
+- **施工（D-060）**：migration 0010 review_direction（幂等 IF NOT EXISTS）+ store ReviewKnowledgeEntry 加 direction + evidenceResult{text,hit,known} 重构（方向同源产出不反解析文本）+ recheckNeeded 翻转检测（proto #14）+ ReviewKnowledgeEntry 服务端方向快照（COALESCE 不覆盖）+ 前端 KnowledgeBoard 四态徽标/建议复核置顶/警示条/warn 按钮/上次核验方向。
+- **部署实测**：全量测试/vet/npm build 绿；**上线即抓真实事故**——ListInsights 503 = pgstore 扫 NULL review_direction 进 string（fake 用零值测不出、真库存量行有 NULL）→ *string 兜底 + NULL scan 回归测试；served bundle index-_k06EENF.js 匹配 dist + healthz ok；CDP 实测正常态（3 条「生效中+已复核」无警示条、间距 12px、右列序 经验库/确认下单/平仓、无横向溢出）+ 翻转态（Fetch 拦截注入 recheck → 警示条「建议复核 1 条」+ 资金费率尖峰陷阱置顶 warn 徽标 + 「建议复核」警示按钮 + 「上次核验 未命中」）。
+- **决策号**：D-060。

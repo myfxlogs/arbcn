@@ -29,24 +29,27 @@ func (s *Service) ListKnowledgeEntries(ctx context.Context, _ *connect.Request[d
 	}
 	// D-059 复核自动证据：对每条经验 × 当前数据生成核验证据（只读，供人工复核裁决）。
 	// 数据面故障 → 降级「自动核验暂不可用」，不阻断经验浏览（浏览是主、证据是辅）。
-	evidence := map[string]string{}
+	evidence := map[string]evidenceResult{}
 	if ev, err := s.knowledgeEvidence(ctx, entries); err != nil {
 		for _, e := range entries {
-			evidence[e.Signature] = "自动核验暂不可用（数据面故障）"
+			evidence[e.Signature] = evidenceResult{text: "自动核验暂不可用（数据面故障）"}
 		}
 	} else {
 		evidence = ev
 	}
 	out := make([]*dashboardv1.KnowledgeEntry, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, toKnowledgeEntryProto(e, evidence[e.Signature]))
+		r := evidence[e.Signature]
+		out = append(out, toKnowledgeEntryProto(e, r.text, recheckNeeded(e, r)))
 	}
 	return connect.NewResponse(&dashboardv1.ListKnowledgeEntriesResponse{Entries: out}), nil
 }
 
-// ReviewKnowledgeEntry 人工复核经验条目（D-054）：写 validated_at=now + verdict +
-// validation_note。只改该 signature 条目的判定记录（呈现面），不改任何规则/门禁
-// （D-046 边界，practices #20 同源）——复核 = 决策层人工在环动作，系统永不自动复核。
+// ReviewKnowledgeEntry 人工复核经验条目（D-054/D-060）：写 validated_at=now + verdict +
+// validation_note + 复核方向快照（服务端算，客户端只提交结论，P3 单源）。只改该
+// signature 条目的判定记录（呈现面），不改任何规则/门禁（D-046 边界，practices #20
+// 同源）——复核 = 决策层人工在环动作，系统永不自动复核。方向快照用于后续自动翻转检测
+// （建议复核标注），与 verdict/status 无关（快照记「证据当时说什么」，不记「人怎么判」）。
 func (s *Service) ReviewKnowledgeEntry(ctx context.Context, req *connect.Request[dashboardv1.ReviewKnowledgeEntryRequest]) (*connect.Response[dashboardv1.ReviewKnowledgeEntryResponse], error) {
 	if req.Msg.Signature == "" {
 		return nil, connect.NewError(connect.CodeInvalidArgument, errors.New("signature required"))
@@ -60,7 +63,18 @@ func (s *Service) ReviewKnowledgeEntry(ctx context.Context, req *connect.Request
 		return nil, connect.NewError(connect.CodeInvalidArgument,
 			fmt.Errorf("status must be one of %s/%s/%s", knowledge.StatusActive, knowledge.StatusSuperseded, knowledge.StatusRetracted))
 	}
-	if err := s.st.ReviewKnowledgeEntry(ctx, req.Msg.Signature, req.Msg.Status, req.Msg.Verdict, req.Msg.ValidationNote); err != nil {
+	// D-060 复核方向快照：复核时对当前数据重算证据方向（hit/miss）。数据面不可判定 →
+	// direction 留空，存储层 COALESCE 保留旧快照（不覆盖历史）。
+	direction := ""
+	if evs, err := s.knowledgeEvidence(ctx, []store.KnowledgeEntry{{Signature: req.Msg.Signature}}); err == nil {
+		if r, ok := evs[req.Msg.Signature]; ok && r.known {
+			direction = "miss"
+			if r.hit {
+				direction = "hit"
+			}
+		}
+	}
+	if err := s.st.ReviewKnowledgeEntry(ctx, req.Msg.Signature, req.Msg.Status, req.Msg.Verdict, req.Msg.ValidationNote, direction); err != nil {
 		return nil, storeErr(err)
 	}
 	return connect.NewResponse(&dashboardv1.ReviewKnowledgeEntryResponse{}), nil
@@ -162,13 +176,23 @@ func (s *Service) knowledgeMatches(ctx context.Context, now time.Time, defi []fa
 	return out, nil
 }
 
-// knowledgeEvidence 复核自动证据（D-059）：对已吸收条目，用当前数据面重跑确定性探测器，
-// 产出「当前命中/未命中 + 关键数值 + 阈值」只读证据文本，供人工复核裁决。boundary——
-// practices #20：系统只呈现证据，不自动改判定/吸收；判定仍是 ReviewKnowledgeEntry 人工
-// 在环点击才写 validated_at。
+// evidenceResult 一条复核自动证据（D-059/D-060）：text = 展示文本（当前命中/未命中 +
+// 关键数值 + 阈值）；hit = 当前方向是否命中；known = 方向是否可判定（数据缺失/探测器
+// 缺失 → false）。三字段同一函数产出，同源——翻转检测用 hit/known，前端展示用 text，
+// 不从展示文本反解析方向（P3 单源，practice #18 同宗）。
+type evidenceResult struct {
+	text  string
+	hit   bool
+	known bool
+}
+
+// knowledgeEvidence 复核自动证据（D-059/D-060）：对已吸收条目，用当前数据面重跑确定性
+// 探测器，产出「当前命中/未命中 + 关键数值 + 阈值」只读证据（text）与方向（hit/known）。
+// boundary——practices #20：系统只呈现证据，不自动改判定/吸收；判定仍是
+// ReviewKnowledgeEntry 人工在环点击才写 validated_at。
 // 数据面查询故障 → 错误返回（调用方降级「自动核验暂不可用」，浏览不阻断）；
-// 某条所需数据缺失 → 该条给「无法自动核验」，不编造。
-func (s *Service) knowledgeEvidence(ctx context.Context, entries []store.KnowledgeEntry) (map[string]string, error) {
+// 某条所需数据缺失 → 该条给「无法自动核验」（known=false），不编造。
+func (s *Service) knowledgeEvidence(ctx context.Context, entries []store.KnowledgeEntry) (map[string]evidenceResult, error) {
 	now := s.now()
 	// funding 30d 数据面（尖峰 / 跨所分歧共用；与 knowledgeMatches 同口径，P3 同源）。
 	funding, err := s.st.QueryFacts(ctx, store.FactQuery{Kind: fact.KindFunding, From: now.Add(-oppAvgWindow)})
@@ -185,7 +209,7 @@ func (s *Service) knowledgeEvidence(ctx context.Context, entries []store.Knowled
 	fundingLatest := latestByVenueSymbol(funding)
 	defiLatest := latestByVenueSymbol(defi)
 
-	out := make(map[string]string, len(entries))
+	out := make(map[string]evidenceResult, len(entries))
 	for _, e := range entries {
 		switch e.Signature {
 		case knowledge.SignatureFundingSpikeTrap:
@@ -195,17 +219,28 @@ func (s *Service) knowledgeEvidence(ctx context.Context, entries []store.Knowled
 		case knowledge.SignatureFundingCrossVenueDiverg:
 			out[e.Signature] = evidenceCrossVenue(fundingLatest)
 		default:
-			out[e.Signature] = "该签名无自动核验探测器，请对照 rationale 人工复核"
+			out[e.Signature] = evidenceResult{text: "该签名无自动核验探测器，请对照 rationale 人工复核"}
 		}
 	}
 	return out, nil
 }
 
+// recheckNeeded 方向翻转检测（D-060）：仅对「复核过（validated_at 有值）+ 有方向快照 +
+// 当前方向可判定」的条目比较——当前方向 ≠ 快照方向 = 翻转，标「建议复核」；一致 = 仍适用
+// 无需动作。未复核 / 无快照 / 当前不可判定 → 不标记（宁缺毋滥，不可比数据不吓人，
+// practices #20）。翻转只影响呈现面标注，不自动改 verdict/status（边界 §7.4 同源）。
+func recheckNeeded(e store.KnowledgeEntry, r evidenceResult) bool {
+	if e.ValidatedAt == nil || e.ReviewDirection == "" || !r.known {
+		return false
+	}
+	return r.hit != (e.ReviewDirection == "hit")
+}
+
 // evidenceSpikeTrap 资金费率尖峰陷阱的当前数据证据：每 (venue,symbol) 瞬时 vs 30d 均值
 // 比值，命中阈值（×factor）即列；未命中给最接近处，供复核人判断「经验还成立吗」。
-func evidenceSpikeTrap(latest, avg map[string]float64) string {
+func evidenceSpikeTrap(latest, avg map[string]float64) evidenceResult {
 	if len(avg) == 0 {
-		return "当前无 funding 数据，无法自动核验"
+		return evidenceResult{text: "当前无 funding 数据，无法自动核验"}
 	}
 	keys := make([]string, 0, len(avg))
 	for k := range avg {
@@ -225,17 +260,25 @@ func evidenceSpikeTrap(latest, avg map[string]float64) string {
 		}
 	}
 	if len(hits) > 0 {
-		return "自动核验：当前命中（瞬时/均值 ≥ ×2.0）——" + strings.Join(hits, "；")
+		return evidenceResult{
+			text:  "自动核验：当前命中（瞬时/均值 ≥ ×2.0）——" + strings.Join(hits, "；"),
+			hit:   true,
+			known: true,
+		}
 	}
 	venue, symbol := splitEntityKey(maxKey)
-	return fmt.Sprintf("自动核验：当前未命中——最接近 %s@%s 瞬时 %.2f%% vs 均值 %.2f%%（×%.1f），未达阈值 ×%.1f", symbol, venue, latest[maxKey], avg[maxKey], maxRatio, knowledge.Factor)
+	return evidenceResult{
+		text:  fmt.Sprintf("自动核验：当前未命中——最接近 %s@%s 瞬时 %.2f%% vs 均值 %.2f%%（×%.1f），未达阈值 ×%.1f", symbol, venue, latest[maxKey], avg[maxKey], maxRatio, knowledge.Factor),
+		hit:   false,
+		known: true,
+	}
 }
 
 // evidenceDefiSpike 单池利率尖峰的当前数据证据：截面中位数×factor 命中列 key，未命中
-// 给截面最高值。样本 <3 → DefiPoolSpikes 返回空，按未命中呈现。
-func evidenceDefiSpike(poolLatest map[string]float64) string {
+// 给截面最高值。样本 <3 → DefiPoolSpikes 返回空，按未命中呈现（known=true）。
+func evidenceDefiSpike(poolLatest map[string]float64) evidenceResult {
 	if len(poolLatest) == 0 {
-		return "当前无 defi_rate 数据，无法自动核验"
+		return evidenceResult{text: "当前无 defi_rate 数据，无法自动核验"}
 	}
 	if hits := knowledge.DefiPoolSpikes(poolLatest, knowledge.Factor); len(hits) > 0 {
 		parts := make([]string, 0, len(hits))
@@ -243,7 +286,11 @@ func evidenceDefiSpike(poolLatest map[string]float64) string {
 			venue, symbol := splitEntityKey(key)
 			parts = append(parts, fmt.Sprintf("%s@%s %.2f%%", symbol, venue, poolLatest[key]))
 		}
-		return "自动核验：当前命中（截面中位数 ×2.0 判定）——" + strings.Join(parts, "；")
+		return evidenceResult{
+			text:  "自动核验：当前命中（截面中位数 ×2.0 判定）——" + strings.Join(parts, "；"),
+			hit:   true,
+			known: true,
+		}
 	}
 	maxKey, maxVal := "", math.Inf(-1)
 	for k, v := range poolLatest {
@@ -252,12 +299,16 @@ func evidenceDefiSpike(poolLatest map[string]float64) string {
 		}
 	}
 	venue, symbol := splitEntityKey(maxKey)
-	return fmt.Sprintf("自动核验：当前未命中——截面最高 %s@%s %.2f%%，未达中位数 ×%.1f 判定线", symbol, venue, maxVal, knowledge.Factor)
+	return evidenceResult{
+		text:  fmt.Sprintf("自动核验：当前未命中——截面最高 %s@%s %.2f%%，未达中位数 ×%.1f 判定线", symbol, venue, maxVal, knowledge.Factor),
+		hit:   false,
+		known: true,
+	}
 }
 
 // evidenceCrossVenue 跨所资金费率分歧的当前数据证据：仅统计同 symbol ≥2 venue 者，
 // max−min ≥ minSpread 命中；未命中给差距最大处。
-func evidenceCrossVenue(fundingLatest map[string]float64) string {
+func evidenceCrossVenue(fundingLatest map[string]float64) evidenceResult {
 	venueVals := map[string][]float64{} // symbol → 各 venue 最新值
 	for key, v := range fundingLatest {
 		_, symbol := splitEntityKey(key)
@@ -271,7 +322,7 @@ func evidenceCrossVenue(fundingLatest map[string]float64) string {
 	}
 	sort.Strings(syms)
 	if len(syms) == 0 {
-		return "当前无跨所数据（需同 symbol ≥2 venue），无法自动核验"
+		return evidenceResult{text: "当前无跨所数据（需同 symbol ≥2 venue），无法自动核验"}
 	}
 	minSpread := knowledge.MinCrossVenueSpread()
 	var hits []string
@@ -286,10 +337,18 @@ func evidenceCrossVenue(fundingLatest map[string]float64) string {
 		}
 	}
 	if len(hits) > 0 {
-		return fmt.Sprintf("自动核验：当前命中（差距 ≥ %.1fpp）——%s", minSpread, strings.Join(hits, "；"))
+		return evidenceResult{
+			text:  fmt.Sprintf("自动核验：当前命中（差距 ≥ %.1fpp）——%s", minSpread, strings.Join(hits, "；")),
+			hit:   true,
+			known: true,
+		}
 	}
 	lo, hi := minMax(venueVals[maxSym])
-	return fmt.Sprintf("自动核验：当前未命中——差距最大 %s %.1fpp（%.2f%% ~ %.2f%%），低于阈值 %.1fpp", maxSym, maxSpread, lo, hi, minSpread)
+	return evidenceResult{
+		text:  fmt.Sprintf("自动核验：当前未命中——差距最大 %s %.1fpp（%.2f%% ~ %.2f%%），低于阈值 %.1fpp", maxSym, maxSpread, lo, hi, minSpread),
+		hit:   false,
+		known: true,
+	}
 }
 
 // fundingLatestAvg 每 (venue,symbol) 最新值 + 30d 均值（输入 ts ASC，覆盖即最新）。
@@ -350,8 +409,9 @@ func minMax(xs []float64) (min, max float64) {
 	return min, max
 }
 
-// toKnowledgeEntryProto 映射 store.KnowledgeEntry → proto。
-func toKnowledgeEntryProto(e store.KnowledgeEntry, evidence string) *dashboardv1.KnowledgeEntry {
+// toKnowledgeEntryProto 映射 store.KnowledgeEntry → proto。recheck 由调用方传入
+// （recheckNeeded 计算结果，避免函数内再查数据面，P3 单源）。
+func toKnowledgeEntryProto(e store.KnowledgeEntry, evidence string, recheck bool) *dashboardv1.KnowledgeEntry {
 	out := &dashboardv1.KnowledgeEntry{
 		Id:              e.ID,
 		Ts:              timestamppb.New(e.Ts),
@@ -364,6 +424,8 @@ func toKnowledgeEntryProto(e store.KnowledgeEntry, evidence string) *dashboardv1
 		Status:          e.Status,
 		ValidationNote:  e.ValidationNote,
 		CurrentEvidence: evidence,
+		ReviewDirection: e.ReviewDirection,
+		RecheckNeeded:   recheck,
 	}
 	if e.ValidatedAt != nil {
 		out.ValidatedAt = timestamppb.New(*e.ValidatedAt)

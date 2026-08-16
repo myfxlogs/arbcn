@@ -32,6 +32,21 @@ function statusTone(s: string): ChipTone {
   }
 }
 
+// 复核状态（D-060）：validatedAt × recheckNeeded 三态——待复核 / 仍适用 / 建议复核。
+// recheckNeeded 仅对「已复核 + 有方向快照 + 当前方向可判定」成立（服务端翻转检测，
+// 当前方向 ≠ 复核时快照方向）；未复核条目恒为待复核。只影响呈现标注，不自动改判定
+// （practices #20 边界——系统只标记、不裁决）。
+type ReviewState = { label: string; tone: ChipTone; recheck: boolean };
+
+function reviewState(e: KnowledgeEntry): ReviewState {
+  if (!e.validatedAt) return { label: "待复核", tone: "neutral", recheck: false };
+  if (e.recheckNeeded) return { label: "建议复核", tone: "warn", recheck: true };
+  // 已复核但无方向快照 = 复核早于 D-060（本特性上线前），无基线可比 → 无法做翻转检测。
+  // 诚实标注「已复核」，与「仍适用」（有快照且一致）区分，不虚称仍适用。
+  if (!e.reviewDirection) return { label: "已复核", tone: "neutral", recheck: false };
+  return { label: "仍适用", tone: "good", recheck: false };
+}
+
 // sigLabel 受控签名键 → 中文模式名（practices #18：映射对照后端签名全集，未知名回退原名）。
 function sigLabel(sig: string): string {
   switch (sig) {
@@ -153,6 +168,15 @@ export function KnowledgeBoard({
   // editing：正在复核的签名（同时只开一个表单）；完成后置 null。
   const [editing, setEditing] = useState<string | null>(null);
 
+  // D-060 建议复核（方向翻转）计数 + 置顶：翻转条目是可操作项，置顶成「待决策层清单」
+  // 首部（第一眼可见，D-052 同源）；其余按 signature 保持稳定排序。
+  const recheckCount = entries.filter((e) => e.validatedAt && e.recheckNeeded).length;
+  const sorted = [...entries].sort((a, b) => {
+    const ra = a.validatedAt && a.recheckNeeded ? 1 : 0;
+    const rb = b.validatedAt && b.recheckNeeded ? 1 : 0;
+    return rb - ra || a.signature.localeCompare(b.signature);
+  });
+
   return (
     <section className="card" aria-labelledby="knowledge-title">
       <h2 id="knowledge-title">
@@ -168,17 +192,43 @@ export function KnowledgeBoard({
       {entries.length === 0 ? (
         <p className="empty">暂无经验条目（等待吸收）</p>
       ) : (
-        <Collapse title={`已核实模式（${entries.length} 条）`} defaultOpen={defaultOpen}>
+        <Collapse
+          title={
+            recheckCount > 0
+              ? `已核实模式（建议复核 ${recheckCount} · 共 ${entries.length} 条）`
+              : `已核实模式（${entries.length} 条）`
+          }
+          defaultOpen={defaultOpen}
+        >
+          {/* D-060 待决策层清单入口：翻转条目数 > 0 时的警示条（建议复核不自动改判定，
+              只提示决策层对照当前证据复核） */}
+          {recheckCount > 0 ? (
+            <p className="recheck-banner" role="alert">
+              建议复核 {recheckCount} 条：证据方向翻转，请决策层对照当前核验证据复核
+            </p>
+          ) : null}
           {/* D-052：条目多时高度封顶卡内滚动，不无限延伸 */}
           <ul className="insights scroll-cap">
-            {entries.map((e) => (
+            {sorted.map((e) => {
+              const rs = reviewState(e);
+              return (
               <li key={e.signature} className="insight-row">
                 <div className="insight-head">
                   <Chip tone={statusTone(e.status)}>{statusLabel(e.status)}</Chip>
+                  <Chip tone={rs.tone}>{rs.label}</Chip>
                   <span className="insight-cat">{sigLabel(e.signature)}</span>
                   <span className="insight-title">{e.verdict}</span>
                   <span className="insight-ts">
-                    {e.validatedAt ? `复核 ${fmtTs(e.validatedAt)}` : "待复核"}
+                    {e.validatedAt ? (
+                      <>
+                        复核 {fmtTs(e.validatedAt)}
+                        {e.reviewDirection
+                          ? ` · 上次核验 ${e.reviewDirection === "hit" ? "命中" : "未命中"}`
+                          : ""}
+                      </>
+                    ) : (
+                      "待复核"
+                    )}
                   </span>
                 </div>
                 {e.rationale ? <p className="insight-detail">{e.rationale}</p> : null}
@@ -208,15 +258,16 @@ export function KnowledgeBoard({
                   ) : (
                     <button
                       type="button"
-                      className="review-open"
+                      className={rs.recheck ? "review-open recheck-open" : "review-open"}
                       onClick={() => setEditing(e.signature)}
                     >
-                      {e.validatedAt ? "再次复核" : "复核"}
+                      {rs.recheck ? "建议复核" : e.validatedAt ? "再次复核" : "复核"}
                     </button>
                   )}
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </Collapse>
       )}

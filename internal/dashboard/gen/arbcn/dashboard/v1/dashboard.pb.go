@@ -2259,6 +2259,8 @@ type KnowledgeEntry struct {
 	ValidatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=validated_at,json=validatedAt,proto3" json:"validated_at,omitempty"`             // 复核时刻；缺省 = 待复核
 	ValidationNote  string                 `protobuf:"bytes,11,opt,name=validation_note,json=validationNote,proto3" json:"validation_note,omitempty"`    // 复核结论
 	CurrentEvidence string                 `protobuf:"bytes,12,opt,name=current_evidence,json=currentEvidence,proto3" json:"current_evidence,omitempty"` // 当前核验证据（D-059：自动探测器对最新数据核验，供人工复核裁决；只读，不写判定）
+	ReviewDirection string                 `protobuf:"bytes,13,opt,name=review_direction,json=reviewDirection,proto3" json:"review_direction,omitempty"` // 复核时证据方向快照（D-060：hit=命中 / miss=未命中；空 = 未快照）。仅呈现，不参与规则/门禁
+	RecheckNeeded   bool                   `protobuf:"varint,14,opt,name=recheck_needed,json=recheckNeeded,proto3" json:"recheck_needed,omitempty"`      // 方向翻转检测（D-060）：已复核 + 有快照 + 当前方向可判定，且当前方向 ≠ 快照方向 = 翻转 → 建议复核；一致 = 仍适用
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -2375,6 +2377,20 @@ func (x *KnowledgeEntry) GetCurrentEvidence() string {
 		return x.CurrentEvidence
 	}
 	return ""
+}
+
+func (x *KnowledgeEntry) GetReviewDirection() string {
+	if x != nil {
+		return x.ReviewDirection
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetRecheckNeeded() bool {
+	if x != nil {
+		return x.RecheckNeeded
+	}
+	return false
 }
 
 type ListKnowledgeEntriesRequest struct {
@@ -2717,7 +2733,7 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	" \x01(\tR\tnarrative\"\x15\n" +
 	"\x13ListOppCardsRequest\"Q\n" +
 	"\x14ListOppCardsResponse\x129\n" +
-	"\x05cards\x18\x01 \x03(\v2#.arbcn.dashboard.v1.OpportunityCardR\x05cards\"\x93\x03\n" +
+	"\x05cards\x18\x01 \x03(\v2#.arbcn.dashboard.v1.OpportunityCardR\x05cards\"\xe5\x03\n" +
 	"\x0eKnowledgeEntry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12*\n" +
 	"\x02ts\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x1c\n" +
@@ -2731,7 +2747,9 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\fvalidated_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\vvalidatedAt\x12'\n" +
 	"\x0fvalidation_note\x18\v \x01(\tR\x0evalidationNote\x12)\n" +
-	"\x10current_evidence\x18\f \x01(\tR\x0fcurrentEvidence\"\x1d\n" +
+	"\x10current_evidence\x18\f \x01(\tR\x0fcurrentEvidence\x12)\n" +
+	"\x10review_direction\x18\r \x01(\tR\x0freviewDirection\x12%\n" +
+	"\x0erecheck_needed\x18\x0e \x01(\bR\rrecheckNeeded\"\x1d\n" +
 	"\x1bListKnowledgeEntriesRequest\"\\\n" +
 	"\x1cListKnowledgeEntriesResponse\x12<\n" +
 	"\aentries\x18\x01 \x03(\v2\".arbcn.dashboard.v1.KnowledgeEntryR\aentries\"\x96\x01\n" +
