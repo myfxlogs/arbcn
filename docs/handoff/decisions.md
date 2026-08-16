@@ -281,3 +281,9 @@
   ④ **陈旧测试修正**：`migrate_test.go` want 5→6（D-040 加 migration 0006，测试陈旧非回归）+ 表清单补 `sim_testnet_accounts`。
 - **理由**：P1 通道不变量——真相只能从可复现证据来；「旧二进制」假象来自 `stat` 不带 `-L` 读 /proc/PID/exe 返回 procfs 伪 inode，**经验教训**：对比 /proc/PID/exe 与磁盘文件须用 `stat -L`（跟随符号链接）。根因是**任何多参数 LatestFacts 调用都受影响**的潜伏缺陷（dashboard 多参查询 / simapi 确认流 / heartbeat 同步也踩），D-041 演练档首次在真实链路暴露。boot 加固为独立防御（虽非本次根因，但同属「重启即触发不可靠」家族）。
 - **结论**：dashboard.go 括号修复 + TestLatestFactsFilters 对抗测试 + BootDelay + TestRunBootDelay + migrate 陈旧断言更新。部署实测：**sim_orders id=3 = suggested（okx BTC ref 63063.30 spread 6.64% risk_flags={}）**——演练单可确认→成交→8h 结算全链路闭环；拒单 id=1/2 保留为负样本。全量测试 + vet 绿。
+
+## D-043 暂不接入 LLM（未来解读需求用模板叙述）（2026-08-16）
+- **背景**：业主问「本项目有没有必要接入 LLM」。按项目第一性原则推导后给裁决，业主认可并要求落档（对话 #61）。
+- **决策**：**暂不接入 LLM**。若未来出现"读盘解读/自然语言问答"需求，采用**模板化叙述**（把结构化事实拼成中文段落，先例 = sim_report 周频 markdown 模板），不引入 LLM 生成。方向锚定：任何 LLM 接入提案须先过本决策（走新 D# 推翻）。
+- **理由**：① 违反「先核实再采纳」（D-028）+「可机械检查」（P4）——LLM 输出不可机械验证（幻觉），进不了门禁/对抗测试，等于引入无法核实的信息源；② 无信息增量——决策所需事实已结构化（facts.md / RPC / JSON），LLM 只是同数据降级成自然语言，只加出错面；③ 违背克制姿态——外部 API + 密钥 + 成本 + 网络依赖，与「零外部执行面、人工决策」定位相悖（D-019 不赌、D-010 无密钥铁律同源）。
+- **结论**：方向记录在案。本次一并核实并落档 defi_rate 五项身份（`aave-v3/blackrock-buidl/ethena-usde/morpho-blue/ondo-yield-assets` = **DeFi 协议资金池**，DefiLlama yields 数据源，格式 `资产@协议`，非交易所；喂 carry 稳定币生息档 D-021 第二档；当前年化 3.55~12.57%，其中 **Aave USDC 12.57% 为借贷利率瞬时尖峰，异常值，实盘决策须按均值核实 D-028**；这些池仅入事实库，carry 白名单默认空 M3-b §9.6，未显式配置前 carry 订单被 WHITELIST 拒单）。
