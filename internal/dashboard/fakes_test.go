@@ -23,6 +23,7 @@ type fakeStore struct {
 	alerts []store.Alert
 	states []store.RuleState
 	ledger []store.LedgerEntry
+	orders []store.SimOrder
 	nextID int64 // 台账自增 id（fake 内存版）
 	err    error // 注入存储层故障
 }
@@ -209,8 +210,28 @@ func (f *fakeStore) LedgerSummary(_ context.Context) ([]store.TierSummary, error
 func (f *fakeStore) InsertSimOrder(context.Context, store.SimOrder) (int64, error) {
 	panic("fakeStore: InsertSimOrder not used")
 }
-func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, error) {
-	panic("fakeStore: ListSimOrders not used")
+func (f *fakeStore) ListSimOrders(_ context.Context, limit, offset int) ([]store.SimOrder, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	out := append([]store.SimOrder(nil), f.orders...)
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].Ts.Equal(out[j].Ts) {
+			return out[i].Ts.After(out[j].Ts)
+		}
+		return out[i].ID > out[j].ID
+	})
+	if offset >= len(out) {
+		return nil, nil
+	}
+	end := min(offset+limit, len(out))
+	return out[offset:end], nil
 }
 func (f *fakeStore) GetSimOrder(context.Context, int64) (store.SimOrder, error) {
 	panic("fakeStore: GetSimOrder not used")

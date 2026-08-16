@@ -287,3 +287,15 @@
 - **决策**：**暂不接入 LLM**。若未来出现"读盘解读/自然语言问答"需求，采用**模板化叙述**（把结构化事实拼成中文段落，先例 = sim_report 周频 markdown 模板），不引入 LLM 生成。方向锚定：任何 LLM 接入提案须先过本决策（走新 D# 推翻）。
 - **理由**：① 违反「先核实再采纳」（D-028）+「可机械检查」（P4）——LLM 输出不可机械验证（幻觉），进不了门禁/对抗测试，等于引入无法核实的信息源；② 无信息增量——决策所需事实已结构化（facts.md / RPC / JSON），LLM 只是同数据降级成自然语言，只加出错面；③ 违背克制姿态——外部 API + 密钥 + 成本 + 网络依赖，与「零外部执行面、人工决策」定位相悖（D-019 不赌、D-010 无密钥铁律同源）。
 - **结论**：方向记录在案。本次一并核实并落档 defi_rate 五项身份（`aave-v3/blackrock-buidl/ethena-usde/morpho-blue/ondo-yield-assets` = **DeFi 协议资金池**，DefiLlama yields 数据源，格式 `资产@协议`，非交易所；喂 carry 稳定币生息档 D-021 第二档；当前年化 3.55~12.57%，其中 **Aave USDC 12.57% 为借贷利率瞬时尖峰，异常值，实盘决策须按均值核实 D-028**；这些池仅入事实库，carry 白名单默认空 M3-b §9.6，未显式配置前 carry 订单被 WHITELIST 拒单）。
+
+## D-044 进化建议引擎（L0 只读证据表面）（2026-08-16）
+- **背景**：业主「不接 LLM，希望更智能化，随数据采集知识库能支撑更聪明的判断」（对话 #62）。进化回路五环（数据面/执行面/学习面/记忆面/方向面）里缺「半自动增强」环——系统只被动出告警/建议单，不主动把「该决策层关注什么」的**证据候选**摆出来。目标经决策层把关修正为**做「资金运营的领域专家」而非「通用智能」**：证据驱动的收敛，不引入 LLM 式发散（D-043 已锚定不接 LLM）。
+- **决策**：
+  ① **L0 四信号**（全部只读、可对抗测试）：`reject_dist` 拒单原因分布（risk/info）、`defi_anomaly:*` DeFi 利率异常尖峰（anomaly/warn）、`no_order` 连续无单提示（opportunity/info）、`source_down/stale:*` 数据源停更（data/critical|warn）。
+  ② **RPC 归属 dashboard 域**：`ListInsights` 加到 `DashboardService`（已持 sim_orders/facts/sources/sourceHealth 全数据源，不加新包、不加新域）。
+  ③ **按需计算（on-demand pull）**：四信号都便宜，不加表、不加后台循环；前端沿用 useSnapshot 的 60s poll（第七个并行 RPC）。
+  ④ **异常检测 = 截面中位数 × 因子**（`value > 2.0×median`，样本 ≥3，NaN/±Inf 跳过 practices #7）：不引入 stddev；中位数对利率整体上行（regime shift）稳健——全员上涨时中位数同步上移不误报。
+  ⑤ **取每 (venue,symbol) 最新 defi_rate 做截面**（30d 回看窗口）：瞬态尖峰在两轮采集间已回落的场景**不标异常**——L0 报「当前截面离群」，非「历史曾冲高」。已在实盘验证（Aave 12.57% 06:19 尖峰 06:42 已回落至 3.29%，最新截面平稳不误报）。「窗口内 max 冲高」语义留给 L1（数据累积后）。
+  ⑥ **动作一律指向 D# 人工决策**：每条 insight 的 actions 只给「核实/评估→走 D#」候选，不落任何自动执行路径。
+- **理由**：P4 可机械检查——纯函数 + 对抗测试（删判定/删计数必红）；与 D-019（不赌）/D-028（先核实再采纳）/D-043（不接 LLM）同源。只读证据表面：**决策永远手动**，引擎只把证据候选摆在决策层面前。
+- **结论**：`internal/dashboard/insights.go` + `insights_test.go`（对抗）+ proto `Insight/ListInsights` + 前端「进化建议」卡（触发器下方整宽卡）+ docs（practices #20 / dialogue #62）。部署实测：`reject_dist`（UNHEDGED ×2/SPREAD_DRIFT ×1）、`source_stale` ×3（repo/fx/deribit_iv 周末低活跃源）正确出现；`no_order` 被近 7 天 filled 单正确抑制；`defi_anomaly` 因最新截面平稳正确不报。L1 候选：统计自校准（窗口 max 冲高 / 阈值自适应）、L2 归因智能（拒单-阈值联动）——留给数据累积后按本决策边界续。

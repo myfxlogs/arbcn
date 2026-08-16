@@ -70,6 +70,9 @@ const (
 	// DashboardServiceLedgerSummaryProcedure is the fully-qualified name of the DashboardService's
 	// LedgerSummary RPC.
 	DashboardServiceLedgerSummaryProcedure = "/arbcn.dashboard.v1.DashboardService/LedgerSummary"
+	// DashboardServiceListInsightsProcedure is the fully-qualified name of the DashboardService's
+	// ListInsights RPC.
+	DashboardServiceListInsightsProcedure = "/arbcn.dashboard.v1.DashboardService/ListInsights"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -100,6 +103,9 @@ type DashboardServiceClient interface {
 	ListLedgerEntries(context.Context, *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error)
 	// LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
 	LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error)
+	// ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
+	// 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
+	ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -185,6 +191,12 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("LedgerSummary")),
 			connect.WithClientOptions(opts...),
 		),
+		listInsights: connect.NewClient[v1.ListInsightsRequest, v1.ListInsightsResponse](
+			httpClient,
+			baseURL+DashboardServiceListInsightsProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListInsights")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -202,6 +214,7 @@ type dashboardServiceClient struct {
 	addLedgerEntry    *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
 	listLedgerEntries *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
 	ledgerSummary     *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
+	listInsights      *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -264,6 +277,11 @@ func (c *dashboardServiceClient) LedgerSummary(ctx context.Context, req *connect
 	return c.ledgerSummary.CallUnary(ctx, req)
 }
 
+// ListInsights calls arbcn.dashboard.v1.DashboardService.ListInsights.
+func (c *dashboardServiceClient) ListInsights(ctx context.Context, req *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error) {
+	return c.listInsights.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -292,6 +310,9 @@ type DashboardServiceHandler interface {
 	ListLedgerEntries(context.Context, *connect.Request[v1.ListLedgerEntriesRequest]) (*connect.Response[v1.ListLedgerEntriesResponse], error)
 	// LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
 	LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error)
+	// ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
+	// 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
+	ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -373,6 +394,12 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("LedgerSummary")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceListInsightsHandler := connect.NewUnaryHandler(
+		DashboardServiceListInsightsProcedure,
+		svc.ListInsights,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListInsights")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -399,6 +426,8 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceListLedgerEntriesHandler.ServeHTTP(w, r)
 		case DashboardServiceLedgerSummaryProcedure:
 			dashboardServiceLedgerSummaryHandler.ServeHTTP(w, r)
+		case DashboardServiceListInsightsProcedure:
+			dashboardServiceListInsightsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -454,4 +483,8 @@ func (UnimplementedDashboardServiceHandler) ListLedgerEntries(context.Context, *
 
 func (UnimplementedDashboardServiceHandler) LedgerSummary(context.Context, *connect.Request[v1.LedgerSummaryRequest]) (*connect.Response[v1.LedgerSummaryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.LedgerSummary is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListInsights is not implemented"))
 }

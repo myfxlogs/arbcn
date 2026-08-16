@@ -9,6 +9,7 @@ import type {
   Fact,
   FactRmb,
   HealthResponse,
+  Insight,
   LedgerEntry,
   ListFactsResponse,
   SourceHealth,
@@ -101,6 +102,7 @@ export interface Snapshot {
   alerts: Alert[];
   unacked: UnackedAlert[];
   sourceHealth: SourceHealth[];
+  insights: Insight[];
   health: HealthResponse;
   at: Date;
 }
@@ -236,12 +238,13 @@ export function useSnapshot(): {
     const load = async () => {
       const v = ackVersion.current;
       try {
-        const [facts, states, alerts, unacked, sourceHealth, health] = await Promise.all([
+        const [facts, states, alerts, unacked, sourceHealth, insights, health] = await Promise.all([
           dashboard.listLatestFacts({}),
           dashboard.listTriggerStates({}),
           dashboard.listAlerts({ limit: 200 }),
           dashboard.listUnacked({}),
           dashboard.listSourceHealth({}),
+          dashboard.listInsights({}),
           dashboard.health({}),
         ]);
         if (!alive) return;
@@ -252,6 +255,7 @@ export function useSnapshot(): {
           alerts: alerts.alerts,
           unacked: unacked.items,
           sourceHealth: sourceHealth.items,
+          insights: insights.insights,
           health,
           at: new Date(),
         });

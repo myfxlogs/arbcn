@@ -7,6 +7,7 @@ import { Bell } from "./components/Bell";
 import { Chip } from "./components/Chip";
 import { ConfirmPanel } from "./components/ConfirmPanel";
 import { FactsSnapshot } from "./components/FactsSnapshot";
+import { Insights } from "./components/Insights";
 import { Ledger } from "./components/Ledger";
 import { Opportunity } from "./components/Opportunity";
 import { SimExec } from "./components/SimExec";
@@ -121,6 +122,7 @@ export default function App() {
                 </div>
               </div>
               <Triggers states={snap.states} />
+              <Insights insights={snap.insights} />
             </>
           ) : (
             <p className="empty">连接服务中…</p>

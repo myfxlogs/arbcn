@@ -37,6 +37,9 @@ service DashboardService {
   rpc ListLedgerEntries(ListLedgerEntriesRequest) returns (ListLedgerEntriesResponse);
   // LedgerSummary 按档位归因汇总（GROUP BY tier 简单分组；M2-b §6）。
   rpc LedgerSummary(LedgerSummaryRequest) returns (LedgerSummaryResponse);
+  // ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
+  // 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
+  rpc ListInsights(ListInsightsRequest) returns (ListInsightsResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -219,4 +222,21 @@ message TierSummary {
 
 message LedgerSummaryResponse {
   repeated TierSummary items = 1;
+}
+
+// Insight 进化建议条目（D-044 L0）：一条证据信号 + 给决策层的候选动作。
+message Insight {
+  string id = 1;       // 稳定 key，如 "reject_dist" / "defi_anomaly:aave-v3" / "no_order" / "source_down:binance"
+  string category = 2; // risk / anomaly / opportunity / data
+  string severity = 3; // info / warn / critical
+  string title = 4;    // 中文标题
+  string detail = 5;   // 中文明细 + 数值
+  google.protobuf.Timestamp at = 6; // 生成时刻
+  repeated string actions = 7;       // 候选动作（指向 D# 人工决策，不自动执行）
+}
+
+message ListInsightsRequest {}
+
+message ListInsightsResponse {
+  repeated Insight insights = 1;
 }
