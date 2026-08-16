@@ -205,6 +205,12 @@ func (m *memStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount,
 func (m *memStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("memStore: SettleSimPosition not used")
 }
+func (m *memStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
+	return nil, nil
+}
+func (m *memStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (int64, error) {
+	panic("memStore: UpsertKnowledgeEntry not used")
+}
 
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }

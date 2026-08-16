@@ -86,3 +86,12 @@
 - **施工**：driver.go（settleFactKind + settleOnce 按 (kind,symbol,venue) 分派 + repoSignal venue 对齐）+ backfill.go（SettleFunding 带 kind）+ config.go（CarryMinSpread，env + NaN 拒载）+ order.go（carry 门槛分档）+ TestDriverRepoBuildsOrder 事实带真实 venue。对抗测试 3 个新锚点（删分派 / 改回硬编码 domestic / 删分档）已逐一实证必红后还原；全量测试/vet/-race 绿。
 - **部署**：新建 /etc/arbcn/arbcn-monitor.env（此前 systemd `EnvironmentFile=-` 指向该路径但文件缺失 = 全默认运行；本次创建仅含 `ARBCN_SIM_CARRY_WHITELIST` 一行，无影子冲突）→ npm build + go build → 重启服务 → active + 新二进制 inode 匹配（stat -L）+ 启动日志干净 + served bundle == 新 dist。**诚实标注**：carry 单是否真触发取决于 defi 池出现 ≥0.5%/h 变动（不造数据）；repo 当前 0.865% < 5% 会被 SPREAD_LOW 拒（负样本，符合时点逆回购意图）。
 - **结论**：构建 → 部署 → 推送闭环完成（practices #19）；docs 落档（D-045 / practices #21+#22 / dialogue #63 / STATE）。
+
+## #64 · 2026-08-16 · 投运后系统自算账（机会实算卡）+ 经验资产自我进化 · 业主核心追问 → 决策层
+- **参与方**：业主（核心追问 + 方向定案 + 摩擦核实）、Claude（决策层 + 施工）
+- **议题 1（投运后自算账）**：业主「投运后我不可能永远带着你，让你帮我算账——这种情况下系统如何解决这个问题？这也是之前我提到要不要加入 LLM 的疑问。」——**裁决**：我在场做的「算账」（瞬时 9.14% vs 30 日均值 4.16% / 0.3% 摩擦需 12 天保本 = 尖峰陷阱）**不是聪明，是公式**——确定性计算可机械执行，无需 LLM（D-043 已锚定不接 LLM）。
+- **议题 2（自我进化方向）**：业主「要，这个很有用，而且'新情况'，我们要吸收成为知识库，成为我们的经验资产，这才是这套系统最有价值的地方，能随着行情数据，市场变化自我进化成长。」——方向定案：**经验库吸收 = 人工 D# 落盘 + 确定性签名匹配 + 只读呈现**（系统主动匹配与呈现 = 增强；自动吸收改判 = 越权，practices #20 边界）。
+- **议题 3（摩擦核实）**：业主问「关于摩擦，这是确定的，是准确的吗？需不需要验证？」→ 业主确认「**两个交易所都不是 VIP，都是普通用户主户费率**」——**0.3%（现货 taker 0.1%×2 + 永续 taker 0.05%×2）为已核实值**，facts.md 落档「已核实 · 普通主户」；env 常量保留（升 VIP/启用抵扣改配置不改代码）。
+- **决策（D-046）**：① 机会实算卡——对实时机会（funding/carry/repo）确定性算账（瞬时/30日均值/保本天数/扣摩擦净年化/三档判定/中文模板叙述），纯函数 + `ListOppCards` RPC，判定基准 = 稳定币基档 4.5%（D-021）；**只读证据不碰任何执行门禁**（D-016 15%/20%、MinSpread/CarryMinSpread、carry 白名单不动）。② 市场结构经验库——`knowledge_entries` 表 + `internal/knowledge` 包（签名探测器纯函数 + 3 条 seed）+ `knowledge_match` 只读 insight + `ListKnowledgeEntries` RPC；吸收=人工 D#（git 跟踪），系统只匹配与呈现。
+- **施工**：oppcalc.go（纯函数公式 + 对抗测试）/ oppcalc_rpc.go / knowledge.go（签名探测器 + Defaults）/ migrations 0007 / store 两方法 + 4 处 test fake 补接口 / insights.go 信号 5 接线 / 前端「机会实算卡」区块（评级徽标 + 数值瓦片 + 摩擦明示 + 中文叙述）+/「市场结构经验库」卡（KnowledgeBoard）+ Insights「knowledge→经验」/ hooks（snapshot 第 8 路 RPC + useKnowledge 低频）。对抗测试 3 组新锚点（删公式/删匹配/删中位数因子必红已实证）；全量测试/vet/npm build 绿。
+- **结论**：构建 → 部署 → 推送闭环（practices #19）；docs 落档（D-046 / practices #23 / dialogue #64 / STATE）；部署实测 ListOppCards（ETH@okx 尖峰陷阱卡）/ ListKnowledgeEntries（3 条 seed）/ ListInsights（knowledge_match）。

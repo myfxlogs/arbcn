@@ -117,6 +117,14 @@ func (s *Service) ListInsights(ctx context.Context, _ *connect.Request[dashboard
 		}
 	}
 
+	// 5. 经验库匹配（D-046）：确定性签名命中已吸收条目 → 只读呈现（category=knowledge）。
+	// 复用 signal 2 的 defi 截面数据面；funding 30d 单独查（尖峰/跨所分歧数据面）。
+	km, err := s.knowledgeMatches(ctx, now, defi)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	items = append(items, km...)
+
 	// severity 排序，同类内保序（SliceStable）。
 	sort.SliceStable(items, func(i, j int) bool { return severityRank(items[i].severity) < severityRank(items[j].severity) })
 

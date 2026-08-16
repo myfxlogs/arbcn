@@ -19,13 +19,14 @@ var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)
 // fakeStore：内存版 store.Store（dashboard 读取路径有真语义；
 // 写路径本包不经过，误用即红）。
 type fakeStore struct {
-	facts  []fact.Fact
-	alerts []store.Alert
-	states []store.RuleState
-	ledger []store.LedgerEntry
-	orders []store.SimOrder
-	nextID int64 // 台账自增 id（fake 内存版）
-	err    error // 注入存储层故障
+	facts     []fact.Fact
+	alerts    []store.Alert
+	states    []store.RuleState
+	ledger    []store.LedgerEntry
+	orders    []store.SimOrder
+	knowledge []store.KnowledgeEntry
+	nextID    int64 // 台账自增 id（fake 内存版）
+	err       error // 注入存储层故障
 }
 
 func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
@@ -268,6 +269,21 @@ func (f *fakeStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount
 }
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("fakeStore: SettleSimPosition not used")
+}
+
+// —— D-046 经验库（知识匹配/浏览 RPC 有真语义）——
+
+func (f *fakeStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := append([]store.KnowledgeEntry(nil), f.knowledge...)
+	sort.Slice(out, func(i, j int) bool { return out[i].Signature < out[j].Signature })
+	return out, nil
+}
+
+func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (int64, error) {
+	panic("fakeStore: UpsertKnowledgeEntry not used")
 }
 
 // —— 其余写路径：dashboard 服务不经过（只读 + ack），误用即红 ——

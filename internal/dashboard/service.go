@@ -47,6 +47,10 @@ type Service struct {
 	sources    []SourceInfo              // 启用源清单（ListSourceHealth 数据面）
 	// Now 为测试注入时钟（ListFacts 的 30d 汇率窗口）；0 = time.Now。
 	Now func() time.Time
+	// OppFrictionFunding funding_hedge 执行摩擦 %（现货 taker 0.1%×2 + 永续 taker 0.05%×2，
+	// 普通主户费率已核实）；0 = 默认 0.3。env: ARBCN_OPP_FRICTION_FUNDING——后续 BNB 抵扣/
+	// 升档改 env 不改代码（D-046 实算卡数据面）。
+	OppFrictionFunding float64
 }
 
 // New 构造服务；db/migrations 与 /healthz 同源（复用 httpapi.Healthz 的依赖类型）；

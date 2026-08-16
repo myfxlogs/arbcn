@@ -252,6 +252,12 @@ func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]sto
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("fakeStore: SettleSimPosition not used")
 }
+func (f *fakeStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
+	return nil, nil
+}
+func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (int64, error) {
+	panic("fakeStore: UpsertKnowledgeEntry not used")
+}
 
 // t0 / t0Facts：服务测试统一锚定时钟（practices #10：时钟注入覆盖确认成交腿时间戳）。
 var t0 = time.Date(2026, 8, 15, 12, 0, 0, 0, time.UTC)

@@ -73,6 +73,12 @@ const (
 	// DashboardServiceListInsightsProcedure is the fully-qualified name of the DashboardService's
 	// ListInsights RPC.
 	DashboardServiceListInsightsProcedure = "/arbcn.dashboard.v1.DashboardService/ListInsights"
+	// DashboardServiceListOppCardsProcedure is the fully-qualified name of the DashboardService's
+	// ListOppCards RPC.
+	DashboardServiceListOppCardsProcedure = "/arbcn.dashboard.v1.DashboardService/ListOppCards"
+	// DashboardServiceListKnowledgeEntriesProcedure is the fully-qualified name of the
+	// DashboardService's ListKnowledgeEntries RPC.
+	DashboardServiceListKnowledgeEntriesProcedure = "/arbcn.dashboard.v1.DashboardService/ListKnowledgeEntries"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -106,6 +112,12 @@ type DashboardServiceClient interface {
 	// ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
 	// 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
 	ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error)
+	// ListOppCards 机会实算卡（D-046）：对当前实时机会做确定性算账——瞬时/30 日均值/
+	// 保本天数/扣摩擦净年化/三档判定/中文模板叙述。只读证据表面，不触碰执行门禁。
+	ListOppCards(context.Context, *connect.Request[v1.ListOppCardsRequest]) (*connect.Response[v1.ListOppCardsResponse], error)
+	// ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
+	// 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
+	ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -197,24 +209,38 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("ListInsights")),
 			connect.WithClientOptions(opts...),
 		),
+		listOppCards: connect.NewClient[v1.ListOppCardsRequest, v1.ListOppCardsResponse](
+			httpClient,
+			baseURL+DashboardServiceListOppCardsProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListOppCards")),
+			connect.WithClientOptions(opts...),
+		),
+		listKnowledgeEntries: connect.NewClient[v1.ListKnowledgeEntriesRequest, v1.ListKnowledgeEntriesResponse](
+			httpClient,
+			baseURL+DashboardServiceListKnowledgeEntriesProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListKnowledgeEntries")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // dashboardServiceClient implements DashboardServiceClient.
 type dashboardServiceClient struct {
-	listLatestFacts   *connect.Client[v1.ListLatestFactsRequest, v1.ListLatestFactsResponse]
-	listAlerts        *connect.Client[v1.ListAlertsRequest, v1.ListAlertsResponse]
-	ackAlert          *connect.Client[v1.AckAlertRequest, v1.AckAlertResponse]
-	listTriggerStates *connect.Client[v1.ListTriggerStatesRequest, v1.ListTriggerStatesResponse]
-	health            *connect.Client[v1.HealthRequest, v1.HealthResponse]
-	listUnacked       *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
-	ackAll            *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
-	listSourceHealth  *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
-	listFacts         *connect.Client[v1.ListFactsRequest, v1.ListFactsResponse]
-	addLedgerEntry    *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
-	listLedgerEntries *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
-	ledgerSummary     *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
-	listInsights      *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
+	listLatestFacts      *connect.Client[v1.ListLatestFactsRequest, v1.ListLatestFactsResponse]
+	listAlerts           *connect.Client[v1.ListAlertsRequest, v1.ListAlertsResponse]
+	ackAlert             *connect.Client[v1.AckAlertRequest, v1.AckAlertResponse]
+	listTriggerStates    *connect.Client[v1.ListTriggerStatesRequest, v1.ListTriggerStatesResponse]
+	health               *connect.Client[v1.HealthRequest, v1.HealthResponse]
+	listUnacked          *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
+	ackAll               *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
+	listSourceHealth     *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
+	listFacts            *connect.Client[v1.ListFactsRequest, v1.ListFactsResponse]
+	addLedgerEntry       *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
+	listLedgerEntries    *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
+	ledgerSummary        *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
+	listInsights         *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
+	listOppCards         *connect.Client[v1.ListOppCardsRequest, v1.ListOppCardsResponse]
+	listKnowledgeEntries *connect.Client[v1.ListKnowledgeEntriesRequest, v1.ListKnowledgeEntriesResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -282,6 +308,16 @@ func (c *dashboardServiceClient) ListInsights(ctx context.Context, req *connect.
 	return c.listInsights.CallUnary(ctx, req)
 }
 
+// ListOppCards calls arbcn.dashboard.v1.DashboardService.ListOppCards.
+func (c *dashboardServiceClient) ListOppCards(ctx context.Context, req *connect.Request[v1.ListOppCardsRequest]) (*connect.Response[v1.ListOppCardsResponse], error) {
+	return c.listOppCards.CallUnary(ctx, req)
+}
+
+// ListKnowledgeEntries calls arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries.
+func (c *dashboardServiceClient) ListKnowledgeEntries(ctx context.Context, req *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error) {
+	return c.listKnowledgeEntries.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -313,6 +349,12 @@ type DashboardServiceHandler interface {
 	// ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
 	// 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
 	ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error)
+	// ListOppCards 机会实算卡（D-046）：对当前实时机会做确定性算账——瞬时/30 日均值/
+	// 保本天数/扣摩擦净年化/三档判定/中文模板叙述。只读证据表面，不触碰执行门禁。
+	ListOppCards(context.Context, *connect.Request[v1.ListOppCardsRequest]) (*connect.Response[v1.ListOppCardsResponse], error)
+	// ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
+	// 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
+	ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -400,6 +442,18 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("ListInsights")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceListOppCardsHandler := connect.NewUnaryHandler(
+		DashboardServiceListOppCardsProcedure,
+		svc.ListOppCards,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListOppCards")),
+		connect.WithHandlerOptions(opts...),
+	)
+	dashboardServiceListKnowledgeEntriesHandler := connect.NewUnaryHandler(
+		DashboardServiceListKnowledgeEntriesProcedure,
+		svc.ListKnowledgeEntries,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListKnowledgeEntries")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -428,6 +482,10 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceLedgerSummaryHandler.ServeHTTP(w, r)
 		case DashboardServiceListInsightsProcedure:
 			dashboardServiceListInsightsHandler.ServeHTTP(w, r)
+		case DashboardServiceListOppCardsProcedure:
+			dashboardServiceListOppCardsHandler.ServeHTTP(w, r)
+		case DashboardServiceListKnowledgeEntriesProcedure:
+			dashboardServiceListKnowledgeEntriesHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -487,4 +545,12 @@ func (UnimplementedDashboardServiceHandler) LedgerSummary(context.Context, *conn
 
 func (UnimplementedDashboardServiceHandler) ListInsights(context.Context, *connect.Request[v1.ListInsightsRequest]) (*connect.Response[v1.ListInsightsResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListInsights is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListOppCards(context.Context, *connect.Request[v1.ListOppCardsRequest]) (*connect.Response[v1.ListOppCardsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListOppCards is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListKnowledgeEntries(context.Context, *connect.Request[v1.ListKnowledgeEntriesRequest]) (*connect.Response[v1.ListKnowledgeEntriesResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries is not implemented"))
 }

@@ -10,8 +10,10 @@ import type {
   FactRmb,
   HealthResponse,
   Insight,
+  KnowledgeEntry,
   LedgerEntry,
   ListFactsResponse,
+  OpportunityCard,
   SourceHealth,
   TierSummary,
   TriggerState,
@@ -103,6 +105,7 @@ export interface Snapshot {
   unacked: UnackedAlert[];
   sourceHealth: SourceHealth[];
   insights: Insight[];
+  cards: OpportunityCard[];
   health: HealthResponse;
   at: Date;
 }
@@ -216,8 +219,46 @@ export function ledgerDate(input: string): ReturnType<typeof timestampFromDate> 
   return Number.isNaN(d.getTime()) ? undefined : timestampFromDate(d);
 }
 
-// useSnapshot 拉取全量快照（六 RPC 并行，含 M2-a 的 ListUnacked/ListSourceHealth）
-// 并按 POLL_MS 轮询；ackAlert/ackAll 确认后本地更新（铃铛计数即时递减，不重拉）。
+// useKnowledge 市场结构经验库（D-046）：浏览已核实模式条目。只读、低频（仅在 D#
+// 吸收/复核部署时变化），故挂载加载 + 手动刷新，不加入 60s 轮询（省一路 RPC）。
+export function useKnowledge(): {
+  entries: KnowledgeEntry[];
+  error: string;
+  reload: () => void;
+} {
+  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
+  const [error, setError] = useState("");
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await dashboard.listKnowledgeEntries({});
+        if (!alive) return;
+        setEntries(res.entries);
+        setError("");
+      } catch (e) {
+        if (!alive) return;
+        setError(String(e));
+      }
+    };
+    void load();
+    return () => {
+      alive = false;
+    };
+  }, [tick]);
+
+  return {
+    entries,
+    error,
+    reload: useCallback(() => setTick((n) => n + 1), []),
+  };
+}
+
+// useSnapshot 拉取全量快照（八 RPC 并行，含 M2-a 的 ListUnacked/ListSourceHealth、
+// D-046 的 ListOppCards）并按 POLL_MS 轮询；ackAlert/ackAll 确认后本地更新
+//（铃铛计数即时递减，不重拉）。
 export function useSnapshot(): {
   snap: Snapshot | null;
   error: string;
@@ -238,13 +279,14 @@ export function useSnapshot(): {
     const load = async () => {
       const v = ackVersion.current;
       try {
-        const [facts, states, alerts, unacked, sourceHealth, insights, health] = await Promise.all([
+        const [facts, states, alerts, unacked, sourceHealth, insights, cards, health] = await Promise.all([
           dashboard.listLatestFacts({}),
           dashboard.listTriggerStates({}),
           dashboard.listAlerts({ limit: 200 }),
           dashboard.listUnacked({}),
           dashboard.listSourceHealth({}),
           dashboard.listInsights({}),
+          dashboard.listOppCards({}),
           dashboard.health({}),
         ]);
         if (!alive) return;
@@ -256,6 +298,7 @@ export function useSnapshot(): {
           unacked: unacked.items,
           sourceHealth: sourceHealth.items,
           insights: insights.insights,
+          cards: cards.cards,
           health,
           at: new Date(),
         });

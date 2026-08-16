@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useFactsSnapshot, useSim, useSnapshot } from "./hooks";
+import { useFactsSnapshot, useKnowledge, useSim, useSnapshot } from "./hooks";
 import { fmtClock, reasonText } from "./format";
 import { Alerts } from "./components/Alerts";
 import { Bell } from "./components/Bell";
@@ -8,6 +8,7 @@ import { Chip } from "./components/Chip";
 import { ConfirmPanel } from "./components/ConfirmPanel";
 import { FactsSnapshot } from "./components/FactsSnapshot";
 import { Insights } from "./components/Insights";
+import { KnowledgeBoard } from "./components/KnowledgeBoard";
 import { Ledger } from "./components/Ledger";
 import { Opportunity } from "./components/Opportunity";
 import { SimExec } from "./components/SimExec";
@@ -33,6 +34,8 @@ function initTheme(): "light" | "dark" {
 export default function App() {
   const { snap, error, reload, ackAlert, ackAll } = useSnapshot();
   const factsSnap = useFactsSnapshot();
+  // 经验库低频只读（D-046），独立于 60s 轮询。
+  const knowledge = useKnowledge();
   // sim 数据提升到 App 层共享（对话 #59）：确认下单面板（总览页）+ 模拟执行 tab
   // 同源，ConfirmSimOrder 成功后 useSim 内部 tick 刷新两处持仓/订单。
   const sim = useSim();
@@ -110,7 +113,7 @@ export default function App() {
             <>
               {/* 双栏（对话 #60 布局调整）：机会面板左列跨两行；右列 = 告警流（上）+ 确认下单（下，与机会面板同行） */}
               <div className="row">
-                <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
+                <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} cards={snap.cards} />
                 <div className="row-col">
                   <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
                   <ConfirmPanel
@@ -123,6 +126,11 @@ export default function App() {
               </div>
               <Triggers states={snap.states} />
               <Insights insights={snap.insights} />
+              <KnowledgeBoard
+                entries={knowledge.entries}
+                error={knowledge.error}
+                onReload={knowledge.reload}
+              />
             </>
           ) : (
             <p className="empty">连接服务中…</p>

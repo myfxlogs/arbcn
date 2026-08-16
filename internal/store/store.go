@@ -176,6 +176,23 @@ type TestnetAccountDetail struct {
 	EquityUSD float64
 }
 
+// KnowledgeEntry 是 knowledge_entries 表的一行（D-046 市场结构经验库）。
+// 吸收 = 人工 + D#（internal/knowledge.Defaults 落盘，git 跟踪）；匹配 = 确定性签名纯函数；
+// 呈现 = 只读——系统永不自动吸收/自动改 verdict（practices #20）。ID/Ts 读取时回填。
+type KnowledgeEntry struct {
+	ID             int64      // 主键（读取时回填）
+	Ts             time.Time  // 吸收时刻（读取时回填）
+	Signature      string     // 受控签名键（knowledge.Signature*）
+	Venue          string     // seed 实例 venue（溯源用）
+	Symbol         string     // seed 实例 symbol
+	Verdict        string     // 人工判定（D# 落）
+	Rationale      string     // 判定依据（中文）
+	Source         string     // 出处（对话 #N / D#）
+	Status         string     // active / superseded / retracted（D# 演进）
+	ValidatedAt    *time.Time // 复核时刻；nil = 待复核
+	ValidationNote string     // 复核结论
+}
+
 // SimOrder 值域（与 DB CHECK / spec 一致）。
 const (
 	SimStatusSuggested = "suggested" // 生成时默认（门禁全过）
@@ -285,4 +302,10 @@ type Store interface {
 	// SettleSimPosition 结算更新持仓腿：pnl += addPnl，status 覆盖（settled 关闭），
 	// updated_at = now。未知 id 无操作。
 	SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error
+
+	// ListKnowledgeEntries 返回经验库全部条目（signature ASC 稳定排序；D-046 浏览）。
+	ListKnowledgeEntries(ctx context.Context) ([]KnowledgeEntry, error)
+	// UpsertKnowledgeEntry 按 signature 确保条目存在并返回 id（镜像 UpsertRule：已存在
+	// **不覆盖**，保留 DB 后续人工修订）。seed 落盘幂等。
+	UpsertKnowledgeEntry(ctx context.Context, e KnowledgeEntry) (int64, error)
 }

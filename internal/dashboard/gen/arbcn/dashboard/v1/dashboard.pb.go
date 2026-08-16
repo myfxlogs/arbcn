@@ -1869,7 +1869,7 @@ func (x *LedgerSummaryResponse) GetItems() []*TierSummary {
 type Insight struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`             // 稳定 key，如 "reject_dist" / "defi_anomaly:aave-v3" / "no_order" / "source_down:binance"
-	Category      string                 `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"` // risk / anomaly / opportunity / data
+	Category      string                 `protobuf:"bytes,2,opt,name=category,proto3" json:"category,omitempty"` // risk / anomaly / opportunity / data / knowledge
 	Severity      string                 `protobuf:"bytes,3,opt,name=severity,proto3" json:"severity,omitempty"` // info / warn / critical
 	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`       // 中文标题
 	Detail        string                 `protobuf:"bytes,5,opt,name=detail,proto3" json:"detail,omitempty"`     // 中文明细 + 数值
@@ -2038,6 +2038,409 @@ func (x *ListInsightsResponse) GetInsights() []*Insight {
 	return nil
 }
 
+// OpportunityCard 机会实算卡（D-046）：确定性算账结果（纯公式，非 LLM 生成）。
+type OpportunityCard struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"` // funding_hedge / carry_asset / repo（store SimKind* 口径）
+	Venue         string                 `protobuf:"bytes,2,opt,name=venue,proto3" json:"venue,omitempty"`
+	Symbol        string                 `protobuf:"bytes,3,opt,name=symbol,proto3" json:"symbol,omitempty"`
+	Inst          float64                `protobuf:"fixed64,4,opt,name=inst,proto3" json:"inst,omitempty"`                                          // 瞬时年化 %（最新事实值）
+	Avg_30D       float64                `protobuf:"fixed64,5,opt,name=avg_30d,json=avg30d,proto3" json:"avg_30d,omitempty"`                        // 30 日均值 %；0 = 样本不足（前端显示 —）
+	BreakEvenDays float64                `protobuf:"fixed64,6,opt,name=break_even_days,json=breakEvenDays,proto3" json:"break_even_days,omitempty"` // 保本持续天数；0 = 不适用（friction=0 / 当前费率 ≤0）
+	NetAnnualized float64                `protobuf:"fixed64,7,opt,name=net_annualized,json=netAnnualized,proto3" json:"net_annualized,omitempty"`   // 扣摩擦净年化 %（30 日持有口径）；0 = 均值样本不足
+	FrictionPct   float64                `protobuf:"fixed64,8,opt,name=friction_pct,json=frictionPct,proto3" json:"friction_pct,omitempty"`         // 摩擦假设 %（funding=配置常量，carry/repo≈0）
+	Rating        string                 `protobuf:"bytes,9,opt,name=rating,proto3" json:"rating,omitempty"`                                        // grab / breakeven / trap（Rating* 常量）
+	Narrative     string                 `protobuf:"bytes,10,opt,name=narrative,proto3" json:"narrative,omitempty"`                                 // 中文模板叙述（D-043；明示摩擦假设，见代码注释）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpportunityCard) Reset() {
+	*x = OpportunityCard{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpportunityCard) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpportunityCard) ProtoMessage() {}
+
+func (x *OpportunityCard) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpportunityCard.ProtoReflect.Descriptor instead.
+func (*OpportunityCard) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *OpportunityCard) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *OpportunityCard) GetVenue() string {
+	if x != nil {
+		return x.Venue
+	}
+	return ""
+}
+
+func (x *OpportunityCard) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *OpportunityCard) GetInst() float64 {
+	if x != nil {
+		return x.Inst
+	}
+	return 0
+}
+
+func (x *OpportunityCard) GetAvg_30D() float64 {
+	if x != nil {
+		return x.Avg_30D
+	}
+	return 0
+}
+
+func (x *OpportunityCard) GetBreakEvenDays() float64 {
+	if x != nil {
+		return x.BreakEvenDays
+	}
+	return 0
+}
+
+func (x *OpportunityCard) GetNetAnnualized() float64 {
+	if x != nil {
+		return x.NetAnnualized
+	}
+	return 0
+}
+
+func (x *OpportunityCard) GetFrictionPct() float64 {
+	if x != nil {
+		return x.FrictionPct
+	}
+	return 0
+}
+
+func (x *OpportunityCard) GetRating() string {
+	if x != nil {
+		return x.Rating
+	}
+	return ""
+}
+
+func (x *OpportunityCard) GetNarrative() string {
+	if x != nil {
+		return x.Narrative
+	}
+	return ""
+}
+
+type ListOppCardsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOppCardsRequest) Reset() {
+	*x = ListOppCardsRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOppCardsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOppCardsRequest) ProtoMessage() {}
+
+func (x *ListOppCardsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOppCardsRequest.ProtoReflect.Descriptor instead.
+func (*ListOppCardsRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{36}
+}
+
+type ListOppCardsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Cards         []*OpportunityCard     `protobuf:"bytes,1,rep,name=cards,proto3" json:"cards,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOppCardsResponse) Reset() {
+	*x = ListOppCardsResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOppCardsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOppCardsResponse) ProtoMessage() {}
+
+func (x *ListOppCardsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOppCardsResponse.ProtoReflect.Descriptor instead.
+func (*ListOppCardsResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *ListOppCardsResponse) GetCards() []*OpportunityCard {
+	if x != nil {
+		return x.Cards
+	}
+	return nil
+}
+
+// KnowledgeEntry 市场结构经验库条目（D-046）：一条已核实的市场结构模式判定记录。
+// 吸收 = 人工 + D#（git 跟踪 seed）；系统只匹配与呈现，不吸收、不改 verdict。
+type KnowledgeEntry struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Ts             *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`                                                // 吸收时刻
+	Signature      string                 `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`                                  // 受控签名键（knowledge.Signature*）
+	Venue          string                 `protobuf:"bytes,4,opt,name=venue,proto3" json:"venue,omitempty"`                                          // seed 实例 venue（溯源用）
+	Symbol         string                 `protobuf:"bytes,5,opt,name=symbol,proto3" json:"symbol,omitempty"`                                        // seed 实例 symbol
+	Verdict        string                 `protobuf:"bytes,6,opt,name=verdict,proto3" json:"verdict,omitempty"`                                      // 人工判定（D# 落）
+	Rationale      string                 `protobuf:"bytes,7,opt,name=rationale,proto3" json:"rationale,omitempty"`                                  // 判定依据（中文）
+	Source         string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`                                        // 出处（对话 #N / D#）
+	Status         string                 `protobuf:"bytes,9,opt,name=status,proto3" json:"status,omitempty"`                                        // active / superseded / retracted
+	ValidatedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=validated_at,json=validatedAt,proto3" json:"validated_at,omitempty"`          // 复核时刻；缺省 = 待复核
+	ValidationNote string                 `protobuf:"bytes,11,opt,name=validation_note,json=validationNote,proto3" json:"validation_note,omitempty"` // 复核结论
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *KnowledgeEntry) Reset() {
+	*x = KnowledgeEntry{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KnowledgeEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KnowledgeEntry) ProtoMessage() {}
+
+func (x *KnowledgeEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use KnowledgeEntry.ProtoReflect.Descriptor instead.
+func (*KnowledgeEntry) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *KnowledgeEntry) GetId() int64 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *KnowledgeEntry) GetTs() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Ts
+	}
+	return nil
+}
+
+func (x *KnowledgeEntry) GetSignature() string {
+	if x != nil {
+		return x.Signature
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetVenue() string {
+	if x != nil {
+		return x.Venue
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetSymbol() string {
+	if x != nil {
+		return x.Symbol
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetVerdict() string {
+	if x != nil {
+		return x.Verdict
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetRationale() string {
+	if x != nil {
+		return x.Rationale
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetValidatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ValidatedAt
+	}
+	return nil
+}
+
+func (x *KnowledgeEntry) GetValidationNote() string {
+	if x != nil {
+		return x.ValidationNote
+	}
+	return ""
+}
+
+type ListKnowledgeEntriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListKnowledgeEntriesRequest) Reset() {
+	*x = ListKnowledgeEntriesRequest{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKnowledgeEntriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKnowledgeEntriesRequest) ProtoMessage() {}
+
+func (x *ListKnowledgeEntriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKnowledgeEntriesRequest.ProtoReflect.Descriptor instead.
+func (*ListKnowledgeEntriesRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{39}
+}
+
+type ListKnowledgeEntriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Entries       []*KnowledgeEntry      `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListKnowledgeEntriesResponse) Reset() {
+	*x = ListKnowledgeEntriesResponse{}
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListKnowledgeEntriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListKnowledgeEntriesResponse) ProtoMessage() {}
+
+func (x *ListKnowledgeEntriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_dashboard_v1_dashboard_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKnowledgeEntriesResponse.ProtoReflect.Descriptor instead.
+func (*ListKnowledgeEntriesResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *ListKnowledgeEntriesResponse) GetEntries() []*KnowledgeEntry {
+	if x != nil {
+		return x.Entries
+	}
+	return nil
+}
+
 var File_arbcn_dashboard_v1_dashboard_proto protoreflect.FileDescriptor
 
 const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
@@ -2177,8 +2580,38 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\aactions\x18\a \x03(\tR\aactions\"\x15\n" +
 	"\x13ListInsightsRequest\"O\n" +
 	"\x14ListInsightsResponse\x127\n" +
-	"\binsights\x18\x01 \x03(\v2\x1b.arbcn.dashboard.v1.InsightR\binsights2\x93\n" +
-	"\n" +
+	"\binsights\x18\x01 \x03(\v2\x1b.arbcn.dashboard.v1.InsightR\binsights\"\xa8\x02\n" +
+	"\x0fOpportunityCard\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x14\n" +
+	"\x05venue\x18\x02 \x01(\tR\x05venue\x12\x16\n" +
+	"\x06symbol\x18\x03 \x01(\tR\x06symbol\x12\x12\n" +
+	"\x04inst\x18\x04 \x01(\x01R\x04inst\x12\x17\n" +
+	"\aavg_30d\x18\x05 \x01(\x01R\x06avg30d\x12&\n" +
+	"\x0fbreak_even_days\x18\x06 \x01(\x01R\rbreakEvenDays\x12%\n" +
+	"\x0enet_annualized\x18\a \x01(\x01R\rnetAnnualized\x12!\n" +
+	"\ffriction_pct\x18\b \x01(\x01R\vfrictionPct\x12\x16\n" +
+	"\x06rating\x18\t \x01(\tR\x06rating\x12\x1c\n" +
+	"\tnarrative\x18\n" +
+	" \x01(\tR\tnarrative\"\x15\n" +
+	"\x13ListOppCardsRequest\"Q\n" +
+	"\x14ListOppCardsResponse\x129\n" +
+	"\x05cards\x18\x01 \x03(\v2#.arbcn.dashboard.v1.OpportunityCardR\x05cards\"\xe8\x02\n" +
+	"\x0eKnowledgeEntry\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\x03R\x02id\x12*\n" +
+	"\x02ts\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x1c\n" +
+	"\tsignature\x18\x03 \x01(\tR\tsignature\x12\x14\n" +
+	"\x05venue\x18\x04 \x01(\tR\x05venue\x12\x16\n" +
+	"\x06symbol\x18\x05 \x01(\tR\x06symbol\x12\x18\n" +
+	"\averdict\x18\x06 \x01(\tR\averdict\x12\x1c\n" +
+	"\trationale\x18\a \x01(\tR\trationale\x12\x16\n" +
+	"\x06source\x18\b \x01(\tR\x06source\x12\x16\n" +
+	"\x06status\x18\t \x01(\tR\x06status\x12=\n" +
+	"\fvalidated_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\vvalidatedAt\x12'\n" +
+	"\x0fvalidation_note\x18\v \x01(\tR\x0evalidationNote\"\x1d\n" +
+	"\x1bListKnowledgeEntriesRequest\"\\\n" +
+	"\x1cListKnowledgeEntriesResponse\x12<\n" +
+	"\aentries\x18\x01 \x03(\v2\".arbcn.dashboard.v1.KnowledgeEntryR\aentries2\xf1\v\n" +
 	"\x10DashboardService\x12j\n" +
 	"\x0fListLatestFacts\x12*.arbcn.dashboard.v1.ListLatestFactsRequest\x1a+.arbcn.dashboard.v1.ListLatestFactsResponse\x12[\n" +
 	"\n" +
@@ -2193,7 +2626,9 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x0eAddLedgerEntry\x12).arbcn.dashboard.v1.AddLedgerEntryRequest\x1a*.arbcn.dashboard.v1.AddLedgerEntryResponse\x12p\n" +
 	"\x11ListLedgerEntries\x12,.arbcn.dashboard.v1.ListLedgerEntriesRequest\x1a-.arbcn.dashboard.v1.ListLedgerEntriesResponse\x12d\n" +
 	"\rLedgerSummary\x12(.arbcn.dashboard.v1.LedgerSummaryRequest\x1a).arbcn.dashboard.v1.LedgerSummaryResponse\x12a\n" +
-	"\fListInsights\x12'.arbcn.dashboard.v1.ListInsightsRequest\x1a(.arbcn.dashboard.v1.ListInsightsResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
+	"\fListInsights\x12'.arbcn.dashboard.v1.ListInsightsRequest\x1a(.arbcn.dashboard.v1.ListInsightsResponse\x12a\n" +
+	"\fListOppCards\x12'.arbcn.dashboard.v1.ListOppCardsRequest\x1a(.arbcn.dashboard.v1.ListOppCardsResponse\x12y\n" +
+	"\x14ListKnowledgeEntries\x12/.arbcn.dashboard.v1.ListKnowledgeEntriesRequest\x1a0.arbcn.dashboard.v1.ListKnowledgeEntriesResponseB=Z;arbcn/internal/dashboard/gen/arbcn/dashboard/v1;dashboardv1b\x06proto3"
 
 var (
 	file_arbcn_dashboard_v1_dashboard_proto_rawDescOnce sync.Once
@@ -2207,97 +2642,111 @@ func file_arbcn_dashboard_v1_dashboard_proto_rawDescGZIP() []byte {
 	return file_arbcn_dashboard_v1_dashboard_proto_rawDescData
 }
 
-var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
+var file_arbcn_dashboard_v1_dashboard_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_arbcn_dashboard_v1_dashboard_proto_goTypes = []any{
-	(*Fact)(nil),                      // 0: arbcn.dashboard.v1.Fact
-	(*ListLatestFactsRequest)(nil),    // 1: arbcn.dashboard.v1.ListLatestFactsRequest
-	(*ListLatestFactsResponse)(nil),   // 2: arbcn.dashboard.v1.ListLatestFactsResponse
-	(*Alert)(nil),                     // 3: arbcn.dashboard.v1.Alert
-	(*ListAlertsRequest)(nil),         // 4: arbcn.dashboard.v1.ListAlertsRequest
-	(*ListAlertsResponse)(nil),        // 5: arbcn.dashboard.v1.ListAlertsResponse
-	(*AckAlertRequest)(nil),           // 6: arbcn.dashboard.v1.AckAlertRequest
-	(*AckAlertResponse)(nil),          // 7: arbcn.dashboard.v1.AckAlertResponse
-	(*TriggerState)(nil),              // 8: arbcn.dashboard.v1.TriggerState
-	(*ListTriggerStatesRequest)(nil),  // 9: arbcn.dashboard.v1.ListTriggerStatesRequest
-	(*ListTriggerStatesResponse)(nil), // 10: arbcn.dashboard.v1.ListTriggerStatesResponse
-	(*HealthRequest)(nil),             // 11: arbcn.dashboard.v1.HealthRequest
-	(*HealthResponse)(nil),            // 12: arbcn.dashboard.v1.HealthResponse
-	(*UnackedAlert)(nil),              // 13: arbcn.dashboard.v1.UnackedAlert
-	(*ListUnackedRequest)(nil),        // 14: arbcn.dashboard.v1.ListUnackedRequest
-	(*ListUnackedResponse)(nil),       // 15: arbcn.dashboard.v1.ListUnackedResponse
-	(*AckAllRequest)(nil),             // 16: arbcn.dashboard.v1.AckAllRequest
-	(*AckAllResponse)(nil),            // 17: arbcn.dashboard.v1.AckAllResponse
-	(*SourceHealth)(nil),              // 18: arbcn.dashboard.v1.SourceHealth
-	(*ListSourceHealthRequest)(nil),   // 19: arbcn.dashboard.v1.ListSourceHealthRequest
-	(*ListSourceHealthResponse)(nil),  // 20: arbcn.dashboard.v1.ListSourceHealthResponse
-	(*FactRmb)(nil),                   // 21: arbcn.dashboard.v1.FactRmb
-	(*ListFactsRequest)(nil),          // 22: arbcn.dashboard.v1.ListFactsRequest
-	(*ListFactsResponse)(nil),         // 23: arbcn.dashboard.v1.ListFactsResponse
-	(*LedgerEntry)(nil),               // 24: arbcn.dashboard.v1.LedgerEntry
-	(*AddLedgerEntryRequest)(nil),     // 25: arbcn.dashboard.v1.AddLedgerEntryRequest
-	(*AddLedgerEntryResponse)(nil),    // 26: arbcn.dashboard.v1.AddLedgerEntryResponse
-	(*ListLedgerEntriesRequest)(nil),  // 27: arbcn.dashboard.v1.ListLedgerEntriesRequest
-	(*ListLedgerEntriesResponse)(nil), // 28: arbcn.dashboard.v1.ListLedgerEntriesResponse
-	(*LedgerSummaryRequest)(nil),      // 29: arbcn.dashboard.v1.LedgerSummaryRequest
-	(*TierSummary)(nil),               // 30: arbcn.dashboard.v1.TierSummary
-	(*LedgerSummaryResponse)(nil),     // 31: arbcn.dashboard.v1.LedgerSummaryResponse
-	(*Insight)(nil),                   // 32: arbcn.dashboard.v1.Insight
-	(*ListInsightsRequest)(nil),       // 33: arbcn.dashboard.v1.ListInsightsRequest
-	(*ListInsightsResponse)(nil),      // 34: arbcn.dashboard.v1.ListInsightsResponse
-	(*timestamppb.Timestamp)(nil),     // 35: google.protobuf.Timestamp
+	(*Fact)(nil),                         // 0: arbcn.dashboard.v1.Fact
+	(*ListLatestFactsRequest)(nil),       // 1: arbcn.dashboard.v1.ListLatestFactsRequest
+	(*ListLatestFactsResponse)(nil),      // 2: arbcn.dashboard.v1.ListLatestFactsResponse
+	(*Alert)(nil),                        // 3: arbcn.dashboard.v1.Alert
+	(*ListAlertsRequest)(nil),            // 4: arbcn.dashboard.v1.ListAlertsRequest
+	(*ListAlertsResponse)(nil),           // 5: arbcn.dashboard.v1.ListAlertsResponse
+	(*AckAlertRequest)(nil),              // 6: arbcn.dashboard.v1.AckAlertRequest
+	(*AckAlertResponse)(nil),             // 7: arbcn.dashboard.v1.AckAlertResponse
+	(*TriggerState)(nil),                 // 8: arbcn.dashboard.v1.TriggerState
+	(*ListTriggerStatesRequest)(nil),     // 9: arbcn.dashboard.v1.ListTriggerStatesRequest
+	(*ListTriggerStatesResponse)(nil),    // 10: arbcn.dashboard.v1.ListTriggerStatesResponse
+	(*HealthRequest)(nil),                // 11: arbcn.dashboard.v1.HealthRequest
+	(*HealthResponse)(nil),               // 12: arbcn.dashboard.v1.HealthResponse
+	(*UnackedAlert)(nil),                 // 13: arbcn.dashboard.v1.UnackedAlert
+	(*ListUnackedRequest)(nil),           // 14: arbcn.dashboard.v1.ListUnackedRequest
+	(*ListUnackedResponse)(nil),          // 15: arbcn.dashboard.v1.ListUnackedResponse
+	(*AckAllRequest)(nil),                // 16: arbcn.dashboard.v1.AckAllRequest
+	(*AckAllResponse)(nil),               // 17: arbcn.dashboard.v1.AckAllResponse
+	(*SourceHealth)(nil),                 // 18: arbcn.dashboard.v1.SourceHealth
+	(*ListSourceHealthRequest)(nil),      // 19: arbcn.dashboard.v1.ListSourceHealthRequest
+	(*ListSourceHealthResponse)(nil),     // 20: arbcn.dashboard.v1.ListSourceHealthResponse
+	(*FactRmb)(nil),                      // 21: arbcn.dashboard.v1.FactRmb
+	(*ListFactsRequest)(nil),             // 22: arbcn.dashboard.v1.ListFactsRequest
+	(*ListFactsResponse)(nil),            // 23: arbcn.dashboard.v1.ListFactsResponse
+	(*LedgerEntry)(nil),                  // 24: arbcn.dashboard.v1.LedgerEntry
+	(*AddLedgerEntryRequest)(nil),        // 25: arbcn.dashboard.v1.AddLedgerEntryRequest
+	(*AddLedgerEntryResponse)(nil),       // 26: arbcn.dashboard.v1.AddLedgerEntryResponse
+	(*ListLedgerEntriesRequest)(nil),     // 27: arbcn.dashboard.v1.ListLedgerEntriesRequest
+	(*ListLedgerEntriesResponse)(nil),    // 28: arbcn.dashboard.v1.ListLedgerEntriesResponse
+	(*LedgerSummaryRequest)(nil),         // 29: arbcn.dashboard.v1.LedgerSummaryRequest
+	(*TierSummary)(nil),                  // 30: arbcn.dashboard.v1.TierSummary
+	(*LedgerSummaryResponse)(nil),        // 31: arbcn.dashboard.v1.LedgerSummaryResponse
+	(*Insight)(nil),                      // 32: arbcn.dashboard.v1.Insight
+	(*ListInsightsRequest)(nil),          // 33: arbcn.dashboard.v1.ListInsightsRequest
+	(*ListInsightsResponse)(nil),         // 34: arbcn.dashboard.v1.ListInsightsResponse
+	(*OpportunityCard)(nil),              // 35: arbcn.dashboard.v1.OpportunityCard
+	(*ListOppCardsRequest)(nil),          // 36: arbcn.dashboard.v1.ListOppCardsRequest
+	(*ListOppCardsResponse)(nil),         // 37: arbcn.dashboard.v1.ListOppCardsResponse
+	(*KnowledgeEntry)(nil),               // 38: arbcn.dashboard.v1.KnowledgeEntry
+	(*ListKnowledgeEntriesRequest)(nil),  // 39: arbcn.dashboard.v1.ListKnowledgeEntriesRequest
+	(*ListKnowledgeEntriesResponse)(nil), // 40: arbcn.dashboard.v1.ListKnowledgeEntriesResponse
+	(*timestamppb.Timestamp)(nil),        // 41: google.protobuf.Timestamp
 }
 var file_arbcn_dashboard_v1_dashboard_proto_depIdxs = []int32{
-	35, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
+	41, // 0: arbcn.dashboard.v1.Fact.ts:type_name -> google.protobuf.Timestamp
 	0,  // 1: arbcn.dashboard.v1.ListLatestFactsResponse.facts:type_name -> arbcn.dashboard.v1.Fact
-	35, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
+	41, // 2: arbcn.dashboard.v1.Alert.ts:type_name -> google.protobuf.Timestamp
 	3,  // 3: arbcn.dashboard.v1.ListAlertsResponse.alerts:type_name -> arbcn.dashboard.v1.Alert
-	35, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
+	41, // 4: arbcn.dashboard.v1.TriggerState.since:type_name -> google.protobuf.Timestamp
 	8,  // 5: arbcn.dashboard.v1.ListTriggerStatesResponse.states:type_name -> arbcn.dashboard.v1.TriggerState
-	35, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
+	41, // 6: arbcn.dashboard.v1.UnackedAlert.ts:type_name -> google.protobuf.Timestamp
 	13, // 7: arbcn.dashboard.v1.ListUnackedResponse.items:type_name -> arbcn.dashboard.v1.UnackedAlert
-	35, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
-	35, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
+	41, // 8: arbcn.dashboard.v1.SourceHealth.last_poll_at:type_name -> google.protobuf.Timestamp
+	41, // 9: arbcn.dashboard.v1.SourceHealth.last_fact_at:type_name -> google.protobuf.Timestamp
 	18, // 10: arbcn.dashboard.v1.ListSourceHealthResponse.items:type_name -> arbcn.dashboard.v1.SourceHealth
-	35, // 11: arbcn.dashboard.v1.FactRmb.ts:type_name -> google.protobuf.Timestamp
+	41, // 11: arbcn.dashboard.v1.FactRmb.ts:type_name -> google.protobuf.Timestamp
 	21, // 12: arbcn.dashboard.v1.ListFactsResponse.facts:type_name -> arbcn.dashboard.v1.FactRmb
-	35, // 13: arbcn.dashboard.v1.ListFactsResponse.fx_ts:type_name -> google.protobuf.Timestamp
-	35, // 14: arbcn.dashboard.v1.LedgerEntry.date:type_name -> google.protobuf.Timestamp
-	35, // 15: arbcn.dashboard.v1.AddLedgerEntryRequest.date:type_name -> google.protobuf.Timestamp
+	41, // 13: arbcn.dashboard.v1.ListFactsResponse.fx_ts:type_name -> google.protobuf.Timestamp
+	41, // 14: arbcn.dashboard.v1.LedgerEntry.date:type_name -> google.protobuf.Timestamp
+	41, // 15: arbcn.dashboard.v1.AddLedgerEntryRequest.date:type_name -> google.protobuf.Timestamp
 	24, // 16: arbcn.dashboard.v1.ListLedgerEntriesResponse.entries:type_name -> arbcn.dashboard.v1.LedgerEntry
 	30, // 17: arbcn.dashboard.v1.LedgerSummaryResponse.items:type_name -> arbcn.dashboard.v1.TierSummary
-	35, // 18: arbcn.dashboard.v1.Insight.at:type_name -> google.protobuf.Timestamp
+	41, // 18: arbcn.dashboard.v1.Insight.at:type_name -> google.protobuf.Timestamp
 	32, // 19: arbcn.dashboard.v1.ListInsightsResponse.insights:type_name -> arbcn.dashboard.v1.Insight
-	1,  // 20: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
-	4,  // 21: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
-	6,  // 22: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
-	9,  // 23: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
-	11, // 24: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
-	14, // 25: arbcn.dashboard.v1.DashboardService.ListUnacked:input_type -> arbcn.dashboard.v1.ListUnackedRequest
-	16, // 26: arbcn.dashboard.v1.DashboardService.AckAll:input_type -> arbcn.dashboard.v1.AckAllRequest
-	19, // 27: arbcn.dashboard.v1.DashboardService.ListSourceHealth:input_type -> arbcn.dashboard.v1.ListSourceHealthRequest
-	22, // 28: arbcn.dashboard.v1.DashboardService.ListFacts:input_type -> arbcn.dashboard.v1.ListFactsRequest
-	25, // 29: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:input_type -> arbcn.dashboard.v1.AddLedgerEntryRequest
-	27, // 30: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:input_type -> arbcn.dashboard.v1.ListLedgerEntriesRequest
-	29, // 31: arbcn.dashboard.v1.DashboardService.LedgerSummary:input_type -> arbcn.dashboard.v1.LedgerSummaryRequest
-	33, // 32: arbcn.dashboard.v1.DashboardService.ListInsights:input_type -> arbcn.dashboard.v1.ListInsightsRequest
-	2,  // 33: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
-	5,  // 34: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
-	7,  // 35: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
-	10, // 36: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
-	12, // 37: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
-	15, // 38: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
-	17, // 39: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
-	20, // 40: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
-	23, // 41: arbcn.dashboard.v1.DashboardService.ListFacts:output_type -> arbcn.dashboard.v1.ListFactsResponse
-	26, // 42: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:output_type -> arbcn.dashboard.v1.AddLedgerEntryResponse
-	28, // 43: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:output_type -> arbcn.dashboard.v1.ListLedgerEntriesResponse
-	31, // 44: arbcn.dashboard.v1.DashboardService.LedgerSummary:output_type -> arbcn.dashboard.v1.LedgerSummaryResponse
-	34, // 45: arbcn.dashboard.v1.DashboardService.ListInsights:output_type -> arbcn.dashboard.v1.ListInsightsResponse
-	33, // [33:46] is the sub-list for method output_type
-	20, // [20:33] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	35, // 20: arbcn.dashboard.v1.ListOppCardsResponse.cards:type_name -> arbcn.dashboard.v1.OpportunityCard
+	41, // 21: arbcn.dashboard.v1.KnowledgeEntry.ts:type_name -> google.protobuf.Timestamp
+	41, // 22: arbcn.dashboard.v1.KnowledgeEntry.validated_at:type_name -> google.protobuf.Timestamp
+	38, // 23: arbcn.dashboard.v1.ListKnowledgeEntriesResponse.entries:type_name -> arbcn.dashboard.v1.KnowledgeEntry
+	1,  // 24: arbcn.dashboard.v1.DashboardService.ListLatestFacts:input_type -> arbcn.dashboard.v1.ListLatestFactsRequest
+	4,  // 25: arbcn.dashboard.v1.DashboardService.ListAlerts:input_type -> arbcn.dashboard.v1.ListAlertsRequest
+	6,  // 26: arbcn.dashboard.v1.DashboardService.AckAlert:input_type -> arbcn.dashboard.v1.AckAlertRequest
+	9,  // 27: arbcn.dashboard.v1.DashboardService.ListTriggerStates:input_type -> arbcn.dashboard.v1.ListTriggerStatesRequest
+	11, // 28: arbcn.dashboard.v1.DashboardService.Health:input_type -> arbcn.dashboard.v1.HealthRequest
+	14, // 29: arbcn.dashboard.v1.DashboardService.ListUnacked:input_type -> arbcn.dashboard.v1.ListUnackedRequest
+	16, // 30: arbcn.dashboard.v1.DashboardService.AckAll:input_type -> arbcn.dashboard.v1.AckAllRequest
+	19, // 31: arbcn.dashboard.v1.DashboardService.ListSourceHealth:input_type -> arbcn.dashboard.v1.ListSourceHealthRequest
+	22, // 32: arbcn.dashboard.v1.DashboardService.ListFacts:input_type -> arbcn.dashboard.v1.ListFactsRequest
+	25, // 33: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:input_type -> arbcn.dashboard.v1.AddLedgerEntryRequest
+	27, // 34: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:input_type -> arbcn.dashboard.v1.ListLedgerEntriesRequest
+	29, // 35: arbcn.dashboard.v1.DashboardService.LedgerSummary:input_type -> arbcn.dashboard.v1.LedgerSummaryRequest
+	33, // 36: arbcn.dashboard.v1.DashboardService.ListInsights:input_type -> arbcn.dashboard.v1.ListInsightsRequest
+	36, // 37: arbcn.dashboard.v1.DashboardService.ListOppCards:input_type -> arbcn.dashboard.v1.ListOppCardsRequest
+	39, // 38: arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries:input_type -> arbcn.dashboard.v1.ListKnowledgeEntriesRequest
+	2,  // 39: arbcn.dashboard.v1.DashboardService.ListLatestFacts:output_type -> arbcn.dashboard.v1.ListLatestFactsResponse
+	5,  // 40: arbcn.dashboard.v1.DashboardService.ListAlerts:output_type -> arbcn.dashboard.v1.ListAlertsResponse
+	7,  // 41: arbcn.dashboard.v1.DashboardService.AckAlert:output_type -> arbcn.dashboard.v1.AckAlertResponse
+	10, // 42: arbcn.dashboard.v1.DashboardService.ListTriggerStates:output_type -> arbcn.dashboard.v1.ListTriggerStatesResponse
+	12, // 43: arbcn.dashboard.v1.DashboardService.Health:output_type -> arbcn.dashboard.v1.HealthResponse
+	15, // 44: arbcn.dashboard.v1.DashboardService.ListUnacked:output_type -> arbcn.dashboard.v1.ListUnackedResponse
+	17, // 45: arbcn.dashboard.v1.DashboardService.AckAll:output_type -> arbcn.dashboard.v1.AckAllResponse
+	20, // 46: arbcn.dashboard.v1.DashboardService.ListSourceHealth:output_type -> arbcn.dashboard.v1.ListSourceHealthResponse
+	23, // 47: arbcn.dashboard.v1.DashboardService.ListFacts:output_type -> arbcn.dashboard.v1.ListFactsResponse
+	26, // 48: arbcn.dashboard.v1.DashboardService.AddLedgerEntry:output_type -> arbcn.dashboard.v1.AddLedgerEntryResponse
+	28, // 49: arbcn.dashboard.v1.DashboardService.ListLedgerEntries:output_type -> arbcn.dashboard.v1.ListLedgerEntriesResponse
+	31, // 50: arbcn.dashboard.v1.DashboardService.LedgerSummary:output_type -> arbcn.dashboard.v1.LedgerSummaryResponse
+	34, // 51: arbcn.dashboard.v1.DashboardService.ListInsights:output_type -> arbcn.dashboard.v1.ListInsightsResponse
+	37, // 52: arbcn.dashboard.v1.DashboardService.ListOppCards:output_type -> arbcn.dashboard.v1.ListOppCardsResponse
+	40, // 53: arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries:output_type -> arbcn.dashboard.v1.ListKnowledgeEntriesResponse
+	39, // [39:54] is the sub-list for method output_type
+	24, // [24:39] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_arbcn_dashboard_v1_dashboard_proto_init() }
@@ -2312,7 +2761,7 @@ func file_arbcn_dashboard_v1_dashboard_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_dashboard_v1_dashboard_proto_rawDesc), len(file_arbcn_dashboard_v1_dashboard_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   35,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

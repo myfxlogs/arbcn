@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"arbcn/internal/exporter"
 	"arbcn/internal/fact"
 	"arbcn/internal/httpapi"
+	"arbcn/internal/knowledge"
 	"arbcn/internal/rule"
 	"arbcn/internal/sim"
 	"arbcn/internal/simapi"
@@ -110,7 +112,11 @@ func run() error {
 		if probeEnabled(simOK, simnetCfg) {
 			srcInfos = append(srcInfos, probeSourceInfos()...)
 		}
-		path, h := dashboard.New(st, pool, migrations, srcInfos).Handler()
+		dashSvc := dashboard.New(st, pool, migrations, srcInfos)
+		// D-046 机会实算卡摩擦配置：ARBCN_OPP_FRICTION_FUNDING（默认 0.3 = 普通主户
+		// 现货 taker 0.1%×2 + 永续 taker 0.05%×2，已核实）。后续 BNB 抵扣/升档改 env。
+		dashSvc.OppFrictionFunding = oppFrictionFunding()
+		path, h := dashSvc.Handler()
 		mux.Handle(path, h)
 		// M3-c §10.6：SimService 独立域（arbcn.sim.v1）挂载。sim 配置缺失（simOK=false）
 		// → 仍挂载：GetSimReport 返回未启用说明，其余 RPC 照常读 store（sim 表由迁移
@@ -191,6 +197,14 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 		slog.Info("rules seeded", "count", n)
 	}
 
+	// D-046 经验库 seed：幂等 upsert（已存在不覆盖，保留 DB 后续人工修订）。失败 warn
+	// 不退出（D-032 同口径：经验匹配是只读增强，不阻断监控主链）。
+	if n, err := seedKnowledge(ctx, st); err != nil {
+		slog.Warn("knowledge seed failed (knowledge_match degraded)", "err", err)
+	} else if n > 0 {
+		slog.Info("knowledge entries seeded", "count", n)
+	}
+
 	// M3-b §9.5/§9.7 ①：历史 funding 一次性幂等回填（boot 阻塞至完成；失败 warn 不退出）。
 	// 顺带让 funding_warn/funding_critical 的 avg_30d 有真实回溯（§9.0 双赢）。
 	if simOK {
@@ -259,6 +273,34 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 	// 降级禁用（告警留在 alerts 表排队，进程不退出）；合法 → 启动消费循环。
 	(&alert.Alerter{St: st, SMTP: smtp}).Start(ctx, errCh)
 	return nil
+}
+
+// oppFrictionFunding 读取 ARBCN_OPP_FRICTION_FUNDING（funding_hedge 双 taker 摩擦 %）。
+// 缺失/非法 → 默认 0.3（普通主户费率，D-046 已核实）。范围校验 [0, 5] 防误配。
+func oppFrictionFunding() float64 {
+	s := os.Getenv("ARBCN_OPP_FRICTION_FUNDING")
+	if s == "" {
+		return 0.3
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil || f < 0 || f > 5 {
+		slog.Warn("ARBCN_OPP_FRICTION_FUNDING invalid, using default 0.3", "val", s)
+		return 0.3
+	}
+	return f
+}
+
+// seedKnowledge 确保经验库 seed 条目存在（internal/knowledge.Defaults，D-046）。
+// 返回处理条数（幂等恒 = len(Defaults)）。
+func seedKnowledge(ctx context.Context, st store.Store) (int, error) {
+	n := 0
+	for _, e := range knowledge.Defaults() {
+		if _, err := st.UpsertKnowledgeEntry(ctx, e); err != nil {
+			return n, fmt.Errorf("knowledge: seed %q: %w", e.Signature, err)
+		}
+		n++
+	}
+	return n, nil
 }
 
 // allSources 汇总全部数据源默认清单（name + 默认间隔）；ARBCN_COLLECT_SOURCES

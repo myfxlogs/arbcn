@@ -13,6 +13,8 @@ function catLabel(c: string): string {
       return "机会";
     case "data":
       return "数据";
+    case "knowledge":
+      return "经验";
     default:
       return c;
   }

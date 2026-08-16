@@ -15,7 +15,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file arbcn/dashboard/v1/dashboard.proto.
  */
 export const file_arbcn_dashboard_v1_dashboard: GenFile = /*@__PURE__*/
-  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJwCgxVbmFja2VkQWxlcnQSCgoCaWQYASABKAMSDAoEcnVsZRgCIAEoCRINCgVsZXZlbBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEiYKAnRzGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJMaXN0VW5hY2tlZFJlcXVlc3QiVQoTTGlzdFVuYWNrZWRSZXNwb25zZRIvCgVpdGVtcxgBIAMoCzIgLmFyYmNuLmRhc2hib2FyZC52MS5VbmFja2VkQWxlcnQSDQoFdG90YWwYAiABKAUiDwoNQWNrQWxsUmVxdWVzdCIlCg5BY2tBbGxSZXNwb25zZRITCgthY2tlZF9jb3VudBgBIAEoBSKmAQoMU291cmNlSGVhbHRoEgwKBG5hbWUYASABKAkSFAoMaW50ZXJ2YWxfc2VjGAIgASgDEjAKDGxhc3RfcG9sbF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF9mYWN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYBSABKAkiGQoXTGlzdFNvdXJjZUhlYWx0aFJlcXVlc3QiSwoYTGlzdFNvdXJjZUhlYWx0aFJlc3BvbnNlEi8KBWl0ZW1zGAEgAygLMiAuYXJiY24uZGFzaGJvYXJkLnYxLlNvdXJjZUhlYWx0aCLCAQoHRmFjdFJtYhIMCgRraW5kGAEgASgJEg0KBXZlbnVlGAIgASgJEg4KBnN5bWJvbBgDIAEoCRINCgV2YWx1ZRgEIAEoARIMCgR1bml0GAUgASgJEiYKAnRzGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgNzcmMYByABKAkSEQoJcm1iX3ZhbHVlGAggASgBEg8KB2Z4X3JhdGUYCSABKAESFAoMZnhfYXZhaWxhYmxlGAogASgIIj8KEExpc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkikQEKEUxpc3RGYWN0c1Jlc3BvbnNlEioKBWZhY3RzGAEgAygLMhsuYXJiY24uZGFzaGJvYXJkLnYxLkZhY3RSbWISDwoHZnhfcmF0ZRgCIAEoARIUCgxmeF9hdmFpbGFibGUYAyABKAgSKQoFZnhfdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqQBCgtMZWRnZXJFbnRyeRIKCgJpZBgBIAEoAxIoCgRkYXRlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAMgASgJEhAKCGN1cnJlbmN5GAQgASgJEg4KBmFtb3VudBgFIAEoARIQCghmZWVfcmF0ZRgGIAEoARIMCgR0aWVyGAcgASgJEgwKBG5vdGUYCCABKAkiogEKFUFkZExlZGdlckVudHJ5UmVxdWVzdBIoCgRkYXRlGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAIgASgJEhAKCGN1cnJlbmN5GAMgASgJEg4KBmFtb3VudBgEIAEoARIQCghmZWVfcmF0ZRgFIAEoARIMCgR0aWVyGAYgASgJEgwKBG5vdGUYByABKAkiJAoWQWRkTGVkZ2VyRW50cnlSZXNwb25zZRIKCgJpZBgBIAEoAyI5ChhMaXN0TGVkZ2VyRW50cmllc1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIk0KGUxpc3RMZWRnZXJFbnRyaWVzUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLmFyYmNuLmRhc2hib2FyZC52MS5MZWRnZXJFbnRyeSIWChRMZWRnZXJTdW1tYXJ5UmVxdWVzdCJeCgtUaWVyU3VtbWFyeRIMCgR0aWVyGAEgASgJEg4KBmluZmxvdxgCIAEoARIPCgdvdXRmbG93GAMgASgBEgsKA25ldBgEIAEoARITCgtlbnRyeV9jb3VudBgFIAEoBSJHChVMZWRnZXJTdW1tYXJ5UmVzcG9uc2USLgoFaXRlbXMYASADKAsyHy5hcmJjbi5kYXNoYm9hcmQudjEuVGllclN1bW1hcnkikQEKB0luc2lnaHQSCgoCaWQYASABKAkSEAoIY2F0ZWdvcnkYAiABKAkSEAoIc2V2ZXJpdHkYAyABKAkSDQoFdGl0bGUYBCABKAkSDgoGZGV0YWlsGAUgASgJEiYKAmF0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdhY3Rpb25zGAcgAygJIhUKE0xpc3RJbnNpZ2h0c1JlcXVlc3QiRQoUTGlzdEluc2lnaHRzUmVzcG9uc2USLQoIaW5zaWdodHMYASADKAsyGy5hcmJjbi5kYXNoYm9hcmQudjEuSW5zaWdodDKTCgoQRGFzaGJvYXJkU2VydmljZRJqCg9MaXN0TGF0ZXN0RmFjdHMSKi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVxdWVzdBorLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGF0ZXN0RmFjdHNSZXNwb25zZRJbCgpMaXN0QWxlcnRzEiUuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXF1ZXN0GiYuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXNwb25zZRJVCghBY2tBbGVydBIjLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGVydFJlcXVlc3QaJC5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXNwb25zZRJwChFMaXN0VHJpZ2dlclN0YXRlcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRJPCgZIZWFsdGgSIS5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5IZWFsdGhSZXNwb25zZRJeCgtMaXN0VW5hY2tlZBImLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VW5hY2tlZFJlcXVlc3QaJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFVuYWNrZWRSZXNwb25zZRJPCgZBY2tBbGwSIS5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxsUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGxSZXNwb25zZRJtChBMaXN0U291cmNlSGVhbHRoEisuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXF1ZXN0GiwuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXNwb25zZRJYCglMaXN0RmFjdHMSJC5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEZhY3RzUmVxdWVzdBolLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0RmFjdHNSZXNwb25zZRJnCg5BZGRMZWRnZXJFbnRyeRIpLmFyYmNuLmRhc2hib2FyZC52MS5BZGRMZWRnZXJFbnRyeVJlcXVlc3QaKi5hcmJjbi5kYXNoYm9hcmQudjEuQWRkTGVkZ2VyRW50cnlSZXNwb25zZRJwChFMaXN0TGVkZ2VyRW50cmllcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGVkZ2VyRW50cmllc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExlZGdlckVudHJpZXNSZXNwb25zZRJkCg1MZWRnZXJTdW1tYXJ5EiguYXJiY24uZGFzaGJvYXJkLnYxLkxlZGdlclN1bW1hcnlSZXF1ZXN0GikuYXJiY24uZGFzaGJvYXJkLnYxLkxlZGdlclN1bW1hcnlSZXNwb25zZRJhCgxMaXN0SW5zaWdodHMSJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEluc2lnaHRzUmVxdWVzdBooLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0SW5zaWdodHNSZXNwb25zZUI9WjthcmJjbi9pbnRlcm5hbC9kYXNoYm9hcmQvZ2VuL2FyYmNuL2Rhc2hib2FyZC92MTtkYXNoYm9hcmR2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
+  fileDesc("CiJhcmJjbi9kYXNoYm9hcmQvdjEvZGFzaGJvYXJkLnByb3RvEhJhcmJjbi5kYXNoYm9hcmQudjEihQEKBEZhY3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkSDQoFdmFsdWUYBCABKAESDAoEdW5pdBgFIAEoCRImCgJ0cxgGIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASCwoDc3JjGAcgASgJIkUKFkxpc3RMYXRlc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkiQgoXTGlzdExhdGVzdEZhY3RzUmVzcG9uc2USJwoFZmFjdHMYASADKAsyGC5hcmJjbi5kYXNoYm9hcmQudjEuRmFjdCKOAQoFQWxlcnQSCgoCaWQYASABKAMSDwoHcnVsZV9pZBgCIAEoAxIRCglydWxlX25hbWUYAyABKAkSJgoCdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEg0KBWxldmVsGAUgASgJEg8KB21lc3NhZ2UYBiABKAkSDQoFYWNrZWQYByABKAgiMgoRTGlzdEFsZXJ0c1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIj8KEkxpc3RBbGVydHNSZXNwb25zZRIpCgZhbGVydHMYASADKAsyGS5hcmJjbi5kYXNoYm9hcmQudjEuQWxlcnQiHQoPQWNrQWxlcnRSZXF1ZXN0EgoKAmlkGAEgASgDIhIKEEFja0FsZXJ0UmVzcG9uc2UigwEKDFRyaWdnZXJTdGF0ZRIRCglydWxlX25hbWUYASABKAkSDQoFc3RhdGUYAiABKAkSKQoFc2luY2UYAyABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wEhcKCmxhc3RfdmFsdWUYBCABKAFIAIgBAUINCgtfbGFzdF92YWx1ZSIaChhMaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QiTQoZTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRIwCgZzdGF0ZXMYASADKAsyIC5hcmJjbi5kYXNoYm9hcmQudjEuVHJpZ2dlclN0YXRlIg8KDUhlYWx0aFJlcXVlc3QiMAoOSGVhbHRoUmVzcG9uc2USDgoGc3RhdHVzGAEgASgJEg4KBnJlYXNvbhgCIAEoCSJwCgxVbmFja2VkQWxlcnQSCgoCaWQYASABKAMSDAoEcnVsZRgCIAEoCRINCgVsZXZlbBgDIAEoCRIPCgdtZXNzYWdlGAQgASgJEiYKAnRzGAUgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcCIUChJMaXN0VW5hY2tlZFJlcXVlc3QiVQoTTGlzdFVuYWNrZWRSZXNwb25zZRIvCgVpdGVtcxgBIAMoCzIgLmFyYmNuLmRhc2hib2FyZC52MS5VbmFja2VkQWxlcnQSDQoFdG90YWwYAiABKAUiDwoNQWNrQWxsUmVxdWVzdCIlCg5BY2tBbGxSZXNwb25zZRITCgthY2tlZF9jb3VudBgBIAEoBSKmAQoMU291cmNlSGVhbHRoEgwKBG5hbWUYASABKAkSFAoMaW50ZXJ2YWxfc2VjGAIgASgDEjAKDGxhc3RfcG9sbF9hdBgDIAEoCzIaLmdvb2dsZS5wcm90b2J1Zi5UaW1lc3RhbXASMAoMbGFzdF9mYWN0X2F0GAQgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIOCgZzdGF0dXMYBSABKAkiGQoXTGlzdFNvdXJjZUhlYWx0aFJlcXVlc3QiSwoYTGlzdFNvdXJjZUhlYWx0aFJlc3BvbnNlEi8KBWl0ZW1zGAEgAygLMiAuYXJiY24uZGFzaGJvYXJkLnYxLlNvdXJjZUhlYWx0aCLCAQoHRmFjdFJtYhIMCgRraW5kGAEgASgJEg0KBXZlbnVlGAIgASgJEg4KBnN5bWJvbBgDIAEoCRINCgV2YWx1ZRgEIAEoARIMCgR1bml0GAUgASgJEiYKAnRzGAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBILCgNzcmMYByABKAkSEQoJcm1iX3ZhbHVlGAggASgBEg8KB2Z4X3JhdGUYCSABKAESFAoMZnhfYXZhaWxhYmxlGAogASgIIj8KEExpc3RGYWN0c1JlcXVlc3QSDAoEa2luZBgBIAEoCRINCgV2ZW51ZRgCIAEoCRIOCgZzeW1ib2wYAyABKAkikQEKEUxpc3RGYWN0c1Jlc3BvbnNlEioKBWZhY3RzGAEgAygLMhsuYXJiY24uZGFzaGJvYXJkLnYxLkZhY3RSbWISDwoHZnhfcmF0ZRgCIAEoARIUCgxmeF9hdmFpbGFibGUYAyABKAgSKQoFZnhfdHMYBCABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wIqQBCgtMZWRnZXJFbnRyeRIKCgJpZBgBIAEoAxIoCgRkYXRlGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAMgASgJEhAKCGN1cnJlbmN5GAQgASgJEg4KBmFtb3VudBgFIAEoARIQCghmZWVfcmF0ZRgGIAEoARIMCgR0aWVyGAcgASgJEgwKBG5vdGUYCCABKAkiogEKFUFkZExlZGdlckVudHJ5UmVxdWVzdBIoCgRkYXRlGAEgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdjaGFubmVsGAIgASgJEhAKCGN1cnJlbmN5GAMgASgJEg4KBmFtb3VudBgEIAEoARIQCghmZWVfcmF0ZRgFIAEoARIMCgR0aWVyGAYgASgJEgwKBG5vdGUYByABKAkiJAoWQWRkTGVkZ2VyRW50cnlSZXNwb25zZRIKCgJpZBgBIAEoAyI5ChhMaXN0TGVkZ2VyRW50cmllc1JlcXVlc3QSDQoFbGltaXQYASABKAUSDgoGb2Zmc2V0GAIgASgFIk0KGUxpc3RMZWRnZXJFbnRyaWVzUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLmFyYmNuLmRhc2hib2FyZC52MS5MZWRnZXJFbnRyeSIWChRMZWRnZXJTdW1tYXJ5UmVxdWVzdCJeCgtUaWVyU3VtbWFyeRIMCgR0aWVyGAEgASgJEg4KBmluZmxvdxgCIAEoARIPCgdvdXRmbG93GAMgASgBEgsKA25ldBgEIAEoARITCgtlbnRyeV9jb3VudBgFIAEoBSJHChVMZWRnZXJTdW1tYXJ5UmVzcG9uc2USLgoFaXRlbXMYASADKAsyHy5hcmJjbi5kYXNoYm9hcmQudjEuVGllclN1bW1hcnkikQEKB0luc2lnaHQSCgoCaWQYASABKAkSEAoIY2F0ZWdvcnkYAiABKAkSEAoIc2V2ZXJpdHkYAyABKAkSDQoFdGl0bGUYBCABKAkSDgoGZGV0YWlsGAUgASgJEiYKAmF0GAYgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIPCgdhY3Rpb25zGAcgAygJIhUKE0xpc3RJbnNpZ2h0c1JlcXVlc3QiRQoUTGlzdEluc2lnaHRzUmVzcG9uc2USLQoIaW5zaWdodHMYASADKAsyGy5hcmJjbi5kYXNoYm9hcmQudjEuSW5zaWdodCLHAQoPT3Bwb3J0dW5pdHlDYXJkEgwKBGtpbmQYASABKAkSDQoFdmVudWUYAiABKAkSDgoGc3ltYm9sGAMgASgJEgwKBGluc3QYBCABKAESDwoHYXZnXzMwZBgFIAEoARIXCg9icmVha19ldmVuX2RheXMYBiABKAESFgoObmV0X2FubnVhbGl6ZWQYByABKAESFAoMZnJpY3Rpb25fcGN0GAggASgBEg4KBnJhdGluZxgJIAEoCRIRCgluYXJyYXRpdmUYCiABKAkiFQoTTGlzdE9wcENhcmRzUmVxdWVzdCJKChRMaXN0T3BwQ2FyZHNSZXNwb25zZRIyCgVjYXJkcxgBIAMoCzIjLmFyYmNuLmRhc2hib2FyZC52MS5PcHBvcnR1bml0eUNhcmQihQIKDktub3dsZWRnZUVudHJ5EgoKAmlkGAEgASgDEiYKAnRzGAIgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIRCglzaWduYXR1cmUYAyABKAkSDQoFdmVudWUYBCABKAkSDgoGc3ltYm9sGAUgASgJEg8KB3ZlcmRpY3QYBiABKAkSEQoJcmF0aW9uYWxlGAcgASgJEg4KBnNvdXJjZRgIIAEoCRIOCgZzdGF0dXMYCSABKAkSMAoMdmFsaWRhdGVkX2F0GAogASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcBIXCg92YWxpZGF0aW9uX25vdGUYCyABKAkiHQobTGlzdEtub3dsZWRnZUVudHJpZXNSZXF1ZXN0IlMKHExpc3RLbm93bGVkZ2VFbnRyaWVzUmVzcG9uc2USMwoHZW50cmllcxgBIAMoCzIiLmFyYmNuLmRhc2hib2FyZC52MS5Lbm93bGVkZ2VFbnRyeTLxCwoQRGFzaGJvYXJkU2VydmljZRJqCg9MaXN0TGF0ZXN0RmFjdHMSKi5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExhdGVzdEZhY3RzUmVxdWVzdBorLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGF0ZXN0RmFjdHNSZXNwb25zZRJbCgpMaXN0QWxlcnRzEiUuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXF1ZXN0GiYuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RBbGVydHNSZXNwb25zZRJVCghBY2tBbGVydBIjLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGVydFJlcXVlc3QaJC5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxlcnRSZXNwb25zZRJwChFMaXN0VHJpZ2dlclN0YXRlcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VHJpZ2dlclN0YXRlc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFRyaWdnZXJTdGF0ZXNSZXNwb25zZRJPCgZIZWFsdGgSIS5hcmJjbi5kYXNoYm9hcmQudjEuSGVhbHRoUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5IZWFsdGhSZXNwb25zZRJeCgtMaXN0VW5hY2tlZBImLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0VW5hY2tlZFJlcXVlc3QaJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdFVuYWNrZWRSZXNwb25zZRJPCgZBY2tBbGwSIS5hcmJjbi5kYXNoYm9hcmQudjEuQWNrQWxsUmVxdWVzdBoiLmFyYmNuLmRhc2hib2FyZC52MS5BY2tBbGxSZXNwb25zZRJtChBMaXN0U291cmNlSGVhbHRoEisuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXF1ZXN0GiwuYXJiY24uZGFzaGJvYXJkLnYxLkxpc3RTb3VyY2VIZWFsdGhSZXNwb25zZRJYCglMaXN0RmFjdHMSJC5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEZhY3RzUmVxdWVzdBolLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0RmFjdHNSZXNwb25zZRJnCg5BZGRMZWRnZXJFbnRyeRIpLmFyYmNuLmRhc2hib2FyZC52MS5BZGRMZWRnZXJFbnRyeVJlcXVlc3QaKi5hcmJjbi5kYXNoYm9hcmQudjEuQWRkTGVkZ2VyRW50cnlSZXNwb25zZRJwChFMaXN0TGVkZ2VyRW50cmllcxIsLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0TGVkZ2VyRW50cmllc1JlcXVlc3QaLS5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdExlZGdlckVudHJpZXNSZXNwb25zZRJkCg1MZWRnZXJTdW1tYXJ5EiguYXJiY24uZGFzaGJvYXJkLnYxLkxlZGdlclN1bW1hcnlSZXF1ZXN0GikuYXJiY24uZGFzaGJvYXJkLnYxLkxlZGdlclN1bW1hcnlSZXNwb25zZRJhCgxMaXN0SW5zaWdodHMSJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEluc2lnaHRzUmVxdWVzdBooLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0SW5zaWdodHNSZXNwb25zZRJhCgxMaXN0T3BwQ2FyZHMSJy5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdE9wcENhcmRzUmVxdWVzdBooLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0T3BwQ2FyZHNSZXNwb25zZRJ5ChRMaXN0S25vd2xlZGdlRW50cmllcxIvLmFyYmNuLmRhc2hib2FyZC52MS5MaXN0S25vd2xlZGdlRW50cmllc1JlcXVlc3QaMC5hcmJjbi5kYXNoYm9hcmQudjEuTGlzdEtub3dsZWRnZUVudHJpZXNSZXNwb25zZUI9WjthcmJjbi9pbnRlcm5hbC9kYXNoYm9hcmQvZ2VuL2FyYmNuL2Rhc2hib2FyZC92MTtkYXNoYm9hcmR2MWIGcHJvdG8z", [file_google_protobuf_timestamp]);
 
 /**
  * Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -959,7 +959,7 @@ export type Insight = Message<"arbcn.dashboard.v1.Insight"> & {
   id: string;
 
   /**
-   * risk / anomaly / opportunity / data
+   * risk / anomaly / opportunity / data / knowledge
    *
    * @generated from field: string category = 2;
    */
@@ -1037,6 +1037,236 @@ export type ListInsightsResponse = Message<"arbcn.dashboard.v1.ListInsightsRespo
  */
 export const ListInsightsResponseSchema: GenMessage<ListInsightsResponse> = /*@__PURE__*/
   messageDesc(file_arbcn_dashboard_v1_dashboard, 34);
+
+/**
+ * OpportunityCard 机会实算卡（D-046）：确定性算账结果（纯公式，非 LLM 生成）。
+ *
+ * @generated from message arbcn.dashboard.v1.OpportunityCard
+ */
+export type OpportunityCard = Message<"arbcn.dashboard.v1.OpportunityCard"> & {
+  /**
+   * funding_hedge / carry_asset / repo（store SimKind* 口径）
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * @generated from field: string venue = 2;
+   */
+  venue: string;
+
+  /**
+   * @generated from field: string symbol = 3;
+   */
+  symbol: string;
+
+  /**
+   * 瞬时年化 %（最新事实值）
+   *
+   * @generated from field: double inst = 4;
+   */
+  inst: number;
+
+  /**
+   * 30 日均值 %；0 = 样本不足（前端显示 —）
+   *
+   * @generated from field: double avg_30d = 5;
+   */
+  avg30d: number;
+
+  /**
+   * 保本持续天数；0 = 不适用（friction=0 / 当前费率 ≤0）
+   *
+   * @generated from field: double break_even_days = 6;
+   */
+  breakEvenDays: number;
+
+  /**
+   * 扣摩擦净年化 %（30 日持有口径）；0 = 均值样本不足
+   *
+   * @generated from field: double net_annualized = 7;
+   */
+  netAnnualized: number;
+
+  /**
+   * 摩擦假设 %（funding=配置常量，carry/repo≈0）
+   *
+   * @generated from field: double friction_pct = 8;
+   */
+  frictionPct: number;
+
+  /**
+   * grab / breakeven / trap（Rating* 常量）
+   *
+   * @generated from field: string rating = 9;
+   */
+  rating: string;
+
+  /**
+   * 中文模板叙述（D-043；明示摩擦假设，见代码注释）
+   *
+   * @generated from field: string narrative = 10;
+   */
+  narrative: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.OpportunityCard.
+ * Use `create(OpportunityCardSchema)` to create a new message.
+ */
+export const OpportunityCardSchema: GenMessage<OpportunityCard> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 35);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListOppCardsRequest
+ */
+export type ListOppCardsRequest = Message<"arbcn.dashboard.v1.ListOppCardsRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListOppCardsRequest.
+ * Use `create(ListOppCardsRequestSchema)` to create a new message.
+ */
+export const ListOppCardsRequestSchema: GenMessage<ListOppCardsRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 36);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListOppCardsResponse
+ */
+export type ListOppCardsResponse = Message<"arbcn.dashboard.v1.ListOppCardsResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.OpportunityCard cards = 1;
+   */
+  cards: OpportunityCard[];
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListOppCardsResponse.
+ * Use `create(ListOppCardsResponseSchema)` to create a new message.
+ */
+export const ListOppCardsResponseSchema: GenMessage<ListOppCardsResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 37);
+
+/**
+ * KnowledgeEntry 市场结构经验库条目（D-046）：一条已核实的市场结构模式判定记录。
+ * 吸收 = 人工 + D#（git 跟踪 seed）；系统只匹配与呈现，不吸收、不改 verdict。
+ *
+ * @generated from message arbcn.dashboard.v1.KnowledgeEntry
+ */
+export type KnowledgeEntry = Message<"arbcn.dashboard.v1.KnowledgeEntry"> & {
+  /**
+   * @generated from field: int64 id = 1;
+   */
+  id: bigint;
+
+  /**
+   * 吸收时刻
+   *
+   * @generated from field: google.protobuf.Timestamp ts = 2;
+   */
+  ts?: Timestamp | undefined;
+
+  /**
+   * 受控签名键（knowledge.Signature*）
+   *
+   * @generated from field: string signature = 3;
+   */
+  signature: string;
+
+  /**
+   * seed 实例 venue（溯源用）
+   *
+   * @generated from field: string venue = 4;
+   */
+  venue: string;
+
+  /**
+   * seed 实例 symbol
+   *
+   * @generated from field: string symbol = 5;
+   */
+  symbol: string;
+
+  /**
+   * 人工判定（D# 落）
+   *
+   * @generated from field: string verdict = 6;
+   */
+  verdict: string;
+
+  /**
+   * 判定依据（中文）
+   *
+   * @generated from field: string rationale = 7;
+   */
+  rationale: string;
+
+  /**
+   * 出处（对话 #N / D#）
+   *
+   * @generated from field: string source = 8;
+   */
+  source: string;
+
+  /**
+   * active / superseded / retracted
+   *
+   * @generated from field: string status = 9;
+   */
+  status: string;
+
+  /**
+   * 复核时刻；缺省 = 待复核
+   *
+   * @generated from field: google.protobuf.Timestamp validated_at = 10;
+   */
+  validatedAt?: Timestamp | undefined;
+
+  /**
+   * 复核结论
+   *
+   * @generated from field: string validation_note = 11;
+   */
+  validationNote: string;
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.KnowledgeEntry.
+ * Use `create(KnowledgeEntrySchema)` to create a new message.
+ */
+export const KnowledgeEntrySchema: GenMessage<KnowledgeEntry> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 38);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListKnowledgeEntriesRequest
+ */
+export type ListKnowledgeEntriesRequest = Message<"arbcn.dashboard.v1.ListKnowledgeEntriesRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListKnowledgeEntriesRequest.
+ * Use `create(ListKnowledgeEntriesRequestSchema)` to create a new message.
+ */
+export const ListKnowledgeEntriesRequestSchema: GenMessage<ListKnowledgeEntriesRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 39);
+
+/**
+ * @generated from message arbcn.dashboard.v1.ListKnowledgeEntriesResponse
+ */
+export type ListKnowledgeEntriesResponse = Message<"arbcn.dashboard.v1.ListKnowledgeEntriesResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.dashboard.v1.KnowledgeEntry entries = 1;
+   */
+  entries: KnowledgeEntry[];
+};
+
+/**
+ * Describes the message arbcn.dashboard.v1.ListKnowledgeEntriesResponse.
+ * Use `create(ListKnowledgeEntriesResponseSchema)` to create a new message.
+ */
+export const ListKnowledgeEntriesResponseSchema: GenMessage<ListKnowledgeEntriesResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_dashboard_v1_dashboard, 40);
 
 /**
  * DashboardService 为 Web 仪表盘提供数据查询与告警确认接口。
@@ -1177,6 +1407,28 @@ export const DashboardService: GenService<{
     methodKind: "unary";
     input: typeof ListInsightsRequestSchema;
     output: typeof ListInsightsResponseSchema;
+  },
+  /**
+   * ListOppCards 机会实算卡（D-046）：对当前实时机会做确定性算账——瞬时/30 日均值/
+   * 保本天数/扣摩擦净年化/三档判定/中文模板叙述。只读证据表面，不触碰执行门禁。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListOppCards
+   */
+  listOppCards: {
+    methodKind: "unary";
+    input: typeof ListOppCardsRequestSchema;
+    output: typeof ListOppCardsResponseSchema;
+  },
+  /**
+   * ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
+   * 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
+   *
+   * @generated from rpc arbcn.dashboard.v1.DashboardService.ListKnowledgeEntries
+   */
+  listKnowledgeEntries: {
+    methodKind: "unary";
+    input: typeof ListKnowledgeEntriesRequestSchema;
+    output: typeof ListKnowledgeEntriesResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_arbcn_dashboard_v1_dashboard, 0);

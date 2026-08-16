@@ -40,6 +40,12 @@ service DashboardService {
   // ListInsights 进化建议（D-044 L0）：系统依据数据自动标记的「待核实证据候选」，
   // 供决策层参考。只读证据表面——只产出候选 + 建议动作，永不自动改规则/执行。
   rpc ListInsights(ListInsightsRequest) returns (ListInsightsResponse);
+  // ListOppCards 机会实算卡（D-046）：对当前实时机会做确定性算账——瞬时/30 日均值/
+  // 保本天数/扣摩擦净年化/三档判定/中文模板叙述。只读证据表面，不触碰执行门禁。
+  rpc ListOppCards(ListOppCardsRequest) returns (ListOppCardsResponse);
+  // ListKnowledgeEntries 市场结构经验库浏览（D-046）：返回全部条目（signature ASC）。
+  // 吸收 = 人工 + D#（seed 落盘），匹配 = 确定性签名，呈现 = 只读——系统永不自动吸收。
+  rpc ListKnowledgeEntries(ListKnowledgeEntriesRequest) returns (ListKnowledgeEntriesResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -227,7 +233,7 @@ message LedgerSummaryResponse {
 // Insight 进化建议条目（D-044 L0）：一条证据信号 + 给决策层的候选动作。
 message Insight {
   string id = 1;       // 稳定 key，如 "reject_dist" / "defi_anomaly:aave-v3" / "no_order" / "source_down:binance"
-  string category = 2; // risk / anomaly / opportunity / data
+  string category = 2; // risk / anomaly / opportunity / data / knowledge
   string severity = 3; // info / warn / critical
   string title = 4;    // 中文标题
   string detail = 5;   // 中文明细 + 数值
@@ -239,4 +245,46 @@ message ListInsightsRequest {}
 
 message ListInsightsResponse {
   repeated Insight insights = 1;
+}
+
+// OpportunityCard 机会实算卡（D-046）：确定性算账结果（纯公式，非 LLM 生成）。
+message OpportunityCard {
+  string kind = 1;          // funding_hedge / carry_asset / repo（store SimKind* 口径）
+  string venue = 2;
+  string symbol = 3;
+  double inst = 4;          // 瞬时年化 %（最新事实值）
+  double avg_30d = 5;       // 30 日均值 %；0 = 样本不足（前端显示 —）
+  double break_even_days = 6; // 保本持续天数；0 = 不适用（friction=0 / 当前费率 ≤0）
+  double net_annualized = 7;  // 扣摩擦净年化 %（30 日持有口径）；0 = 均值样本不足
+  double friction_pct = 8;    // 摩擦假设 %（funding=配置常量，carry/repo≈0）
+  string rating = 9;          // grab / breakeven / trap（Rating* 常量）
+  string narrative = 10;      // 中文模板叙述（D-043；明示摩擦假设，见代码注释）
+}
+
+message ListOppCardsRequest {}
+
+message ListOppCardsResponse {
+  repeated OpportunityCard cards = 1;
+}
+
+// KnowledgeEntry 市场结构经验库条目（D-046）：一条已核实的市场结构模式判定记录。
+// 吸收 = 人工 + D#（git 跟踪 seed）；系统只匹配与呈现，不吸收、不改 verdict。
+message KnowledgeEntry {
+  int64 id = 1;
+  google.protobuf.Timestamp ts = 2;       // 吸收时刻
+  string signature = 3;                   // 受控签名键（knowledge.Signature*）
+  string venue = 4;                       // seed 实例 venue（溯源用）
+  string symbol = 5;                      // seed 实例 symbol
+  string verdict = 6;                     // 人工判定（D# 落）
+  string rationale = 7;                   // 判定依据（中文）
+  string source = 8;                      // 出处（对话 #N / D#）
+  string status = 9;                      // active / superseded / retracted
+  google.protobuf.Timestamp validated_at = 10; // 复核时刻；缺省 = 待复核
+  string validation_note = 11;            // 复核结论
+}
+
+message ListKnowledgeEntriesRequest {}
+
+message ListKnowledgeEntriesResponse {
+  repeated KnowledgeEntry entries = 1;
 }

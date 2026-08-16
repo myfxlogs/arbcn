@@ -250,6 +250,51 @@ td.neg {
 .fresh-dot-down {
   background: var(--critical);
 }
+/* —— D-046 机会实算卡：确定性算账结果（只读证据，配评级徽标 + 数值瓦片 + 叙述） —— */
+.opp-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.opp-card {
+  border: 1px solid var(--ring);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+.opp-card:last-child {
+  margin-bottom: 0;
+}
+.opp-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.opp-card-kind {
+  font-weight: 600;
+}
+.opp-card-who {
+  color: var(--ink-2);
+}
+.opp-card-friction {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.opp-card-stats {
+  margin-top: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+}
+.opp-card-stats .stat-value {
+  font-size: 16px;
+}
+.opp-card-narrative {
+  margin: 8px 0 0;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
 /* —— KPI 瓦片 —— */
 .stats {
   display: grid;

@@ -1,5 +1,6 @@
 import { days, fmtTs, pct } from "../format";
-import type { Fact, SourceHealth } from "../gen/arbcn/dashboard/v1/dashboard_pb";
+import type { Fact, OpportunityCard, SourceHealth } from "../gen/arbcn/dashboard/v1/dashboard_pb";
+import { Chip, type ChipTone } from "./Chip";
 import { dotFor, healthMap } from "./freshness";
 import { MatrixTable, type MatrixCell } from "./Matrix";
 import { StatTile } from "./StatTile";
@@ -80,8 +81,63 @@ function venueLabel(v: string): string {
   }
 }
 
-// Opportunity 机会面板：funding 矩阵 + 稳定币利率表 + IV + 逆回购/时点倒计时。
-export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHealth: SourceHealth[] }) {
+// ratingLabel 实算卡三档判定 → 中文徽标（grab=可抓 / breakeven=打平观望 / trap=坑）。
+function ratingLabel(r: string): string {
+  switch (r) {
+    case "grab":
+      return "可抓";
+    case "breakeven":
+      return "打平/观望";
+    case "trap":
+      return "坑";
+    default:
+      return r;
+  }
+}
+
+// ratingTone 判定 → 徽标色（可抓=绿 / 观望=黄 / 坑=红；色永不带字面语义，配文字徽标）。
+function ratingTone(r: string): ChipTone {
+  switch (r) {
+    case "grab":
+      return "good";
+    case "breakeven":
+      return "warn";
+    case "trap":
+      return "critical";
+    default:
+      return "neutral";
+  }
+}
+
+// kindLabel 卡类型 → 中文（store SimKind* 口径）。
+function kindLabel(k: string): string {
+  switch (k) {
+    case "funding_hedge":
+      return "对冲套利";
+    case "carry_asset":
+      return "持有生息";
+    case "repo":
+      return "逆回购";
+    default:
+      return k;
+  }
+}
+
+// oppValue 数值 → 展示串（NaN = 样本不足/不适用 → 「—」，不编造 0）。
+function oppValue(v: number, suffix: (n: number) => string): string {
+  return Number.isNaN(v) ? "—" : suffix(v);
+}
+
+// Opportunity 机会面板：funding 矩阵 + 稳定币利率表 + IV + 逆回购/时点倒计时 + 实算卡。
+export function Opportunity({
+  facts,
+  sourceHealth,
+  cards,
+}: {
+  facts: Fact[];
+  sourceHealth: SourceHealth[];
+  cards: OpportunityCard[];
+}) {
   const health = healthMap(sourceHealth);
   const funding = buildMatrix(facts.filter((f) => f.kind === KIND_FUNDING), KIND_FUNDING, health);
   const defi = buildMatrix(facts.filter((f) => f.kind === KIND_DEFI), KIND_DEFI, health);
@@ -144,6 +200,35 @@ export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHeal
           />
         ))}
       </div>
+
+      {/* D-046 机会实算卡：确定性算账（投运后无需 Claude 在场）。只读证据表面——
+          卡只说「这笔账划不划算」，执行门禁仍由规则引擎把关。 */}
+      <h3>机会实算卡（确定性算账 · 扣摩擦净收益）</h3>
+      {cards.length === 0 ? (
+        <p className="empty">暂无实算卡（数据不足不产卡）</p>
+      ) : (
+        <ul className="opp-cards">
+          {cards.map((c) => (
+            <li key={`${c.kind}:${c.venue}:${c.symbol}`} className="opp-card">
+              <div className="opp-card-head">
+                <Chip tone={ratingTone(c.rating)}>{ratingLabel(c.rating)}</Chip>
+                <span className="opp-card-kind">{kindLabel(c.kind)}</span>
+                <span className="opp-card-who">
+                  {c.venue} · {c.symbol}
+                </span>
+                <span className="opp-card-friction">摩擦 {oppValue(c.frictionPct, (n) => pct(n, 2))}</span>
+              </div>
+              <div className="stats opp-card-stats">
+                <StatTile label="瞬时" value={oppValue(c.inst, (n) => pct(n))} />
+                <StatTile label="30日均值" value={oppValue(c.avg30d, (n) => pct(n))} />
+                <StatTile label="保本天数" value={oppValue(c.breakEvenDays, (n) => `${n.toFixed(0)} 天`)} />
+                <StatTile label="净年化" value={oppValue(c.netAnnualized, (n) => pct(n))} />
+              </div>
+              <p className="opp-card-narrative">{c.narrative}</p>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
