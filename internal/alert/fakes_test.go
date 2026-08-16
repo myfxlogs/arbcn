@@ -202,8 +202,17 @@ func (m *memStore) UpsertTestnetAccount(context.Context, store.TestnetAccount) e
 func (m *memStore) ListTestnetAccounts(context.Context) ([]store.TestnetAccount, error) {
 	panic("memStore: ListTestnetAccounts not used")
 }
-func (m *memStore) SettleSimPosition(context.Context, int64, float64, string) error {
-	panic("memStore: SettleSimPosition not used")
+func (m *memStore) SettleSimPositionFunding(context.Context, int64, int64, float64) error {
+	panic("memStore: SettleSimPositionFunding not used")
+}
+func (m *memStore) InitSimAccount(context.Context, float64) error {
+	panic("memStore: InitSimAccount not used")
+}
+func (m *memStore) GetSimAccount(context.Context) (store.SimAccount, error) {
+	panic("memStore: GetSimAccount not used")
+}
+func (m *memStore) ListCashFlows(context.Context, int, int) ([]store.CashFlow, error) {
+	panic("memStore: ListCashFlows not used")
 }
 func (m *memStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
 	return nil, nil

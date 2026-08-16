@@ -23,19 +23,19 @@ func dropTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tables ..
 func TestMigrateIdempotent(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
-	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "ledger", "knowledge_entries", "schema_migrations")
+	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "knowledge_entries", "schema_migrations")
 
 	n, err := Migrate(ctx, pool, migrationsDir)
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
 	// 0001_init + 0002_rule_scope + 0003_alerts_delivered + 0004_ledger + 0005_sim +
-	// 0006_testnet_accounts + 0007_knowledge + 0008_sim_close
-	if n != 8 {
-		t.Fatalf("Migrate(first) applied = %d, want 8", n)
+	// 0006_testnet_accounts + 0007_knowledge + 0008_sim_close + 0009_sim_cash
+	if n != 9 {
+		t.Fatalf("Migrate(first) applied = %d, want 9", n)
 	}
 
-	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "knowledge_entries"} {
+	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "knowledge_entries"} {
 		var exists bool
 		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
@@ -50,8 +50,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 8 {
-		t.Fatalf("schema_migrations count = %d, want 8", versions)
+	if versions != 9 {
+		t.Fatalf("schema_migrations count = %d, want 9", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)
@@ -112,6 +112,10 @@ func TestMigrateRollsBackFailedFile(t *testing.T) {
 			t.Errorf("table %s exists = %v, want %v", tbl, exists, want)
 		}
 	}
+
+	// 恢复真实迁移记账（本用例 drop 了 schema_migrations 并指向 temp dir；
+	// 不恢复则下一用例会把真实迁移全部重放一遍）。
+	ensureSchema(t, ctx, pool)
 }
 
 // TestPendingMigrations：/healthz degraded 信号的数据面（dialogue #23）——

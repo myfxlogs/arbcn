@@ -193,12 +193,45 @@ type KnowledgeEntry struct {
 	ValidationNote string     // 复核结论
 }
 
-// SimLegClose 单腿平仓参数（D-055）：AddPnl = 调用方按当前价计算的浮动 PnL
+// SimLegClose 单腿平仓参数（D-055/D-056）：AddPnl = 调用方按当前价计算的浮动 PnL
 // （(cur-ref)×qty×方向；行情缺失 = 0 不编造），平仓时并入已结算 pnl 后置 settled。
+// CashDelta = 平仓现金流（long +qty×cur / short −qty×cur，服务端按当前价算好传入，
+// store 不猜价），入 sim_cash_flow（kind=close）+ 现金余额。
 type SimLegClose struct {
-	ID     int64
-	AddPnl float64
+	ID        int64
+	AddPnl    float64
+	CashDelta float64
 }
+
+// SimAccount 是 sim_account 表的一行（D-056 完整现金账本）：单模拟账户 id 恒 1。
+// Capital = 初始本金（首启 InitSimAccount 写入，重启不重置）；Cash = 现金余额
+// （随每笔 sim_cash_flow 原子增减）。UpdatedAt 读取时回填。
+type SimAccount struct {
+	Capital   float64
+	Cash      float64
+	UpdatedAt time.Time
+}
+
+// CashFlow 是 sim_cash_flow 表的一行（D-056 逐笔现金流流水）。
+// Kind = CashKind*；Amount 正 = 入金（+现金），负 = 出金（−现金）。
+// OrderID/LegID 0 = 无关联（入金流水两字段均为 0）。
+type CashFlow struct {
+	ID      int64
+	Ts      time.Time
+	OrderID int64
+	LegID   int64
+	Kind    string
+	Amount  float64
+	Note    string
+}
+
+// 现金流 kind 值域（与 0009_sim_cash.sql 一致）。
+const (
+	CashKindCapitalIn = "capital_in" // 入金（首启 InitSimAccount）
+	CashKindOpen      = "open"       // 开仓（long −qty×ref / short +qty×ref）
+	CashKindFunding   = "funding"    // 8h 资金费（+add，生息腿）
+	CashKindClose     = "close"      // 平仓（long +qty×cur / short −qty×cur）
+)
 
 // SimOrder 值域（与 DB CHECK / spec 一致）。
 const (
@@ -307,15 +340,27 @@ type Store interface {
 	// ListOpenSimPositions 返回 open 持仓腿（symbol 空 = 不限；venue 空 = 不限；
 	// ts ASC 建仓序）。M3-b §9.3：按 (symbol,venue) 分组结算，避免跨 venue 污染。
 	ListOpenSimPositions(ctx context.Context, symbol, venue string) ([]SimPosition, error)
-	// SettleSimPosition 结算更新持仓腿：pnl += addPnl，status 覆盖（settled 关闭），
-	// updated_at = now。未知 id 无操作。
-	SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error
-	// CloseSimOrder 人工平仓（D-055）：单事务原子——校验订单 status='filled' →
+	// SettleSimPositionFunding 结算资金费入账（D-056）：单事务——腿 pnl += addPnl
+	// + 插 sim_cash_flow（kind=funding，amount=+addPnl，order_id/leg_id 关联）
+	// + 现金余额 cash += addPnl。仅在资金费结算路径调用（status 保持 open）；
+	// 平仓走 CloseSimOrder（close 现金流在其事务内）。未知 id 无操作。
+	SettleSimPositionFunding(ctx context.Context, id, orderID int64, addPnl float64) error
+	// CloseSimOrder 人工平仓（D-055/D-056）：单事务原子——校验订单 status='filled' →
 	// 逐腿 pnl += closes[i].AddPnl + status='settled'（AddPnl = 调用方按当前价算的
-	// 浮动，已结算 funding 留在 pnl 内）+ 订单 status='closed' + note 追加。
+	// 浮动，已结算 funding 留在 pnl 内）+ 插 close 现金流（amount=closes[i].CashDelta）
+	// + 现金余额更新 + 订单 status='closed' + note 追加。
 	// 腿必须属于该订单且为 open，否则整体回滚（不留半仓，不赌原则 D-019）。
 	// 返回实际平掉的腿数；未知订单 / 非 filled → ErrNotFound。
 	CloseSimOrder(ctx context.Context, orderID int64, note string, closes []SimLegClose) (int, error)
+	// InitSimAccount 首启入金（D-056）：无 sim_account 行则插入
+	// （id=1, capital=capital, cash=capital，kind=capital_in 流水 +capital）；
+	// 已存在则幂等不动（重启不重置 cash）。capital ≤ 0 拒绝。
+	InitSimAccount(ctx context.Context, capital float64) error
+	// GetSimAccount 取单模拟账户；无行 → 返回零值 SimAccount（不报错）。
+	GetSimAccount(ctx context.Context) (SimAccount, error)
+	// ListCashFlows 按 ts DESC, id DESC 分页返回现金流流水（稳定排序）。
+	// limit ≤ 0 = 默认 100，offset < 0 = 0。
+	ListCashFlows(ctx context.Context, limit, offset int) ([]CashFlow, error)
 
 	// ListKnowledgeEntries 返回经验库全部条目（signature ASC 稳定排序；D-046 浏览）。
 	ListKnowledgeEntries(ctx context.Context) ([]KnowledgeEntry, error)

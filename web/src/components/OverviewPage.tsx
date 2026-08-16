@@ -1,9 +1,10 @@
-import { useKnowledge, useSim, type Snapshot } from "../hooks";
+import { useKnowledge, useQuotes, useSim, type Snapshot } from "../hooks";
 import { ConfirmPanel } from "./ConfirmPanel";
 import { Insights } from "./Insights";
 import { KnowledgeBoard } from "./KnowledgeBoard";
 import { MarketMatrix } from "./MarketMatrix";
 import { Opportunity } from "./Opportunity";
+import { QuoteStrip } from "./QuoteStrip";
 import { Triggers } from "./Triggers";
 
 // OverviewPage 监控总览（D-047 P0 + D-048 + D-050 布局 + D-052 调整）。
@@ -27,6 +28,7 @@ export function OverviewPage({
   // sim/knowledge 数据随本页生命周期挂载；refreshKey 递增触发重载（全局刷新联动）。
   const sim = useSim(refreshKey);
   const knowledge = useKnowledge(refreshKey);
+  const { quotes } = useQuotes();
 
   return (
     <>
@@ -35,6 +37,8 @@ export function OverviewPage({
           加载失败：{error}
         </div>
       ) : null}
+      {/* D-056 Part B 实时报价条：秒级跳动，看盘第一眼数据（header 之下、网格之上） */}
+      <QuoteStrip quotes={quotes} />
       {/* 网格（D-050 3×2 + D-052 提权 + D-053 右列堆叠）：行序 = 左上矩阵 /
           右1 [经验库+确认下单] 堆叠（align-self:stretch 对齐矩阵高） / 左2 机会 /
           右2 进化建议（stretch 对齐机会高） / 左3 触发器，auto-flow 天然落位 */}

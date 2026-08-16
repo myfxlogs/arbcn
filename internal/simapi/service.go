@@ -1,6 +1,6 @@
 // Package simapi：模拟执行 ConnectRPC 服务（04-m3-spec §10 M3-c，独立域 arbcn.sim.v1）。
-// 6 个 RPC：ListSimOrders / ConfirmSimOrder / CloseSimOrder / ListSimPositions /
-// GetSimReport / GetTestnetAccounts（D-040 测试网账户区）。
+// 7 个 RPC：ListSimOrders / ConfirmSimOrder / CloseSimOrder / ListSimPositions /
+// GetSimAccount（D-056 现金账本）/ GetSimReport / GetTestnetAccounts（D-040）。
 // **写路径仅 ConfirmSimOrder + CloseSimOrder**（无自动确认/平仓定时器，§10.6 C5；
 // 平仓 = D-055 人工整单平——订单全部 open 腿一起退，绝不单腿留裸敞口 D-019）；
 // 确认后仍是模拟（SIMULATED），无任何通往真实资金的按钮/路径（§6/§8，不赌原则 D-019）。
@@ -182,6 +182,7 @@ func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1
 //     ticker 查不到 → add=0（宁缺毋滥不编造浮动，已结算 funding 留在 pnl 内）。
 //   - realized_pnl = 各腿 (pnl + add) 合计（模拟 USD）；realized_rmb = 即期 USDCNH
 //     折算（汇率缺失 = 0，前端标注 USD 原值，D-047 口径）。
+//
 // 前置校验：未知订单 → Unavailable；status != filled → FailedPrecondition（防重复平）。
 // 竞态兜底：store.CloseSimOrder 内 filled 守卫 + 腿 open 守卫，双并发平仓仅先到者成功。
 func (s *Service) CloseSimOrder(ctx context.Context, req *connect.Request[simv1.CloseSimOrderRequest]) (*connect.Response[simv1.CloseSimOrderResponse], error) {
@@ -212,15 +213,18 @@ func (s *Service) CloseSimOrder(ctx context.Context, req *connect.Request[simv1.
 		if err != nil {
 			return nil, storeErr(err)
 		}
-		add := 0.0
-		if curOK {
-			dir := 1.0
-			if p.Side == store.SimSideShort {
-				dir = -1
-			}
-			add = (curPrice - p.RefPrice) * p.Qty * dir
+		dir := 1.0
+		if p.Side == store.SimSideShort {
+			dir = -1
 		}
-		closes = append(closes, store.SimLegClose{ID: p.ID, AddPnl: add})
+		add := 0.0
+		cashDelta := 0.0
+		if curOK {
+			add = (curPrice - p.RefPrice) * p.Qty * dir
+			// D-056：平仓现金流（long +qty×cur / short −qty×cur），入现金账本；缺价 = 0（不编造）。
+			cashDelta = dir * p.Qty * curPrice
+		}
+		closes = append(closes, store.SimLegClose{ID: p.ID, AddPnl: add, CashDelta: cashDelta})
 		realized += p.PnL + add
 	}
 	if len(closes) == 0 {

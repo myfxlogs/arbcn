@@ -179,13 +179,9 @@ func (s *Store) FillSimOrder(ctx context.Context, id int64, note string, legs []
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("pgstore: fill sim order %d: 非 confirmed/不存在（拒绝成交，防状态漂移）", id)
 	}
-	for _, p := range legs {
-		if p.OrderID <= 0 {
-			p.OrderID = id // 缺省回填
-		}
-		if _, err := insertSimPosition(ctx, tx, p); err != nil {
-			return fmt.Errorf("pgstore: fill sim order: leg: %w", err)
-		}
+	// D-056：建腿 + 开仓现金流同事务（applyOpenCashFlows 内含 insertSimPosition）。
+	if err := applyOpenCashFlows(ctx, tx, id, legs); err != nil {
+		return fmt.Errorf("pgstore: fill sim order: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("pgstore: fill sim order: commit: %w", err)
@@ -225,13 +221,9 @@ func (s *Store) AcceptSimOrder(ctx context.Context, id int64, note string, legs 
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("pgstore: accept sim order %d: confirmed 守卫未命中（回滚）", id)
 	}
-	for _, p := range legs {
-		if p.OrderID <= 0 {
-			p.OrderID = id // 缺省回填
-		}
-		if _, err := insertSimPosition(ctx, tx, p); err != nil {
-			return fmt.Errorf("pgstore: accept sim order: leg: %w", err)
-		}
+	// D-056：建腿 + 开仓现金流同事务（applyOpenCashFlows 内含 insertSimPosition）。
+	if err := applyOpenCashFlows(ctx, tx, id, legs); err != nil {
+		return fmt.Errorf("pgstore: accept sim order: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("pgstore: accept sim order: commit: %w", err)
@@ -323,18 +315,6 @@ func (s *Store) ListOpenSimPositions(ctx context.Context, symbol, venue string) 
 	return scanSimPositions(rows)
 }
 
-// SettleSimPosition 结算更新：pnl += addPnl，status 覆盖（settled 关闭），updated_at = now。
-func (s *Store) SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error {
-	if status == "" {
-		status = store.SimPosStatusOpen
-	}
-	_, err := s.pool.Exec(ctx, `
-		UPDATE sim_positions
-		SET pnl = pnl + $1, status = $2, updated_at = now()
-		WHERE id = $3`, addPnl, status, id)
-	return err
-}
-
 // CloseSimOrder 人工平仓（D-055）：单事务原子——订单必须 status='filled'
 // （RowsAffected 守卫：未知/非 filled/已平 → 0 行 → 回滚 ErrNotFound），全部
 // closes 腿逐条「pnl += AddPnl + status='settled' + updated_at=now()」且要求
@@ -374,6 +354,10 @@ func (s *Store) CloseSimOrder(ctx context.Context, orderID int64, note string, c
 		}
 		if tag.RowsAffected() == 0 {
 			return 0, fmt.Errorf("pgstore: close sim order %d: 腿 %d 非 open/不属于本单（回滚，防半仓）", orderID, c.ID)
+		}
+		// D-056：平仓现金流同事务（amount = c.CashDelta，long +qty×cur / short −qty×cur）。
+		if err := applyCashFlow(ctx, tx, orderID, c.ID, store.CashKindClose, c.CashDelta); err != nil {
+			return 0, fmt.Errorf("pgstore: close sim order %d: 腿 %d 现金流: %w", orderID, c.ID, err)
 		}
 		n++
 	}

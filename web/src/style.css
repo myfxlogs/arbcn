@@ -827,6 +827,43 @@ button.btn-close:disabled {
   border: 1px solid var(--ring);
   background: transparent;
 }
+/* 确认下单单行摘要（对话 #74）：对冲对合成一行，删 类型/方向/数量 独立列。
+   .pending-summary 可换行（小屏不横向溢出），li flex 两端 = 摘要左 + 按钮右。 */
+.pending-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pending-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.pending-summary {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pending-summary .num {
+  font-variant-numeric: tabular-nums;
+}
+.dir-tag {
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--ring);
+  background: var(--surface);
+}
+.pending-summary .spread {
+  font-weight: 600;
+}
 .sim-group th {
   background: var(--surface-2, var(--surface));
   color: var(--ink-2);
@@ -896,6 +933,68 @@ button.btn-close:disabled {
 }
 .account-equity strong {
   font-size: 16px;
+}
+
+/* D-056 Part B 实时报价条（QuoteStrip）：秒级跳动，看盘第一眼数据。 */
+.quote-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--ring);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.quote-tile {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+}
+.quote-tile strong {
+  font-variant-numeric: tabular-nums;
+}
+.quote-venue {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.quote-ts {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+/* D-056 模拟账户五数对账（AccountZone）：指标瓦片 + 现金流正负色。 */
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 10px 0 14px;
+}
+.account-metric {
+  border: 1px solid var(--ring);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.account-metric span {
+  font-size: 12px;
+}
+.account-metric strong {
+  font-size: 16px;
+}
+.account-metric-total strong {
+  font-size: 18px;
+}
+.flow-pos {
+  color: var(--pos, #15803d);
+}
+.flow-neg {
+  color: var(--warn, #b45309);
 }
 
 /* —— D-051 移动/小屏自适应（对话 #69）——

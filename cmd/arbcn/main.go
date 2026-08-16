@@ -35,6 +35,7 @@ import (
 	"arbcn/internal/fact"
 	"arbcn/internal/httpapi"
 	"arbcn/internal/knowledge"
+	"arbcn/internal/quote"
 	"arbcn/internal/rule"
 	"arbcn/internal/sim"
 	"arbcn/internal/simapi"
@@ -95,6 +96,11 @@ func run() error {
 	simCfg, simOK := loadSimConfig()
 	simnetCfg, simnetOK := loadSimtestnetConfig()
 
+	// D-056 Part B 秒级实时报价：上游 WS（binance/okx 公共行情）→ Hub → SSE 推前端。
+	// 符号与 exchange 采集共用 ARBCN_COLLECT_SYMBOLS（P3 单一来源：exchange.FromEnv）。
+	quoteHub := quote.NewHub()
+	quoteSymbols := exchange.FromEnv(os.Getenv).Symbols
+
 	// 单端口 :50052：/healthz + ConnectRPC + 人工录入 + 嵌入式仪表盘（"/" 兜底）。
 	migrations := pendingMigrations(pool, cfg.MigrationsDir)
 	healthz := &httpapi.Healthz{DB: pool, Migrations: migrations}
@@ -118,6 +124,13 @@ func run() error {
 		dashSvc.OppFrictionFunding = oppFrictionFunding()
 		path, h := dashSvc.Handler()
 		mux.Handle(path, h)
+		// D-056 首启入金：seed 现金账本本金（幂等——重启不重置 cash，跨重启资金持久）。
+		// sim 配置缺失（simOK=false）→ 不种本金（无驱动/无结算，账户留给启用路径）。
+		if simOK {
+			if err := st.InitSimAccount(ctx, simCfg.Capital); err != nil {
+				return err // fail fast：账本 seed 失败 = 启动失败（首启唯一写，重启可重试）
+			}
+		}
 		// M3-c §10.6：SimService 独立域（arbcn.sim.v1）挂载。sim 配置缺失（simOK=false）
 		// → 仍挂载：GetSimReport 返回未启用说明，其余 RPC 照常读 store（sim 表由迁移
 		// 0005 建好，不依赖 sim 驱动），不退出（D-032 同口径）。
@@ -125,6 +138,9 @@ func run() error {
 		mux.Handle(simPath, simH)
 	}
 	mux.Handle("/manual/fact", manual.NewHandler(st)) // 人工录入降级通道（store 未接线时 503）
+	// D-056 Part B：报价 SSE 出口（/quote/stream）。挂载不依赖 store（报价是独立网络层，
+	// DB 不可达时仍可推实时行情）；feed 在 startPipeline 内启动，断线自愈重连。
+	mux.Handle("/quote/stream", quoteHub.Handler())
 	mux.Handle("/", web.Handler(cfg.WebDir))
 
 	errCh := make(chan error, 8)
@@ -145,7 +161,7 @@ func run() error {
 	go func() { errCh <- srv.ListenAndServe() }()
 
 	if st != nil {
-		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled, simCfg, simOK, simnetCfg, simnetOK); err != nil {
+		if err := startPipeline(ctx, errCh, st, cfg.SMTP, cfg.FactsPath, enabled, simCfg, simOK, simnetCfg, simnetOK, quoteHub, quoteSymbols); err != nil {
 			return err
 		}
 	}
@@ -171,7 +187,7 @@ func run() error {
 // （关键规则触发事件接 FactsExporter + sim 驱动）→ SMTP Alerter → FactsExporter
 // （facts.md 快照）。M3-b §9.7：历史回填（一次性幂等）+ simDriver + 8h 结算循环 +
 // testnet 探针（随 settle tick）。各组件 Run 阻塞至 ctx 取消（返回 nil）；装配错误 fail fast。
-func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, factsPath string, sources []collect.Named, simCfg sim.Config, simOK bool, simnetCfg simtestnet.Config, simnetOK bool) error {
+func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp alert.SMTPConfig, factsPath string, sources []collect.Named, simCfg sim.Config, simOK bool, simnetCfg simtestnet.Config, simnetOK bool, quoteHub *quote.Hub, quoteSymbols []string) error {
 	hb := &alert.Heartbeat{St: st}
 	for _, src := range sources {
 		hb.Track(src.Name, src.Interval)
@@ -267,6 +283,24 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 			}
 		}
 		go func() { errCh <- simDriver.RunSettleLoop(ctx) }()
+	}
+
+	// D-056 Part B：报价 WS feed（binance + okx 公共行情）→ hub，SSE 出口已挂载。
+	// Run 内断线自愈重连、仅 ctx 取消返回 nil——不 errCh 不退出（失败 warn 不退出，D-032
+	// 同口径；SSE 继续服务旧快照）。
+	quoteLog := slog.With("pkg", "quote")
+	for _, feed := range []struct {
+		name string
+		run  func() error
+	}{
+		{quote.VenueBinance, func() error { return quote.RunBinance(ctx, quoteLog, quoteHub, quoteSymbols) }},
+		{quote.VenueOKX, func() error { return quote.RunOKX(ctx, quoteLog, quoteHub, quoteSymbols) }},
+	} {
+		go func(name string, run func() error) {
+			if err := run(); err != nil {
+				slog.Warn("quote feed stopped", "feed", name, "err", err)
+			}
+		}(feed.name, feed.run)
 	}
 
 	// SMTP 接线（dialogue #27 门控 + D-032 修订）：未配置或配置非法 → warn +

@@ -16,7 +16,7 @@ func TestSimOrderRoundtrip(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	ensureSchema(t, ctx, pool)
-	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_account", "sim_cash_flow")
 
 	s := New(pool)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -136,12 +136,12 @@ func TestSimTodayNotional(t *testing.T) {
 }
 
 // TestSimPositionRoundtrip：持仓腿写入 → ListSimPositions 读回；ListOpenSimPositions
-// 只返回 open；SettleSimPosition 累计 pnl + 关闭。
+// 只返回 open；SettleSimPositionFunding 累计 pnl（资金费入现金账本）+ CloseSimOrder 平仓。
 func TestSimPositionRoundtrip(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	ensureSchema(t, ctx, pool)
-	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_account", "sim_cash_flow")
 
 	s := New(pool)
 	oid, err := s.InsertSimOrder(ctx, store.SimOrder{
@@ -187,13 +187,13 @@ func TestSimPositionRoundtrip(t *testing.T) {
 		t.Fatalf("open legs = %d, want 2", len(open))
 	}
 
-	// 结算永续腿：pnl += 100。
-	if err := s.SettleSimPosition(ctx, pids[1], 100, store.SimPosStatusOpen); err != nil {
-		t.Fatalf("SettleSimPosition: %v", err)
+	// 结算永续腿（D-056 资金费入账）：pnl += 100，仍 open（现金账本 +100）。
+	if err := s.SettleSimPositionFunding(ctx, pids[1], oid, 100); err != nil {
+		t.Fatalf("SettleSimPositionFunding: %v", err)
 	}
-	// 关闭现货腿。
-	if err := s.SettleSimPosition(ctx, pids[0], 0, store.SimPosStatusSettled); err != nil {
-		t.Fatalf("SettleSimPosition(settled): %v", err)
+	// 关闭现货腿（D-056：close 走 CloseSimOrder，腿置 settled）。
+	if n, err := s.CloseSimOrder(ctx, oid, "", []store.SimLegClose{{ID: pids[0], AddPnl: 0, CashDelta: 0}}); err != nil || n != 1 {
+		t.Fatalf("CloseSimOrder(spot): %v / n=%d, want 1", err, n)
 	}
 	open, err = s.ListOpenSimPositions(ctx, "BTC", "")
 	if err != nil {
@@ -228,7 +228,7 @@ func TestFillSimOrderAtomicity(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	ensureSchema(t, ctx, pool)
-	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_account", "sim_cash_flow")
 
 	s := New(pool)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -295,7 +295,7 @@ func TestAcceptSimOrderAtomicity(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	ensureSchema(t, ctx, pool)
-	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_account", "sim_cash_flow")
 
 	s := New(pool)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -364,7 +364,7 @@ func TestCloseSimOrder(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
 	ensureSchema(t, ctx, pool)
-	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_account", "sim_cash_flow")
 
 	s := New(pool)
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -389,8 +389,8 @@ func TestCloseSimOrder(t *testing.T) {
 		t.Fatalf("open legs = %d, want 2", len(open))
 	}
 	// 短腿先积累一期已结算 funding（模拟 8h settle），pnl 保留在平仓 realized 里。
-	if err := s.SettleSimPosition(ctx, open[1].ID, 123.45, store.SimPosStatusOpen); err != nil {
-		t.Fatalf("SettleSimPosition: %v", err)
+	if err := s.SettleSimPositionFunding(ctx, open[1].ID, id, 123.45); err != nil {
+		t.Fatalf("SettleSimPositionFunding: %v", err)
 	}
 
 	// 平仓：短腿浮动 −8000、长腿浮动 +8000（对冲净 0）→ 两腿皆 settled。
@@ -425,6 +425,16 @@ func TestCloseSimOrder(t *testing.T) {
 	}
 	if all[0].PnL != 8000 || all[1].PnL != settled-8000 {
 		t.Fatalf("pnl = long %v short %v, want 8000 / %v", all[0].PnL, all[1].PnL, settled-8000)
+	}
+	// D-056 现金账本对账：open 净 0（±qty×ref）+ funding 123.45 + close 净 0 → cash = 123.45。
+	// [对抗测试锚点] 删 open/funding/close 任一现金流入账 → 本断言必红。
+	acct, err := s.GetSimAccount(ctx)
+	if err != nil || acct.Cash != settled {
+		t.Fatalf("account = %+v/%v, want cash = %v（funding 入账，open/close 净 0）", acct, err, settled)
+	}
+	flows, err := s.ListCashFlows(ctx, 10, 0)
+	if err != nil || len(flows) != 5 {
+		t.Fatalf("flows = %d/%v, want 5（open×2 + funding + close×2）", len(flows), err)
 	}
 	// 再平（已 closed）→ ErrNotFound（filled 守卫）。
 	if _, err := s.CloseSimOrder(ctx, id, "", []store.SimLegClose{{ID: open[0].ID}}); !errors.Is(err, store.ErrNotFound) {

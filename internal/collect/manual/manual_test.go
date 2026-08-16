@@ -102,8 +102,17 @@ func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosi
 func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
 	panic("fakeStore: ListOpenSimPositions not used")
 }
-func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
-	panic("fakeStore: SettleSimPosition not used")
+func (f *fakeStore) SettleSimPositionFunding(context.Context, int64, int64, float64) error {
+	panic("fakeStore: SettleSimPositionFunding not used")
+}
+func (f *fakeStore) InitSimAccount(context.Context, float64) error {
+	panic("fakeStore: InitSimAccount not used")
+}
+func (f *fakeStore) GetSimAccount(context.Context) (store.SimAccount, error) {
+	panic("fakeStore: GetSimAccount not used")
+}
+func (f *fakeStore) ListCashFlows(context.Context, int, int) ([]store.CashFlow, error) {
+	panic("fakeStore: ListCashFlows not used")
 }
 func (f *fakeStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
 	return nil, nil

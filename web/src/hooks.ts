@@ -20,6 +20,7 @@ import type {
 } from "./gen/arbcn/dashboard/v1/dashboard_pb";
 import type {
   CloseSimOrderResponse,
+  GetSimAccountResponse,
   GetSimReportResponse,
   SimOrder,
   SimPosition,
@@ -41,6 +42,7 @@ export function useSim(refreshKey?: number): {
   positions: SimPosition[];
   report: GetSimReportResponse | null;
   accounts: TestnetAccount[];
+  account: GetSimAccountResponse | null;
   fxAvailable: boolean;
   error: string;
   confirm: (id: bigint) => Promise<boolean>;
@@ -51,6 +53,7 @@ export function useSim(refreshKey?: number): {
   const [positions, setPositions] = useState<SimPosition[]>([]);
   const [report, setReport] = useState<GetSimReportResponse | null>(null);
   const [accounts, setAccounts] = useState<TestnetAccount[]>([]);
+  const [account, setAccount] = useState<GetSimAccountResponse | null>(null);
   const [fxAvailable, setFxAvailable] = useState(false);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
@@ -59,17 +62,19 @@ export function useSim(refreshKey?: number): {
     let alive = true;
     const load = async () => {
       try {
-        const [ordersRes, positionsRes, reportRes, accountsRes] = await Promise.all([
+        const [ordersRes, positionsRes, reportRes, accountsRes, accountRes] = await Promise.all([
           sim.listSimOrders({}),
           sim.listSimPositions({}),
           sim.getSimReport({}),
           sim.getTestnetAccounts({}),
+          sim.getSimAccount({}),
         ]);
         if (!alive) return;
         setOrders(ordersRes.orders);
         setPositions(positionsRes.positions);
         setReport(reportRes);
         setAccounts(accountsRes.accounts);
+        setAccount(accountRes); // D-056 完整现金账本：账户净值 + 逐笔流水
         setFxAvailable(positionsRes.fxAvailable); // D-047 F4：真实汇率可用信号（区分「USD 原值」与真零 PnL）
         setError("");
       } catch (e) {
@@ -116,6 +121,7 @@ export function useSim(refreshKey?: number): {
     positions,
     report,
     accounts,
+    account,
     fxAvailable,
     error,
     confirm,
@@ -134,6 +140,37 @@ export interface Snapshot {
   cards: OpportunityCard[];
   health: HealthResponse;
   at: Date;
+}
+
+// Quote 单标的最新价（/quote/stream SSE 负载；D-056 Part B）。
+export interface Quote {
+  venue: string;
+  symbol: string;
+  price: number;
+  ts_ms: number;
+}
+
+// useQuotes 秒级实时报价（D-056 Part B 下游）：EventSource 订阅 /quote/stream，
+// onmessage 解析 JSON 更新 map（key = venue|symbol）。EventSource 原生自动重连——
+// 断线由浏览器自动恢复，无需手动逻辑；组件卸载时 close 释放。只做展示，不喂策略。
+export function useQuotes(): { quotes: Record<string, Quote> } {
+  const [quotes, setQuotes] = useState<Record<string, Quote>>({});
+
+  useEffect(() => {
+    const es = new EventSource("/quote/stream");
+    es.onmessage = (ev: MessageEvent) => {
+      try {
+        const q = JSON.parse(ev.data) as Quote;
+        if (!q.venue || !q.symbol) return;
+        setQuotes((prev) => ({ ...prev, [`${q.venue}|${q.symbol}`]: q }));
+      } catch {
+        // 解析失败跳过（脏帧不影响整体）
+      }
+    };
+    return () => es.close();
+  }, []);
+
+  return { quotes };
 }
 
 // useFactsSnapshot 事实快照 + RMB 折算（M2-b §4/§5 机器可读投影，ListFacts RPC）。

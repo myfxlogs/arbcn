@@ -181,3 +181,24 @@
 - **施工**：migration 0008_sim_close.sql + store.go（SimLegClose/SimStatusClosed/CloseSimOrder 接口）+ pgstore/sim.go CloseSimOrder（事务 + 三守卫 + 对抗锚点注释）+ sim_test TestCloseSimOrder + migrate_test want 7→8 + sim.proto（CloseSimOrderRequest/Response + rpc，头注释 4→6）+ `buf generate --template buf.gen.sim.yaml`（**教训：sim 域必须用独立模板，裸 `buf generate` 不碰 sim**）+ service.go CloseSimOrder（前置校验 + latestValue 浮动 + fx 折算，包 doc 5→6 RPC/双写路径）+ service_test fakeStore（ListOpenSimPositions/CloseSimOrder 真语义）+ 5 处 fake panic stub（dashboard/collect-manual/alert/rule）+ 6 场景服务测试 + hooks.ts useSim.close（返回响应含 realized_pnl）+ SimExec.tsx（浮动列 + rowSpan 平仓按钮 + 二次确认 + 结果横幅 + settled 过滤）+ SimPage 传参 + style.css .btn-close（默认警示描边 / armed 实心）。
 - **验证/部署**：全量 go test（pgstore TestMigrateIdempotent want 8 通过 = migration 0008 应用 + TestCloseSimOrder 全绿 + simapi 6 场景）+ vet + tsc/npm build 绿；锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable PASS（SimExec/ConfirmPanel 仍引 SimulatedBadge，Opportunity 无 funding_hedge 字面量）；构建 → SIGKILL 部署（arbcn-monitor.service，MainPID 2919956→2935391）→ **healthz `pending_migrations` → `ok`（0008 自动应用）** + inode 匹配（21244442→21244499）+ served bundle == 新 dist（index-EdR3ou5I.js 含「确认平仓/浮动收益/closeSimOrder」）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——平仓仍人工触发、模拟盘无真实资金路径。**（practices #19 闭环）
 - **决策号**：D-055（平仓 + 浮动收益列 + 预期收益答疑）；教训候选入 practices #30（对称补全 checklist + buf 独立模板）。
+
+## #73 · 2026-08-16 · 模拟账户「按真实账户对待」完整现金账本 + 秒级实时报价（D-056）· 业主两条需求 → 决策层施工 + live 核账 + 部署机实测
+- **参与方**：业主（两条需求）、Claude（选型答复 + 决策层 + 施工 + 实测）
+- **议题**：① 「虽然是模拟账户，但我们应该按真实账户对待」——校验策略真赚还是理论；② 「之前也要求过显示实时报价，好像没有实现」。
+- **选型答复（业主确认）**：① 账户口径 = **完整现金账本**（现金余额 + 逐笔流水 + 净值，与开平结算原子联动）；② 报价刷新 = **秒级实时**，上游（交易所→后端）WebSocket（交易所只提供 WS 推送）、下游（后端→前端）SSE（EventSource 自动重连零新依赖，过现有 HTTP mux）。报价流只做展示，不喂策略不落库。
+- **决策（D-056）**：
+  - **Part A 现金账本**：migration 0009（sim_account 单账户 id=1 + sim_cash_flow 逐笔流水）+ 四 kind 事件（capital_in/open/funding/close）全在既有事务内原子入账，Fill/Accept 两成交路径口径一致；**不变量 = equity=cash+Σ_open(dir×qty×cur)=capital+realized+unrealized 双恒等式交叉校验**；InitSimAccount 启动 seed 幂等（重启不重置 cash 跨重启持久）+ 单事务（原实现非事务半账已修）；GetSimAccount RPC（净值 + 最近 100 条流水）；CloseSimOrder 服务端补 CashDelta；前端 AccountZone 五数对账网格 + 净值 USD/RMB + 逐笔流水表（账户区置顶第一眼）。
+  - **Part B 秒级实时报价**：上游 binance USDT-M 合流 miniTicker + okx v5 tickers 公共行情（无密钥 D-010）/ 下游 SSE 1s 差分推送；新包 internal/quote + gorilla/websocket 唯一新依赖；断线指数退避自愈 + 8s 拨号上限 + 45s 读空闲；前端 QuoteStrip 顶部报价条（EventSource 自动重连）。
+- **根因修复**：binance 合流 feed **静默丢帧**——Go json 字段名大小写不敏感匹配致帧内 `"e"`（事件类型字符串）撞上 `EventT`(int64)，整帧 Unmarshal 失败全丢；补显式 `EventType string json:"e"` 字段 + 测试用真实帧形（envelope + e/E 并存）锚定（删字段必红）。
+- **施工**：见 STATE 施工表 D-056 Part A/B 两行（迁移/store/sim/backfill/main/proto/simapi/quote 包/frontend 全链路）。
+- **验证/部署实测**：全量 go test（pgstore want 9）+ vet + -race + npm build 绿；**live 核账**：seed 100000/100000 + 重启幂等 1 条 capital_in + GetSimAccount RPC 双恒等式对平 + 历史对冲单（id=3/5）pnl 净 0 无漂移（无需回填）；**部署机双流实测**：binance BTC 62956.9/ETH 1879.79 + okx BTC 62965 秒级推送（SSE）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；只展示不自动执行（D-013/D-016 门禁不动）；不赌（D-019）；无密钥公共端点（D-010）。**（practices #19：本对话交付未完——部署重启 + 推送在对话 #74 的 commit 一并闭环）
+- **决策号**：D-056（Part A 现金账本 + Part B 实时报价）；教训候选入 practices #31（Go json 大小写不敏感匹配）+ #32（启动 seed 接线 main.go + 单事务）+ #12 续（binance WS 端点 geo-block 同样须部署机实测）。
+
+## #74 · 2026-08-16 · 确认下单面板删减（对冲对合成单行摘要）· 业主「太长」反馈 → 决策层施工
+- **参与方**：业主（反馈 + 选档）、Claude（数据盘点 + 施工）
+- **议题**：「监控总览中的确认下单，都显示那些数据？太长了，我们要做一些删减」。
+- **数据盘点（现状 6 列）**：类型（现货+永续对冲）+ 行内「模拟」标签 / 标的 / 方向（funding_hedge 单 side 恒为「对冲」）/ 数量 / 预期年化 / 操作。**冗余识别**：类型列与方向列同义重复；行内 SimTag 与标题 SimulatedBadge 双重「模拟」标注。
+- **决策（业主选档）**：**单行摘要，对冲对合成一行**——每单一行 `BTC @okx · 对冲 20,000U · 预期 6.61%` + 确认按钮；删 类型/方向/数量 独立列 + 行内 SimTag + h2 SimTag（锚点 TestSimExecBadgeRenderable 仅要求 SimulatedBadge 引用，已保留）。
+- **施工**：ConfirmPanel.tsx 重写（ConfirmRow → `<li>` 单行摘要 flex，.pending-list；header 保留 SimulatedBadge + 刷新）+ style.css 新增 .pending-list/.pending-summary/.dir-tag/.spread（可换行不横向溢出）。纯前端零门禁改动。
+- **验证**：tsc/npm build 绿（新 hash index-BFYvO4mt.js）+ 全量 go test 绿（含锚点 TestSimExecBadgeRenderable PASS）。部署随 D-056 对话 #73 一并闭环。
+- **决策号**：—（业主 UI 删减，非方向级；对话 #73 D-056 commit 一并交付）。

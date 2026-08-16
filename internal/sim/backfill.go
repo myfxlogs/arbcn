@@ -115,7 +115,8 @@ func (s *Simulator) SettleFunding(ctx context.Context, kind, symbol, venue strin
 			continue
 		}
 		add := SettleFundingPnl(Per8hRate(annualized), l.Qty)
-		if err := s.st.SettleSimPosition(ctx, l.ID, add, store.SimPosStatusOpen); err != nil {
+		// D-056：资金费单事务「腿 pnl += add + funding 现金流 + 现金余额 += add」。
+		if err := s.st.SettleSimPositionFunding(ctx, l.ID, l.OrderID, add); err != nil {
 			return n, err
 		}
 		n++

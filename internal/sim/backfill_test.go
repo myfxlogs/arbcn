@@ -23,6 +23,8 @@ type storeStub struct {
 	orders         []store.SimOrder
 	positions      []store.SimPosition
 	facts          []fact.Fact // driver 测试的行情/费率面
+	cash           float64
+	flows          []store.CashFlow
 	nextOID        int64
 	nextPID        int64
 	dayNotional    float64
@@ -195,18 +197,55 @@ func (m *storeStub) ListOpenSimPositions(_ context.Context, symbol, venue string
 	}
 	return out, nil
 }
-func (m *storeStub) SettleSimPosition(_ context.Context, id int64, addPnl float64, status string) error {
+func (m *storeStub) SettleSimPositionFunding(_ context.Context, id, orderID int64, addPnl float64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.positions {
 		if m.positions[i].ID == id {
 			m.positions[i].PnL += addPnl
-			m.positions[i].Status = status
 			m.positions[i].UpdatedAt = t0
+			m.cash += addPnl
+			m.flows = append(m.flows, store.CashFlow{
+				ID: int64(len(m.flows) + 1), Ts: t0, OrderID: orderID, LegID: id,
+				Kind: store.CashKindFunding, Amount: addPnl,
+			})
 			return nil
 		}
 	}
 	return nil
+}
+func (m *storeStub) InitSimAccount(_ context.Context, capital float64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.cash == 0 && len(m.flows) == 0 {
+		m.cash = capital
+		m.flows = append(m.flows, store.CashFlow{
+			ID: 1, Ts: t0, Kind: store.CashKindCapitalIn, Amount: capital,
+		})
+	}
+	return nil
+}
+func (m *storeStub) GetSimAccount(context.Context) (store.SimAccount, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return store.SimAccount{Capital: m.cash, Cash: m.cash, UpdatedAt: t0}, nil
+}
+func (m *storeStub) ListCashFlows(_ context.Context, limit, offset int) ([]store.CashFlow, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := append([]store.CashFlow(nil), m.flows...)
+	sort.Slice(out, func(i, j int) bool { return out[i].ID > out[j].ID })
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(out) {
+		return []store.CashFlow{}, nil
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
 }
 
 func newSim(t *testing.T) (*Simulator, *storeStub) {
@@ -360,6 +399,10 @@ func TestSettleFunding(t *testing.T) {
 		} else if p.PnL != 0 {
 			t.Fatalf("spot pnl = %v, want 0（现货腿不结算）", p.PnL)
 		}
+	}
+	// D-056：资金费同时入现金账本（funding 流水 +cash）。
+	if math.Abs(st.cash-1) > 1e-6 {
+		t.Fatalf("cash = %v, want 1（资金费 +1 入现金余额）", st.cash)
 	}
 }
 

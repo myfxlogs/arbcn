@@ -22,11 +22,15 @@ import (
 // fakeStore 是 simapi 服务测试的内存 store.Store（M3-c C3，只实装服务用到的面，
 // 其余占位；sim 相关写入方法记录调用供断言——误用即红不静默）。
 type fakeStore struct {
-	orders      []store.SimOrder
-	positions   []store.SimPosition
-	accounts    []store.TestnetAccount // D-040 GetTestnetAccounts 数据面
-	facts       []fact.Fact
-	nextOrderID int64
+	orders        []store.SimOrder
+	positions     []store.SimPosition
+	accounts      []store.TestnetAccount // D-040 GetTestnetAccounts 数据面
+	facts         []fact.Fact
+	capital       float64 // D-056 现金账本：初始本金
+	cash          float64 // D-056 现金账本：现金余额
+	flows         []store.CashFlow
+	nextOrderID   int64
+	nextFlowIDNum int64
 
 	accepted []acceptedCall // AcceptSimOrder 调用记录
 	rejected []rejectedCall // RejectSimOrder 调用记录
@@ -203,6 +207,10 @@ func (f *fakeStore) CloseSimOrder(_ context.Context, orderID int64, note string,
 		}
 		f.positions[idx].PnL += c.AddPnl
 		f.positions[idx].Status = store.SimPosStatusSettled
+		// D-056：平仓现金流入账（与 pgstore 同语义）。
+		f.cash += c.CashDelta
+		f.flows = append(f.flows, store.CashFlow{ID: f.nextFlowID(), Ts: t0,
+			OrderID: orderID, LegID: c.ID, Kind: store.CashKindClose, Amount: c.CashDelta})
 		n++
 	}
 	o.Status = store.SimStatusClosed
@@ -298,8 +306,61 @@ func (f *fakeStore) ListOpenSimPositions(_ context.Context, symbol, venue string
 	}
 	return out, nil
 }
-func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
-	panic("fakeStore: SettleSimPosition not used")
+// nextFlowID 自增流水 id（fake 内存版）。
+func (f *fakeStore) nextFlowID() int64 {
+	f.nextFlowIDNum++
+	return f.nextFlowIDNum
+}
+
+// SettleSimPositionFunding 资金费入账（D-056 真语义，与 pgstore 一致）：腿 pnl += addPnl
+// + funding 现金流 + 现金余额 += addPnl。
+func (f *fakeStore) SettleSimPositionFunding(_ context.Context, id, orderID int64, addPnl float64) error {
+	for i := range f.positions {
+		if f.positions[i].ID == id {
+			f.positions[i].PnL += addPnl
+			f.positions[i].UpdatedAt = t0
+			f.cash += addPnl
+			f.flows = append(f.flows, store.CashFlow{ID: f.nextFlowID(), Ts: t0,
+				OrderID: orderID, LegID: id, Kind: store.CashKindFunding, Amount: addPnl})
+			return nil
+		}
+	}
+	return nil
+}
+
+// InitSimAccount 首启入金（幂等，重启不重置）。
+func (f *fakeStore) InitSimAccount(_ context.Context, capital float64) error {
+	if capital <= 0 {
+		return errors.New("fakeStore: InitSimAccount: capital must be > 0")
+	}
+	if f.capital == 0 && len(f.flows) == 0 {
+		f.capital = capital
+		f.cash = capital
+		f.flows = append(f.flows, store.CashFlow{ID: f.nextFlowID(), Ts: t0,
+			Kind: store.CashKindCapitalIn, Amount: capital})
+	}
+	return nil
+}
+
+func (f *fakeStore) GetSimAccount(context.Context) (store.SimAccount, error) {
+	return store.SimAccount{Capital: f.capital, Cash: f.cash, UpdatedAt: t0}, nil
+}
+
+// ListCashFlows 按 id DESC 分页返回（审计账本）。
+func (f *fakeStore) ListCashFlows(_ context.Context, limit, offset int) ([]store.CashFlow, error) {
+	out := append([]store.CashFlow(nil), f.flows...)
+	sort.Slice(out, func(i, j int) bool { return out[i].ID > out[j].ID })
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(out) {
+		return []store.CashFlow{}, nil
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
 }
 func (f *fakeStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
 	return nil, nil
@@ -652,6 +713,127 @@ func TestCloseSimOrderInvalidId(t *testing.T) {
 	_, err := s.CloseSimOrder(context.Background(), closeReq(0))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("code = %v, want InvalidArgument", connect.CodeOf(err))
+	}
+}
+
+// accountSeed 构造现金账本对账种子：入金 100k + open 对冲两腿
+// （long 100@100 / short 100@100）→ 资金费结算 short +30（入现金账本），ticker=110。
+// 期望：realized=30；unrealized=0（对冲浮动抵消）；market_value=0（11000−11000）；
+// equity = cash(100030) + 0 = 100030 = capital(100k)+realized(30)+unrealized(0)。
+func accountSeed(t *testing.T) *fakeStore {
+	t.Helper()
+	st := newFakeStore()
+	o := fundingOrder(0)
+	o.Status = store.SimStatusFilled
+	st.addOrder(o) // id=1，与腿 OrderID 对应（CloseSimOrder 需 filled 订单）
+	if err := st.InitSimAccount(context.Background(), 100_000); err != nil {
+		t.Fatalf("InitSimAccount: %v", err)
+	}
+	st.positions = append(st.positions,
+		store.SimPosition{ID: 10, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge,
+			Venue: "binance", Symbol: "BTC", Side: store.SimSideLong, Qty: 100, RefPrice: 100,
+			Funding: false, PnL: 0, Status: store.SimPosStatusOpen},
+		store.SimPosition{ID: 11, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge,
+			Venue: "binance", Symbol: "BTC", Side: store.SimSideShort, Qty: 100, RefPrice: 100,
+			Funding: true, PnL: 0, Status: store.SimPosStatusOpen},
+	)
+	if err := st.SettleSimPositionFunding(context.Background(), 11, 1, 30); err != nil {
+		t.Fatalf("SettleSimPositionFunding: %v", err)
+	}
+	st.addFact(fact.KindTicker, "binance", "BTC", 110, t0.Add(-time.Minute))
+	st.addFact(fact.KindFX, fxVenue, fxSymbol, 7.2, t0.Add(-time.Minute))
+	return st
+}
+
+// TestGetSimAccount：现金账本对账——双恒等式交叉校验（D-056）。
+func TestGetSimAccount(t *testing.T) {
+	st := accountSeed(t)
+	s := service(st, sim.Config{})
+
+	resp, err := s.GetSimAccount(context.Background(), connect.NewRequest(&simv1.GetSimAccountRequest{}))
+	if err != nil {
+		t.Fatalf("GetSimAccount: %v", err)
+	}
+	m := resp.Msg
+	if m.Capital != 100_000 || m.Cash != 100_030 {
+		t.Fatalf("capital/cash = %v/%v, want 100000/100030（入金 100k + funding 30）", m.Capital, m.Cash)
+	}
+	if m.RealizedPnl != 30 {
+		t.Fatalf("realized = %v, want 30（Σ 腿 pnl）", m.RealizedPnl)
+	}
+	if m.UnrealizedPnl != 0 {
+		t.Fatalf("unrealized = %v, want 0（对冲浮动抵消）", m.UnrealizedPnl)
+	}
+	if m.MarketValue != 0 {
+		t.Fatalf("market_value = %v, want 0（11000−11000）", m.MarketValue)
+	}
+	if m.Equity != 100_030 {
+		t.Fatalf("equity = %v, want 100030（cash + market_value）", m.Equity)
+	}
+	if !m.FxAvailable || m.EquityRmb != 100_030*7.2 {
+		t.Fatalf("fx = %v/rmb = %v, want true/720216", m.FxAvailable, m.EquityRmb)
+	}
+	// 双恒等式：equity = cash + market_value = capital + realized + unrealized。
+	if got := m.Capital + m.RealizedPnl + m.UnrealizedPnl; got != m.Equity {
+		t.Fatalf("capital+realized+unrealized = %v ≠ equity %v（对账断裂）", got, m.Equity)
+	}
+	// 流水：capital_in + funding 两条，id DESC（funding 在前）。
+	if len(m.Flows) != 2 {
+		t.Fatalf("flows = %d, want 2（capital_in + funding）", len(m.Flows))
+	}
+	if m.Flows[0].Kind != store.CashKindFunding || m.Flows[0].Amount != 30 {
+		t.Fatalf("flows[0] = %+v, want funding +30（id DESC）", m.Flows[0])
+	}
+	if m.Flows[1].Kind != store.CashKindCapitalIn || m.Flows[1].Amount != 100_000 {
+		t.Fatalf("flows[1] = %+v, want capital_in +100000", m.Flows[1])
+	}
+}
+
+// TestGetSimAccountEmpty：账户未初始化（InitSimAccount 未跑）→ 零值兜底，不报错。
+func TestGetSimAccountEmpty(t *testing.T) {
+	s := service(newFakeStore(), sim.Config{})
+	resp, err := s.GetSimAccount(context.Background(), connect.NewRequest(&simv1.GetSimAccountRequest{}))
+	if err != nil {
+		t.Fatalf("GetSimAccount: %v", err)
+	}
+	if resp.Msg.Capital != 0 || resp.Msg.Cash != 0 || resp.Msg.Equity != 0 {
+		t.Fatalf("resp = %+v, want 全零兜底（未入金）", resp.Msg)
+	}
+}
+
+// TestGetSimAccountCloseReconcile：平仓后现金账本与腿 pnl 对账——close 现金流
+// （long +qty×cur / short −qty×cur）入账后，equity 恒等于 capital + realized。
+func TestGetSimAccountCloseReconcile(t *testing.T) {
+	st := accountSeed(t)
+	s := service(st, sim.Config{})
+	// 平仓（ticker 110）：long 浮动 +1000、short −1000；close 现金流 long +11000 / short −11000。
+	if _, err := s.CloseSimOrder(context.Background(), closeReq(1)); err != nil {
+		t.Fatalf("CloseSimOrder: %v", err)
+	}
+	resp, err := s.GetSimAccount(context.Background(), connect.NewRequest(&simv1.GetSimAccountRequest{}))
+	if err != nil {
+		t.Fatalf("GetSimAccount: %v", err)
+	}
+	m := resp.Msg
+	// cash = 100030 + (11000 − 11000) = 100030；realized = 30 + 0（浮动抵消）。
+	if m.Cash != 100_030 {
+		t.Fatalf("cash = %v, want 100030（close 净现金流 0）", m.Cash)
+	}
+	if m.RealizedPnl != 30 || m.UnrealizedPnl != 0 || m.MarketValue != 0 {
+		t.Fatalf("realized/unrealized/mv = %v/%v/%v, want 30/0/0（全平后无敞口）", m.RealizedPnl, m.UnrealizedPnl, m.MarketValue)
+	}
+	if got := m.Capital + m.RealizedPnl + m.UnrealizedPnl; got != m.Equity {
+		t.Fatalf("capital+realized+unrealized = %v ≠ equity %v（对账断裂）", got, m.Equity)
+	}
+	// 流水含 close 两条：funding +30 之后是 close 11000 / −11000（id DESC：最新在前）。
+	if len(m.Flows) != 4 {
+		t.Fatalf("flows = %d, want 4（capital_in + funding + close×2）", len(m.Flows))
+	}
+	if m.Flows[0].Kind != store.CashKindClose || m.Flows[0].Amount != -11_000 {
+		t.Fatalf("flows[0] = %+v, want close −11000（short 腿买回）", m.Flows[0])
+	}
+	if m.Flows[1].Kind != store.CashKindClose || m.Flows[1].Amount != 11_000 {
+		t.Fatalf("flows[1] = %+v, want close +11000（long 腿卖出）", m.Flows[1])
 	}
 }
 

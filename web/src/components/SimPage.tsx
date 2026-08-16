@@ -10,6 +10,7 @@ export function SimPage() {
     <SimExec
       positions={sim.positions}
       accounts={sim.accounts}
+      account={sim.account}
       report={sim.report}
       fxAvailable={sim.fxAvailable}
       error={sim.error}

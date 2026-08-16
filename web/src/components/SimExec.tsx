@@ -1,12 +1,30 @@
 import { useState } from "react";
 import { fmtAmount } from "../format";
 import type {
+  CashFlow,
   CloseSimOrderResponse,
+  GetSimAccountResponse,
   GetSimReportResponse,
   SimPosition,
   TestnetAccount,
 } from "../gen/arbcn/sim/v1/sim_pb";
 import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
+
+// flowKindText 现金流类型 → 中文（D-056 逐笔流水表）。
+function flowKindText(kind: string): string {
+  switch (kind) {
+    case "capital_in":
+      return "入金";
+    case "open":
+      return "开仓";
+    case "funding":
+      return "资金费";
+    case "close":
+      return "平仓";
+    default:
+      return kind;
+  }
+}
 
 // PositionZone 模拟持仓（对话 #57 需求 3 实时数值 + D-055 平仓）：
 //   - pnl（USD 模拟）= 每 8h 已结算累计；pnl_rmb = 即期折算（汇率缺失标注 USD 原值）。
@@ -152,6 +170,103 @@ function PositionZone({
   );
 }
 
+// AccountZone 模拟账户「按真实账户对待」卡（D-056 完整现金账本）：
+// 五数对账（初始本金 / 现金余额 / 持仓市值 / 已实现 / 未实现）+ 净值（USD + RMB 即期）
+// + 逐笔现金流流水。净值双恒等式供交叉校验：
+//   equity = cash + market_value = capital + realized + unrealized
+// 前端同时展示两式口径，防止单边账目偏差被隐藏（P3 可检查性）。账户区置顶
+// PositionZone 之前——账户是模拟盘「第一眼」数据（本金是否还在、现金流是否对得上）。
+function AccountZone({
+  account,
+  fxAvailable,
+}: {
+  account: GetSimAccountResponse;
+  fxAvailable: boolean;
+}) {
+  const fmt = (v: number): string => fmtAmount(v);
+  const flow = (f: CashFlow): string => {
+    const d = new Date(Number(f.tsMs));
+    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString("zh-CN", { hour12: false });
+  };
+  return (
+    <section className="card" aria-labelledby="sim-account-title">
+      <h2 id="sim-account-title">
+        模拟账户 <SimTag />
+      </h2>
+      <p className="muted">
+        净值对账双恒等式：cash + 持仓市值 = capital + 已实现 + 未实现（D-056；互相校验，
+        单边账目偏差立即暴露）
+      </p>
+      <div className="account-grid">
+        <div className="account-metric">
+          <span className="muted">初始本金</span>
+          <strong className="num">{fmt(account.capital)}</strong>
+        </div>
+        <div className="account-metric">
+          <span className="muted">现金余额</span>
+          <strong className="num">{fmt(account.cash)}</strong>
+        </div>
+        <div className="account-metric">
+          <span className="muted">持仓市值</span>
+          <strong className="num">{fmt(account.marketValue)}</strong>
+        </div>
+        <div className="account-metric">
+          <span className="muted">已实现 PnL</span>
+          <strong className="num">{fmt(account.realizedPnl)}</strong>
+        </div>
+        <div className="account-metric">
+          <span className="muted">未实现浮动</span>
+          <strong className="num">{fmt(account.unrealizedPnl)}</strong>
+        </div>
+        <div className="account-metric account-metric-total">
+          <span className="muted">净值（USD）</span>
+          <strong className="num">{fmt(account.equity)}</strong>
+        </div>
+        <div className="account-metric">
+          <span className="muted">净值（RMB 即期）</span>
+          <strong className="num">
+            {fxAvailable ? fmt(account.equityRmb) : "—"}
+          </strong>
+        </div>
+      </div>
+      <h3>逐笔现金流</h3>
+      {account.flows.length === 0 ? (
+        <p className="empty">暂无流水（首次入金后开始记账）</p>
+      ) : (
+        <div className="table-scroll">
+          <table className="rows">
+            <thead>
+              <tr>
+                <th scope="col">时间</th>
+                <th scope="col">类型</th>
+                <th scope="col">金额（USD）</th>
+                <th scope="col">订单</th>
+                <th scope="col">备注</th>
+              </tr>
+            </thead>
+            <tbody>
+              {account.flows.map((f) => (
+                <tr key={f.id.toString()}>
+                  <td>{flow(f)}</td>
+                  <td>{flowKindText(f.kind)}</td>
+                  <td className={f.amount >= 0 ? "num flow-pos" : "num flow-neg"}>
+                    {f.amount >= 0 ? "+" : ""}
+                    {fmt(f.amount)}
+                  </td>
+                  <td className={f.orderId === 0n ? "muted" : "num"}>
+                    {f.orderId === 0n ? "—" : `#${f.orderId}`}
+                  </td>
+                  <td className="note-cell">{f.note || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 // AccountCard 单账户快照卡（D-040 测试网账户区）。equity_usd 口径按 source 明示
 // （诚实标注）：binance = 稳定币合计近似（非全量净值，非稳定币无行情折算标 —）；
 // okx = totalEq（交易所精确折算）。
@@ -245,6 +360,7 @@ function ReportZone({ markdown, exists, note }: { markdown: string; exists: bool
 export function SimExec({
   positions,
   accounts,
+  account,
   report,
   fxAvailable,
   error,
@@ -253,6 +369,7 @@ export function SimExec({
 }: {
   positions: SimPosition[];
   accounts: TestnetAccount[];
+  account: GetSimAccountResponse | null;
   report: GetSimReportResponse | null;
   fxAvailable: boolean;
   error: string;
@@ -272,6 +389,7 @@ export function SimExec({
           模拟执行加载失败：{error}
         </div>
       ) : null}
+      {account ? <AccountZone account={account} fxAvailable={fxAvailable} /> : null}
       <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone
