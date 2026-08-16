@@ -1,6 +1,6 @@
-// 首版规则集（docs/design/02-monitor-architecture.md §7 表 10 条全落；
-// 阈值锚 docs/handoff/facts.md）。规则 = 配置行，M1-h 接线时经 Seed 落库；
-// 改阈值 = 改 DB 一行，不发布版本（§4）。
+// 首版规则集（docs/design/02-monitor-architecture.md §7 表 10 条全落 +
+// D-041 演练档 funding_drill；阈值锚 docs/handoff/facts.md）。规则 = 配置行，
+// M1-h 接线时经 Seed 落库；改阈值 = 改 DB 一行，不发布版本（§4）。
 //
 // scope 约定：venue/symbol 逗号分隔 = IN 列表（空 = 不限）；逐实体独立聚合，
 // 任一实体命中即告警。chg 语义：环比 = 最新采集值 − 紧邻上一采集值
@@ -9,6 +9,10 @@
 // 各规则口径说明（实现决策，供复审）：
 //   - funding_warn/critical：symbol=BTC,ETH 即 §7 "BTC/ETH" 行；venue 不限
 //     （同一币种跨所费率口径一致）。
+//   - funding_drill（D-041 演练档）：funding_hedge 演练带 [5%,15%)——高于 5%
+//     （跨过 SPREAD_LOW 门禁）且低于 funding_warn 门槛 15%（不重复真实窗口档）；
+//     只喂模拟盘演练确认→成交→8h 结算，Info 级不打扰。上限 15 与 funding_warn
+//     同源（同库规则表，改一须改二）。
 //   - trx_funding_positive：穿越型。"此前 48h 均值" = avg_48h@24h（[−72h,−24h)）。
 //   - ladder_trap：跨实体比较用显式 scope 聚合。数据源约定 venue=binance_ear /
 //     symbol=USDT_H（头条档）、USDT_L（大额档）；v1 无自动采集（Binance Earn
@@ -35,6 +39,7 @@ import (
 var ruleLabels = map[string]string{
 	"funding_warn":            "资金费率预警",
 	"funding_critical":        "资金费率激活",
+	"funding_drill":           "资金费率演练档",
 	"trx_funding_positive":    "TRX 费率转正",
 	"defi_large_tier_change":  "金额档利率变动",
 	"ladder_trap":             "阶梯陷阱识别",
@@ -53,7 +58,7 @@ func ruleLabel(name string) string {
 	return name
 }
 
-// Defaults 返回首版 10 规则。
+// Defaults 返回首版 11 规则（10 + D-041 演练档）。
 func Defaults() []store.Rule {
 	return []store.Rule{
 		{
@@ -63,6 +68,10 @@ func Defaults() []store.Rule {
 		{
 			Name: "funding_critical", Kind: fact.KindFunding, Symbol: "BTC,ETH",
 			Cond: "avg_30d > 20", Level: store.LevelCritical, Enabled: true, IntervalSec: 300,
+		},
+		{
+			Name: "funding_drill", Kind: fact.KindFunding, Symbol: "BTC,ETH",
+			Cond: "avg_30d > 5 && avg_30d < 15", Level: store.LevelInfo, Enabled: true, IntervalSec: 300,
 		},
 		{
 			Name: "trx_funding_positive", Kind: fact.KindFunding, Symbol: "TRX",

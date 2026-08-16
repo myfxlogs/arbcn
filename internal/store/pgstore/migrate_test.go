@@ -29,12 +29,12 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
-	// 0001_init + 0002_rule_scope + 0003_alerts_delivered + 0004_ledger + 0005_sim
-	if n != 5 {
-		t.Fatalf("Migrate(first) applied = %d, want 5", n)
+	// 0001_init + 0002_rule_scope + 0003_alerts_delivered + 0004_ledger + 0005_sim + 0006_testnet_accounts
+	if n != 6 {
+		t.Fatalf("Migrate(first) applied = %d, want 6", n)
 	}
 
-	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions"} {
+	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts"} {
 		var exists bool
 		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
@@ -49,8 +49,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 5 {
-		t.Fatalf("schema_migrations count = %d, want 5", versions)
+	if versions != 6 {
+		t.Fatalf("schema_migrations count = %d, want 6", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)

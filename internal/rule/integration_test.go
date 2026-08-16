@@ -102,7 +102,7 @@ func alertRows(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ruleID int
 }
 
 // TestSeedAndEvaluatePG：全链路——迁移 0002 生效（scope/interval 列）→ Seed 幂等
-// 落 10 条 → 合成事实触发 funding 两档 + 心跳 → 告警去重 → resolved 补发。
+// 落 11 条 → 合成事实触发 funding 两档 + 心跳 → 告警去重 → resolved 补发。
 func TestSeedAndEvaluatePG(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
@@ -110,18 +110,18 @@ func TestSeedAndEvaluatePG(t *testing.T) {
 	resetTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts")
 
 	st := pgstore.New(pool)
-	if n, err := Seed(ctx, st); err != nil || n != 10 {
-		t.Fatalf("Seed = %d, %v, want 10", n, err)
+	if n, err := Seed(ctx, st); err != nil || n != 11 {
+		t.Fatalf("Seed = %d, %v, want 11", n, err)
 	}
-	if n, err := Seed(ctx, st); err != nil || n != 10 {
-		t.Fatalf("Seed(2nd) = %d, %v, want 10（幂等）", n, err)
+	if n, err := Seed(ctx, st); err != nil || n != 11 {
+		t.Fatalf("Seed(2nd) = %d, %v, want 11（幂等）", n, err)
 	}
 	rules, err := st.ListRules(ctx)
 	if err != nil {
 		t.Fatalf("ListRules: %v", err)
 	}
-	if len(rules) != 10 {
-		t.Fatalf("ListRules = %d, want 10", len(rules))
+	if len(rules) != 11 {
+		t.Fatalf("ListRules = %d, want 11", len(rules))
 	}
 	var critID int64
 	for _, r := range rules {

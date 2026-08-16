@@ -76,6 +76,7 @@
 | 触发规则（defaults.go 首版规则名） | Signal.Kind | Signal 填充 |
 |------|------|------|
 | `funding_warn` / `funding_critical` / `trx_funding_positive` | `funding_hedge` | Symbol=规则 scope 命中实体；RefPrice=现货最新价；FundingAnn=命中时年化 funding（规则 cond 的 avg_30d 口径）；SpotPrice / PerpPrice=现货 / 永续最新价；Notional=默认（capital×20%） |
+| `funding_drill`（D-041 演练档，band `avg_30d > 5 && < 15`） | `funding_hedge` | 同上。Info 级、只喂模拟盘：band 下限=跨过 SPREAD_LOW 5%、上限=低于 funding_warn 门槛 15%（不重复真实窗口档）；供演练确认→成交→8h 结算全链路。 |
 | `reverse_repo_timing` | `repo` | RefPrice=面值；ExpectedSpread=当日回购年化（manual 补录事实）；天然无方向敞口（§4 已对冲） |
 | carry 信号（白名单生息资产 sUSDe/USDe，D-021 档位） | `carry_asset` | RefPrice=资产价值；ExpectedSpread=生息年化；CarryWhite=白名单命中（驱动层信任边界，M2 接受项；白名单显式配置在 M3-b 接 testnet 前落，`ARBCN_SIM_CARRY_WHITELIST`） |
 | `defi_large_tier_change` / `ladder_trap` / `iv_opportunity` / `usdcnh_buy_line` / `collector_heartbeat` | — | **不产生模拟单**（信息类 / IV 非 M3 范围 / 遥测） |

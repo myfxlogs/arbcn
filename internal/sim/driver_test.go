@@ -59,6 +59,31 @@ func TestDriverFundingHitCreatesOrder(t *testing.T) {
 	}
 }
 
+// TestDriverFundingDrillCreatesOrder：[对抗测试锚点 D-041] funding_drill（演练档）
+// 命中 BTC@binance → sim_orders 落 funding_hedge（价差 = 命中年化，跨过 SPREAD_LOW 5%）。
+// 删除 signalMappers 中 funding_drill 映射 → 本测试必红。
+func TestDriverFundingDrillCreatesOrder(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	seedTicker(st, "binance", "BTC", 60000)
+
+	err := d.OnRuleActive(context.Background(), store.Rule{Name: "funding_drill"},
+		[]store.EntityHit{{Venue: "binance", Symbol: "BTC", Value: 7.2}})
+	if err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 {
+		t.Fatalf("orders = %d, want 1", len(st.orders))
+	}
+	o := st.orders[0]
+	if o.Kind != store.SimKindFundingHedge || o.Symbol != "BTC" || o.Venue != "binance" ||
+		o.SrcRule != "funding_drill" || o.ExpectedSpread != 7.2 {
+		t.Fatalf("order = %+v, want funding_hedge BTC@binance drill spread 7.2", o)
+	}
+	if o.Status != store.SimStatusSuggested || len(o.RiskFlags) != 0 {
+		t.Fatalf("status/flags = %q/%v, want suggested/empty", o.Status, o.RiskFlags)
+	}
+}
+
 // TestDriverFundingHitNoTickerRejected：funding 命中但无 ticker（现货/永续价缺）→
 // UNHEDGED 拒单（门禁把关，负样本落库）。
 func TestDriverFundingHitNoTickerRejected(t *testing.T) {

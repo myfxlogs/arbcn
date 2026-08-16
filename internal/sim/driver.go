@@ -31,13 +31,16 @@ type signalMapper func(ctx context.Context, d *Driver, r store.Rule, h store.Ent
 // signalMappers 规则名 → Signal 组装（04-m3-spec §3.1.1 表编码，不可变包内常量）。
 //
 // [对抗测试锚点] §9.2 S1：删除任一映射 → sim/driver_test.go
-// TestDriverFundingHitCreatesOrder（funding_warn→funding_hedge）/TestDriverRepoBuildsOrder
-// 必红。未在表中的规则（defi_large_tier_change / ladder_trap / iv_opportunity /
-// usdcnh_buy_line / collector_heartbeat / nonstable_quote_change 等）→ 不建单（宁缺毋滥），
-// 但命中标的在白名单时仍可映射 carry_asset（§9.6）。
+// TestDriverFundingHitCreatesOrder（funding_warn→funding_hedge）/
+// TestDriverFundingDrillCreatesOrder（funding_drill→funding_hedge，D-041）/
+// TestDriverRepoBuildsOrder 必红。未在表中的规则（defi_large_tier_change /
+// ladder_trap / iv_opportunity / usdcnh_buy_line / collector_heartbeat /
+// nonstable_quote_change 等）→ 不建单（宁缺毋滥），但命中标的在白名单时仍可
+// 映射 carry_asset（§9.6）。
 var signalMappers = map[string]signalMapper{
 	"funding_warn":         fundingHedgeSignal,
 	"funding_critical":     fundingHedgeSignal,
+	"funding_drill":        fundingHedgeSignal, // D-041 演练档（band [5%,15%) 由规则 Cond 限定）
 	"trx_funding_positive": fundingHedgeSignal,
 	"reverse_repo_timing":  repoSignal,
 }

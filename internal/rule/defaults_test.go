@@ -9,7 +9,7 @@ import (
 	"arbcn/internal/store"
 )
 
-// defaultByName 从 Defaults 取指定规则（§7 首版 10 条逐条测试）。
+// defaultByName 从 Defaults 取指定规则（§7 首版 11 条逐条测试）。
 func defaultByName(t *testing.T, name string) store.Rule {
 	t.Helper()
 	for _, r := range Defaults() {
@@ -30,8 +30,8 @@ func ivHistory() []fact.Fact {
 	return out
 }
 
-// TestEachDefaultFiresOnSyntheticFacts：§11① 合成 fact 序列 → 10 规则各至少一条
-// 正例（用 Defaults 原样规则，阈值按 §7 表）。
+// TestEachDefaultFiresOnSyntheticFacts：§11① 合成 fact 序列 → 11 规则各至少一条
+// 正例（用 Defaults 原样规则，阈值按 §7 表 + D-041 演练档）。
 func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 	cases := []struct {
 		rule    string
@@ -56,6 +56,15 @@ func TestEachDefaultFiresOnSyntheticFacts(t *testing.T) {
 			},
 			level:   store.LevelCritical,
 			message: "资金费率激活 触发: BTC@binance=21, ETH@binance=21.5",
+		},
+		{
+			rule: "funding_drill",
+			facts: []fact.Fact{
+				fct(fact.KindFunding, "binance", "BTC", 7.5, -time.Hour),
+				fct(fact.KindFunding, "okx", "BTC", 6.8, -2*time.Hour),
+			},
+			level:   store.LevelInfo,
+			message: "资金费率演练档 触发: BTC@binance=7.5, BTC@okx=6.8",
 		},
 		{
 			rule: "trx_funding_positive",

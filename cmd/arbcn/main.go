@@ -217,7 +217,8 @@ func startPipeline(ctx context.Context, errCh chan<- error, st store.Store, smtp
 		}
 	}
 	engine, err := rule.New(ctx, st, rule.Config{
-		OnActive: composedOnActive,
+		OnActive:  composedOnActive,
+		BootDelay: 15 * time.Second, // boot 竞态加固：给 collector 首轮 poll 落库留窗口，首评不空跑
 	})
 	if err != nil {
 		return fmt.Errorf("rule engine: %w", err)

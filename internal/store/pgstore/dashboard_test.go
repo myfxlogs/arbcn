@@ -119,6 +119,52 @@ func TestDashboardReadPath(t *testing.T) {
 	}
 }
 
+// TestLatestFactsFilters：多参数组合过滤（D# funding_drill 演练档根因）。
+// 旧实现每个 where 子句缺括号 → `$1='' OR kind=$1 AND $2='' OR ...`，AND 优先于 OR，
+// 多参数退化为"只生效其中一个条件"，fundingHedgeSignal 取到 funding 当 ticker →
+// 负价缺腿 UNHEDGED 拒单。删括号 → 本测试必红。
+func TestLatestFactsFilters(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "facts")
+
+	s := New(pool)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	facts := []fact.Fact{
+		{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Value: -0.29, Unit: fact.UnitPctAnnualized, Ts: now, Src: "test"},
+		{Kind: fact.KindTicker, Venue: "okx", Symbol: "BTC", Value: 63064.9, Unit: fact.UnitPrice, Ts: now, Src: "test"},
+		{Kind: fact.KindTicker, Venue: "binance", Symbol: "BTC", Value: 63067.7, Unit: fact.UnitPrice, Ts: now, Src: "test"},
+		{Kind: fact.KindIV, Venue: "deribit", Symbol: "BTC", Value: 35, Unit: fact.UnitPct, Ts: now, Src: "test"},
+	}
+	if err := s.InsertFacts(ctx, facts); err != nil {
+		t.Fatalf("InsertFacts: %v", err)
+	}
+
+	// fundingHedgeSignal 场景：ticker/okx/BTC 必须只返回 ticker 行。
+	got, err := s.LatestFacts(ctx, fact.KindTicker, "okx", "BTC")
+	if err != nil {
+		t.Fatalf("LatestFacts(ticker,okx,BTC): %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("LatestFacts(ticker,okx,BTC) len = %d, want 1（旧 bug 返回 funding+iv+ticker 五行）", len(got))
+	}
+	if got[0].Kind != fact.KindTicker || got[0].Venue != "okx" || got[0].Value != 63064.9 {
+		t.Errorf("LatestFacts(ticker,okx,BTC) = %+v, want ticker/okx/63064.9", got[0])
+	}
+
+	// 组合过滤对称性：venue 单独 / symbol 单独 / 三者全空（全量）。
+	if got, err = s.LatestFacts(ctx, "", "okx", ""); err != nil || len(got) != 1 || got[0].Venue != "okx" {
+		t.Fatalf("LatestFacts('',okx,'') = %+v, %v, want 1×okx", got, err)
+	}
+	if got, err = s.LatestFacts(ctx, "", "", "BTC"); err != nil || len(got) != 4 {
+		t.Fatalf("LatestFacts('','',BTC) len = %d, %v, want 4（4 条全 BTC）", len(got), err)
+	}
+	if got, err = s.LatestFacts(ctx, "", "", ""); err != nil || len(got) != 4 {
+		t.Fatalf("LatestFacts('','','') len = %d, %v, want 4", len(got), err)
+	}
+}
+
 // TestUnackedAndAckAll：未读告警数据面（M2-a §1.1/§1.2）——
 // ListUnacked 只回未读 + 降序；AckAll 单事务全清并返回确认数；重复调用幂等归零。
 func TestUnackedAndAckAll(t *testing.T) {

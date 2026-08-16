@@ -261,3 +261,23 @@
   ④ **接线**：main.go 启动即探针一次（不等 8h tick，账户区立即有数据）+ 8h tick 刷新；sim.proto 加 `GetTestnetAccounts` RPC（独立域 codegen）；SimExec.tsx 加测试网账户区（SIMULATED 标注 + 每账户卡：权益/别名/更新时间/资产明细表）。
 - **理由**：与 S3 定位一致——testnet 只做 key 隔离 + 连通验证；余额展示是连通验证的自然延伸（数据已返回，只是此前丢弃）。诚实口径优先：binance 无行情估值就不编造全量净值（宁可标"近似"）。
 - **结论**：migration 0006 + store 两方法 + probe 解析（binance 稳定币近似 / okx totalEq）+ GetTestnetAccounts RPC + main.go 启动探针持久化 + SimExec 账户区 + 对抗测试（删解析/删合计必红）。部署实测：两路真实虚拟资金返回（binance equity 10000=USDT+USDC；okx totalEq 80673.55，BTC 1/OKB 100/USDT 5000/ETH 1）；ListSourceHealth 首次 heartbeat 已登记；全量测试 + vet 绿。
+
+## D-041 模拟盘 funding_drill 演练档（业主选型 · 对话 #54/#55）（2026-08-16）
+- **背景**：业主问「模拟执行一直没有开仓机会？」——核查确认这是设计内行为（sim_orders=0、funding_warn/critical 从未激活；BTC/ETH funding avg_30d 实时 3.4–6.7% 远低于 15%/20% 门槛；SPREAD_LOW 5% + carry 白名单空 = 双重宁缺毋滥）。业主经三选一选型：**「降门槛演练档（funding ≥5%）」**——让当前真实可交易的 BTC cash-and-carry ~7% 进入模拟盘，补上部署时缺的「真实 suggested 订单端到端冒烟」（确认→成交→8h 结算）。
+- **决策**：
+  ① **新规则 `funding_drill`**（defaults.go）：`kind=funding, symbol=BTC,ETH, cond=avg_30d > 5 && avg_30d < 15, level=Info, interval=300`。band 下限 5% = 跨过 SignalToOrder SPREAD_LOW 门禁；上限 15% = funding_warn 门槛，避免与真实窗口档重复出单（drill 在 ≥15% 自动 resolve、warn 接手）。上限 15 与 funding_warn 同库同源（rules 表，改一须改二，注释明示）。不新建平行机制（沿用 S1 规则→Signal 驱动，A 原则复用）。
+  ② **映射**：`signalMappers["funding_drill"] = fundingHedgeSignal`（driver.go），复用 funding_hedge 组装（ticker 价即双腿，UNHEDGED/SPREAD_LOW/SPREAD_DRIFT 门禁全走）。
+  ③ **告警耦合接受**：armed→active 转变必写 alerts 行（引擎无静默机制）→ funding_drill 触发发 **Info 级**「资金费率演练档」告警，视为特性（"演练机会出现"提示），不打扰（Warn/Critical 保留给 15/20 档）。
+  ④ **不改 SPREAD_LOW/MinSpread**：5% 门槛保留；carry（sUSDe 4.34%）仍拒单（业主未选 carry 档，保持宁缺毋滥）。
+- **理由**：业主明确要「真实演练全链路」而非保持空态；band 设计把演练档与真实窗口档无重叠解耦（Cond 层表达，DB 规则表单一真相源）；复用现有 fundingHedgeSignal + 门禁 = 最小改动、零架构漂移。诚实边界：演练单基于真实市场公开 funding（D-037 裁决），仍是 SIMULATED 不接真实资金。
+- **结论**：defaults.go（规则+label）+ driver.go（映射）+ 对抗测试（TestDriverFundingDrillCreatesOrder 删映射必红；TestEachDefaultFiresOnSyntheticFacts 加演练档正例；integration_test Seed 10→11）+ spec §3.1.1 表。部署实测预期：okx BTC avg_30d=6.66% >5% → 重启后 funding_drill 激活 → sim 落 funding_hedge 建议单（BTC@okx），业主可确认成交走通全链路。全量测试 + vet 绿。
+
+## D-042 演练单拒单根因修复：LatestFacts SQL 优先级 bug + 引擎 boot 竞态加固（2026-08-16）
+- **背景**：D-041 funding_drill 部署后演练单**拒单**（sim_orders id=1/2 rejected，UNHEDGED，ref_price=-0.16/-0.23 负值）——本应「重启即触发建议单」，却连续两次被拒。逐层排查（xmin 事务序证实数据先落库、反汇编 + RPC 组合查询、inode 对比）最终锁定**非数据竞态、非旧二进制**：`pgstore.LatestFacts` 的 WHERE 子句**每条件缺括号**。
+- **决策**：
+  ① **根因 = SQL 运算符优先级**：`where := []string{"$1 = '' OR kind = $1", "$2 = '' OR venue = $2", "$3 = '' OR symbol = $3"}` 用 `AND` join 但**每个子句未加括号** → 实际求值为 `$1='' OR kind=$1 AND $2='' OR venue=$2 AND $3='' OR symbol=$3`，`AND` 优先级高于 `OR` → 多参数组合下退化为「只生效符号条件」（DB 实证：`ticker/okx/BTC` 返回 funding+iv+ticker 五行，首行 = funding@binance 负值）。`fundingHedgeSignal` 取 `fs[0]` → 拿到 funding 负值当 ticker 价 → `SpotPrice ≤ 0` → UNHEDGED 拒单。**修复**：每子句加括号 `($1 = '' OR kind = $1)` 等。
+  ② **对抗测试**：`TestLatestFactsFilters`（pgstore 真库）——ticker/okx/BTC 必须只返回 ticker 行 + venue 单独 / symbol 单独 / 全空对称断言；删括号必红（已实证：bug 版返回 4 行 want 1）。
+  ③ **boot 竞态加固**：`rule.Config.BootDelay`（默认 0 不改行为）——Scheduler 与 Engine 并行启动，collector 首轮 poll 落库可能晚于引擎首评，数据未到 → 规则首评空跑（funding_drill「重启即触发」不可靠）。main.go 接 15s。对抗测试 `TestRunBootDelay`（删 sleep 必红）。
+  ④ **陈旧测试修正**：`migrate_test.go` want 5→6（D-040 加 migration 0006，测试陈旧非回归）+ 表清单补 `sim_testnet_accounts`。
+- **理由**：P1 通道不变量——真相只能从可复现证据来；「旧二进制」假象来自 `stat` 不带 `-L` 读 /proc/PID/exe 返回 procfs 伪 inode，**经验教训**：对比 /proc/PID/exe 与磁盘文件须用 `stat -L`（跟随符号链接）。根因是**任何多参数 LatestFacts 调用都受影响**的潜伏缺陷（dashboard 多参查询 / simapi 确认流 / heartbeat 同步也踩），D-041 演练档首次在真实链路暴露。boot 加固为独立防御（虽非本次根因，但同属「重启即触发不可靠」家族）。
+- **结论**：dashboard.go 括号修复 + TestLatestFactsFilters 对抗测试 + BootDelay + TestRunBootDelay + migrate 陈旧断言更新。部署实测：**sim_orders id=3 = suggested（okx BTC ref 63063.30 spread 6.64% risk_flags={}）**——演练单可确认→成交→8h 结算全链路闭环；拒单 id=1/2 保留为负样本。全量测试 + vet 绿。

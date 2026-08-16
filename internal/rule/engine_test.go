@@ -212,6 +212,35 @@ func TestRunPerRuleInterval(t *testing.T) {
 	}
 }
 
+// TestRunBootDelay：BootDelay 使首评延迟（boot 竞态加固，D#）。
+// 无 BootDelay 时 runRule 立即首评；有 BootDelay 时首评被推迟至少 delay 时长。
+// [对抗测试锚点] 删除 runRule 里 `if e.bootDelay > 0` sleep → 本测试必红。
+func TestRunBootDelay(t *testing.T) {
+	st := newFakeStore([]store.Rule{
+		{Name: "r1", Kind: fact.KindFunding, Cond: "avg_30d > 15", Level: store.LevelWarn, Enabled: true},
+	}, []fact.Fact{fct(fact.KindFunding, "binance", "BTC", 16, -time.Hour)})
+	e, err := New(context.Background(), st, Config{
+		Now:       func() time.Time { return t0 },
+		BootDelay: 300 * time.Millisecond,
+		Interval:  func(store.Rule) time.Duration { return time.Hour }, // 间隔远大于 delay，排除周期误判
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	start := time.Now()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = e.Run(ctx); close(done) }()
+	// 首评至少 2 次前，评估不应发生（BootDelay 生效）。
+	waitFor(t, time.Second, func() bool { return st.queryCount() >= 1 })
+	elapsed := time.Since(start)
+	cancel()
+	<-done
+	if elapsed < 200*time.Millisecond {
+		t.Errorf("首评 elapsed = %v, want ≥ ~BootDelay（boot 竞态加固失效）", elapsed)
+	}
+}
+
 // TestActiveMsgTruncates：命中实体 >3 时消息截断。
 func TestActiveMsgTruncates(t *testing.T) {
 	matches := make([]match, 4)

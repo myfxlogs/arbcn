@@ -14,7 +14,10 @@ import (
 // LatestFacts 每 (kind, venue, symbol) 取 ts 最新一条（DISTINCT ON；
 // 空参数 = 不过滤）。结果按 kind, venue, symbol 排序（仪表盘快照友好）。
 func (s *Store) LatestFacts(ctx context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
-	where := []string{"$1 = '' OR kind = $1", "$2 = '' OR venue = $2", "$3 = '' OR symbol = $3"}
+	// 每子句必须加括号：无括号时 AND 优先级高于 OR，多参数组合（kind+venue+symbol）
+	// 会退化为 `$1='' OR kind=$1 AND $2='' OR ...`，错配数据源（fundingHedgeSignal 曾
+	// 取到 funding 当 ticker → 负价缺腿拒单）。删括号 → TestLatestFactsFilters 必红。
+	where := []string{"($1 = '' OR kind = $1)", "($2 = '' OR venue = $2)", "($3 = '' OR symbol = $3)"}
 	rows, err := s.pool.Query(ctx, `
 		SELECT DISTINCT ON (kind, venue, symbol) kind, venue, symbol, value, unit, ts, src
 		FROM facts

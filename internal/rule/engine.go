@@ -35,16 +35,21 @@ type Config struct {
 	// 在激活告警落库后同步调用；nil = 不回调。供 FactsExporter 等外部组件
 	// 在规则触发时立即刷新 facts.md 快照，及 sim.Driver 组装建议订单。
 	OnActive func(ctx context.Context, r store.Rule, entities []store.EntityHit)
+	// BootDelay 首评前等待（0 = 立即，保持原行为）。消除 boot 竞态：Scheduler 与
+	// Engine 并行启动，collector 首轮 poll 落库可能晚于引擎首评 → 数据未到 → 规则
+	// miss（如 funding_drill 重启即触发不可靠）。非 0 时首评 sleep BootDelay 再评。
+	BootDelay time.Duration
 }
 
 // Engine 是规则引擎实例。
 type Engine struct {
-	st       store.Store
-	rules    []evalRule
-	now      func() time.Time
-	ival     func(store.Rule) time.Duration
-	log      *slog.Logger
-	onActive func(context.Context, store.Rule, []store.EntityHit)
+	st        store.Store
+	rules     []evalRule
+	now       func() time.Time
+	ival      func(store.Rule) time.Duration
+	log       *slog.Logger
+	onActive  func(context.Context, store.Rule, []store.EntityHit)
+	bootDelay time.Duration
 }
 
 // evalRule 是加载时解析好的单规则评估单元。
@@ -82,7 +87,7 @@ func New(ctx context.Context, st store.Store, cfg Config) (*Engine, error) {
 			symbols:  splitSet(r.Symbol),
 		})
 	}
-	e := &Engine{st: st, rules: ev, now: cfg.Now, ival: cfg.Interval, log: cfg.Log, onActive: cfg.OnActive}
+	e := &Engine{st: st, rules: ev, now: cfg.Now, ival: cfg.Interval, log: cfg.Log, onActive: cfg.OnActive, bootDelay: cfg.BootDelay}
 	if e.now == nil {
 		e.now = time.Now
 	}
@@ -126,8 +131,16 @@ func (e *Engine) Run(ctx context.Context) error {
 
 // runRule 单规则循环：先评估（boot 即评一次），成功后按间隔等待；
 // 失败独立退避（1s..32s 封顶）；ctx 取消立即退出。
+// BootDelay（Config.BootDelay）非 0 时首评前先 sleep 一次：Scheduler 与引擎并行
+// 启动，collector 首轮 poll 落库可能晚于引擎首评（boot 竞态），数据未到会 miss
+// 首轮（funding_drill 重启即触发依赖此等待）。[对抗测试锚点] 删 BootDelay → 测试必红。
 func (e *Engine) runRule(ctx context.Context, r evalRule) {
 	attempt := 0
+	if e.bootDelay > 0 {
+		if !sleepCtx(ctx, e.bootDelay) {
+			return
+		}
+	}
 	for {
 		if _, err := e.evaluateRule(ctx, r); err != nil {
 			if ctx.Err() != nil {

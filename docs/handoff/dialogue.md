@@ -439,3 +439,17 @@
 - **修复**：`web/src/style.css` `.timeline` 加 `max-height: min(60vh, 480px)` + `overflow-y: auto`（卡片内滚动；铃铛通知中心 70vh 浮动层已覆盖全量浏览，语义不重复）。纯 CSS，无 TS/后端改动。
 - **部署**：`npm run build`（新哈希 index-BfWXmvtq.css）+ `go build -o bin/arbcn ./cmd/arbcn` + systemd restart（sudo 正常路径，新 PID 2695905）；healthz 200，托管页面引用新 CSS，托管 CSS 实测含 `max-height:min(60vh,480px)`；ListAlerts 零回归（当前 18 条）。
 - **决策号**：无新 D#（纯 UI 布局修复，未触及架构/合规/资金面）。
+
+## #55 · 2026-08-16 · 模拟执行无开仓机会核查 + 演练档选型 · 业主提问 → 决策层
+- **参与方**：业主（提问 + 选型）、Claude（决策层）
+- **议题**：模拟执行 tab 一直没有开仓机会，是否异常？
+- **核查**：设计内行为，非 bug——`sim_orders=0`、`funding_warn/funding_critical` 从未激活（trigger_states 仅 heartbeat/defi 两条且已 resolved）；实时 funding avg_30d：okx BTC 6.66% / binance BTC 4.47% / ETH 3.3–3.9%，全远低于 15%/20% 门槛；SPREAD_LOW 5% + carry 白名单空 = 双重宁缺毋滥。模拟执行是「资金费率窗口猎人」，只在 ≥15% 高水位出单（牛市短空费高企时），连真实可交易的 BTC cash-and-carry ~7% 都在门槛下。
+- **决策**：业主三选一选型「**降门槛演练档（funding ≥5%）**」→ D-041：新规则 `funding_drill`（band `avg_30d > 5 && < 15`，Info 级）→ 复用 fundingHedgeSignal 映射；让真实市场 funding 6.6%（BTC@okx）进模拟盘，补真实端到端冒烟（确认→成交→8h 结算）。
+- **结论**：D-041 落定（defaults/driver/对抗测试/spec 表），全量测试 + vet 绿；部署后预期 okx BTC 触发演练单，业主可确认成交走通全链路。
+
+## #56 · 2026-08-16 · 演练单连续拒单根因排查 + 修复 · 决策层（对话 #54/#55 后续）
+- **参与方**：Claude（决策层 + 施工）、业主（选型授权"重触发 + 代码加固"）
+- **议题**：D-041 funding_drill 部署后演练单**拒单**（sim_orders id=1/2 rejected，UNHEDGED，ref_price=-0.16/-0.23 负值），本应「重启即触发建议单」。
+- **排查链**：① xmin 事务序证实 tickers 在订单前已落库（排除数据竞态）；② 反汇编 + RPC 组合查询暴露过滤器错乱；③ inode 对比一度误判"运行旧二进制"（`stat` 不带 `-L` 返回 procfs 伪 inode，practices #16）；④ 逐字段 RPC 测试（kind 单独有效 / venue、symbol 单独失效）→ 锁定 **`pgstore.LatestFacts` SQL 运算符优先级 bug**（where 子句缺括号，DB 直查复现：`ticker/okx/BTC` 返回 5 行首行 funding@binance 负值）。
+- **决策**：D-042——① 每 where 子句加括号 `($1='' OR kind=$1)` + 对抗测试 TestLatestFactsFilters（删括号必红）；② 引擎 boot 竞态加固 `rule.Config.BootDelay`（Scheduler 与 Engine 并行启动，collector 首轮 poll 可能晚于引擎首评 → 首评空跑；main.go 接 15s）+ 对抗测试 TestRunBootDelay（删 sleep 必红）；③ 修正 migrate_test 陈旧断言（want 5→6，D-040 加 migration 0006）。
+- **结论**：全量测试 + vet 绿；部署实测 **sim_orders id=3 = suggested（okx BTC ref 63063.30 spread 6.64% risk_flags={}）**——演练单可确认→成交→8h 结算全链路闭环；拒单 id=1/2 保留为负样本（拒单不是失败）。教训入 practices #15（SQL where 子句括号）+ #16（stat -L）。
