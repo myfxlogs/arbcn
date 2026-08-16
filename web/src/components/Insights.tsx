@@ -30,7 +30,8 @@ export function Insights({ insights }: { insights: Insight[] }) {
       {insights.length === 0 ? (
         <p className="empty">暂无建议（系统运行正常 / 数据不足）</p>
       ) : (
-        <ul className="insights">
+        /* D-052：建议多时高度封顶卡内滚动，不挤占下方卡片 */
+        <ul className="insights scroll-cap">
           {insights.map((it) => (
             <li key={it.id} className="insight-row">
               <div className="insight-head">

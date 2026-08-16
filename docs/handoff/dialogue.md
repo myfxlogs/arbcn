@@ -142,3 +142,17 @@
 - **真机视口实测（无头 chromium CDP，非截图推断）**：375px 首次抓出**两个真 bug**——① `.grid` 860px 折叠 `1fr` 隐式最小=auto，宽矩阵 min-content 撑破视口（docScrollWidth 594→修后 375）；② 台账 480px 规则 `.ledger-note{1/-1}` 特异性 (0,1,0) 不敌基础 `.ledger-form .ledger-note{span 2}` (0,2,0)，span 2 在单栏网格撑出隐式第二列溢出（docScrollWidth 511→修后 375）。修复后三档视口全过：**375px** 单栏无溢出 + 44px 触摸目标 + 台账单栏 325px + 输入 16px；**768px** 单栏网格无溢出 + 按钮不被 600px 规则污染（31px）；**1280px** 双栏 3fr/2fr 无溢出 + 14px 字号（移动规则零污染）。
 - **验证/部署**：全量 go test（含真库 DSN）/vet/npm build/tsc 绿；锚点恒绿（纯 CSS 未动 TSX）；构建 → SIGKILL 部署 → healthz ok + inode 匹配（21244393→21244395→21244397，三次构建两次 bug 修复各重部署一次）+ served bundle == 新 dist（index-CRNqUktn.js / index-Cjd-E_-V.css）。（practices #19 闭环）
 - **决策号**：D-051（移动适配 + 两实测 bug 修复）；教训入 practices #27（grid `1fr` 隐式 auto 最小撑破视口 + 媒体查询特异性须 ≥ 基础规则 + 375px 实测替代推断）。
+
+## #70 · 2026-08-16 · 长卡片全局高度协调 + 确认下单提上去（D-052）· 业主多问齐发 → 决策层核实 + 施工
+- **参与方**：业主（五连问）、Claude（决策层 + 核实 + 施工 + 真机视口实测）
+- **议题**：① 市场结构经验库「待复核」是否自动复核？② 经验库条目会分页还是无限延伸？③ 确认下单需提上去；④ 机会面板需分页，否则向下无限拉伸、影响后面卡片阅读高度；⑤ 整个页面多个长卡片，需全局阅读便利协调。
+- **核实（Q1 待复核）**：**永不自动复核**——`pgstore.UpsertKnowledgeEntry` 的 INSERT 不写 `validated_at`（保持 NULL），`ON CONFLICT (signature) DO NOTHING` 连人工编辑都保留；全库无设置路径。复核 = 人工 D# 落盘（practices #20/#23 同源：「待复核」提示给决策层裁决，系统永不自动判定）。
+- **决策（D-052）**：
+  ① **统一高度封顶**：新 `.scroll-cap`（max-height:min(68vh,520px)+overflow-y:auto，600px 内降 min(52vh,360px)）接入机会面板/经验库/进化建议三处列表——**用「卡内滚动」代替「分页」**（实时监控面板卡数 <20，分页引入翻页态丢失跨页一览，滚动封顶以更少交互达成同一目标；翻页态待条目数预期百级才值得做）。
+  ② **矩阵表高度封顶护栏**：`.card[aria-labelledby="matrix-title"] .table-scroll` cap 440px（当前各表 <440 不生效，是未来加币种防延伸的护栏）。
+  ③ **确认下单提上去**：DOM 重排 矩阵→**确认下单**→机会→经验库→建议→触发器（原矩阵→经验库→机会→确认下单→…）。业主观察实为移动单列序（机会面板 3092px 把确认下单顶到底）；重排后桌面 = 确认下单右上1（首行）、移动 = 第 2 位。
+  ④ **「分页还是无限延伸」答案**：均不——有界 + 卡内滚动，永不无限延伸。
+- **施工**：style.css（.scroll-cap + 矩阵护栏 + 600px 降级）+ Opportunity.tsx（.opp-cards 接 scroll-cap + 卡数标题）+ KnowledgeBoard.tsx（.insights 接 scroll-cap）+ Insights.tsx（.insights 接 scroll-cap）+ OverviewPage.tsx（DOM 重排 + 布局注释更新）。
+- **真机视口实测（CDP 1280/375）**：桌面 docH **4781→2305**、机会面板 **3092→618**、确认下单 y121 首行、6 卡有序（矩阵|确认 / 机会|经验库 / 建议|触发器）各排对齐；移动 375 docSW==innerW 无横向溢出、确认下单第 2 位（y1229）、机会面板 450。矩阵仍 875px = 4 个紧凑分节累加（funding 134 + defi 202 + IV 97 + repo 202），无单节超 cap，业主指定全展开的主数据面保留。
+- **验证/部署**：全量 go test（含锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable，均 PASS）/vet/npm build/tsc 绿；构建 → SIGKILL 部署（arbcn-monitor.service，restart counter 8）→ healthz ok + inode 匹配（21244415→21244416）+ served bundle == 新 dist（index-DQsLtvVN.js / index-C170oVwK.css）。（practices #19 闭环）
+- **决策号**：D-052（高度协调 + 提上去）；教训入 practices #28（长列表用高度封顶卡内滚动防无限延伸 + DOM 序 = 布局序，重排即提权 + 移动单列序是业主观察视图）。

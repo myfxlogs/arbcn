@@ -45,12 +45,15 @@ export function Opportunity({ cards }: { cards: OpportunityCard[] }) {
       <h2 id="opp-title">机会面板</h2>
 
       {/* D-046 机会实算卡：确定性算账（投运后无需 Claude 在场）。只读证据表面——
-          卡只说「这笔账划不划算」，执行门禁仍由规则引擎把关。 */}
-      <h3>机会实算卡（确定性算账 · 扣摩擦净收益）</h3>
+          卡只说「这笔账划不划算」，执行门禁仍由规则引擎把关。
+          D-052：卡多时高度封顶（scroll-cap）卡内滚动，不向下无限拉伸。 */}
+      <h3>
+        机会实算卡（确定性算账 · 扣摩擦净收益 · 共 {cards.length} 张）
+      </h3>
       {cards.length === 0 ? (
         <p className="empty">暂无实算卡（数据不足不产卡）</p>
       ) : (
-        <ul className="opp-cards">
+        <ul className="opp-cards scroll-cap">
           {cards.map((c) => (
             <li key={`${c.kind}:${c.venue}:${c.symbol}`} className="opp-card">
               <div className="opp-card-head">

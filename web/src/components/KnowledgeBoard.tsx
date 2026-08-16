@@ -76,7 +76,8 @@ export function KnowledgeBoard({
         <p className="empty">暂无经验条目（等待吸收）</p>
       ) : (
         <Collapse title={`已核实模式（${entries.length} 条）`} defaultOpen={defaultOpen}>
-          <ul className="insights">
+          {/* D-052：条目多时高度封顶卡内滚动，不无限延伸 */}
+          <ul className="insights scroll-cap">
             {entries.map((e) => (
               <li key={e.signature} className="insight-row">
                 <div className="insight-head">
