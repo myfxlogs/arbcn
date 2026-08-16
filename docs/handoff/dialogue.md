@@ -202,3 +202,18 @@
 - **施工**：ConfirmPanel.tsx 重写（ConfirmRow → `<li>` 单行摘要 flex，.pending-list；header 保留 SimulatedBadge + 刷新）+ style.css 新增 .pending-list/.pending-summary/.dir-tag/.spread（可换行不横向溢出）。纯前端零门禁改动。
 - **验证**：tsc/npm build 绿（新 hash index-BFYvO4mt.js）+ 全量 go test 绿（含锚点 TestSimExecBadgeRenderable PASS）。部署随 D-056 对话 #73 一并闭环。
 - **决策号**：—（业主 UI 删减，非方向级；对话 #73 D-056 commit 一并交付）。
+
+## #75 · 2026-08-16 · D-056 测试事故：go test 误清真实库 sim 账本 → 根因双修 + 复位 · 事故报告 → 决策层修复 + 业主确认清理
+- **参与方**：Claude（事故发现 + 根因 + 修复 + 请求确认）、业主（确认清理复位）
+- **议题**：D-056 收工核验发现真实 arbcn 库 sim 账本被污染（capital=0 / cash=123.45，真实 drill 单 1-5 消失）。
+- **事故根因**：上会话 `go test` 的 `ARBCN_TEST_PG_DSN` 误指向真实库 `arbcn`（应为专用测试库 `arbcn_test`）；pgstore 测试 `resetTables` 对 sim 四表 `TRUNCATE CASCADE` → 清掉真实 drill 单 1-5（不可恢复）+ 遗留测试行：订单 16/17（src_rule 空、sim_local，来自 TestRejectSimOrderAppendsFlag/TestAcceptSimOrderAtomicity）、流水 7-13（open ±6e8 = 10000×60000 + funding 123.45 + close 0，TestCloseSimOrder 数据）、sim_account `capital=0 / cash=123.45` 卡死 0（applyCashFlow 兜底 upsert 建行后 InitSimAccount `ON CONFLICT DO NOTHING` 永不补本金，真实设计缺口）。订单 18（funding_drill @ binance）为真实演练拒单，保留。
+- **根因双修（代码）**：① `testPool` 安全闸（pgstore_test.go）：`ARBCN_TEST_PG_DSN` 的 dbname 不含 "test" → `t.Fatalf` 拒绝执行（migrate_test 的 DROP 同受保护；负测：DSN 指向 arbcn 立即拒绝且零触碰）；② `InitSimAccount` 补正（sim_cash.go）：`ON CONFLICT DO UPDATE SET capital = CASE WHEN capital=0 THEN 配置本金 ELSE 保留 END` + 仅当无 `capital_in` 流水才入金（幂等，重启不重复入金）；对抗测试 `TestInitSimAccountRepairsUnfunded`（删补正/删入金必红）。
+- **业主确认**：AskUserQuestion「确认清理（推荐）」——删除测试残留（sim_cash_flow 7 条 / sim_orders 16、17 / sim_positions 0 / sim_account 1 行），保留订单 18，重启重新入金。
+- **清理 + 复位 + 部署闭环**：事务内删除（before 7 flows/3 orders/1 account → after 0/1/0）→ 旧二进制重启 seed 100000/100000 + 1 capital_in → 换 Fix-2 二进制（inode 21244553，mv 原子替换避开 text-busy）重启幂等（capital_in 仍 1 条）+ GetSimAccount RPC 双恒等式对平（equity=100000）+ served bundle == dist 不变 + healthz ok。
+- **决策号**：D-057（事故修复，decisions.md）。
+
+## #76 · 2026-08-16 · 确认：只用 binance/okx 报价接口，无任何交易接口（含模拟）· 业主提问 → 决策层核实
+- **参与方**：业主（提问）、Claude（代码核实）
+- **议题**：「我们只是用了 binance 和 okx 的报价接口，并不使用他们的交易接口？模拟交易接口都没用，是吗？」
+- **核实结论（逐层）**：① **真实交易所 = 纯报价**：internal/quote 仅 WS 公共行情（binance `wss://fstream.binancefuture.com/stream?...@miniTicker`、okx `wss://ws.okx.com:8443/ws/v5/public`）+ facts REST ticker/funding（公共端点）；全库 grep 无任何 `x-api-key/secret/signature` 调真实交易 API（D-010 零密钥）；② **模拟盘订单生命周期 = 纯本地 PostgreSQL**（sim_orders/sim_positions/sim_cash_flow），面板点「确认成交」走 AcceptSimOrder/CloseSimOrder 纯 DB 事务，**不调用任何交易所模拟下单接口**；③ **唯一例外 simtestnet 探针（D-040）**：连 `https://testnet.binancefuture.com` + okx demo，函数仅 `probeBinance/parseBinanceBalance`、`probeOKX/parseOKXBalance`（**只读余额 GET**，无 create_order/close_position），用 testnet/demo 密钥（arbcn-sim.env）非真实资金。
+- **决策号**：—（事实核实，无方向改动；§1 定位「人工下单、零执行」再确认）。

@@ -102,10 +102,12 @@ func (s *Store) SettleSimPositionFunding(ctx context.Context, id, orderID int64,
 }
 
 // InitSimAccount 首启入金（D-056）：无 sim_account 行则插入（id=1, capital=capital,
-// cash=0）+ capital_in 现金流 +capital（→ cash=capital）；已存在则幂等不动
-// （重启不重置 cash，跨重启资金持久）。capital ≤ 0 拒绝。
+// cash=0）+ capital_in 现金流 +capital（→ cash=capital）；已存在则幂等——不重复入金
+// （重启不重置 cash，跨重启资金持久）。补正：账户行已被 applyCashFlow 以 capital=0
+// 兜底建行（先于入金）时，capital 修正为配置本金；仅当尚无 capital_in 流水时补入金。
+// capital ≤ 0 拒绝。
 // [对抗测试锚点 D-056] 单事务——账户行与 capital_in 流水原子（任一步失败整体回滚，
-// 不留「有账户没流水」的半账；重启后首启失败可安全重试）。
+// 不留「有账户没流水」的半账；重启后首启失败可安全重试）。删补正/删入金 → 测试必红。
 func (s *Store) InitSimAccount(ctx context.Context, capital float64) error {
 	if capital <= 0 {
 		return errors.New("pgstore: init sim account: capital must be > 0")
@@ -116,20 +118,29 @@ func (s *Store) InitSimAccount(ctx context.Context, capital float64) error {
 	}
 	defer func() { _ = tx.Rollback(ctx) }() // 成功后 Rollback 是 no-op
 
+	// 建行或补正：applyCashFlow 的 upsert 可能先于入金以 capital=0 兜底建行，此处把
+	// capital=0 修正为配置本金（已入金的 non-zero capital 不被覆盖，不篡改账本）。
 	var id int
-	err = tx.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO sim_account (id, capital, cash)
 		VALUES (1, $1, 0)
-		ON CONFLICT (id) DO NOTHING
-		RETURNING id`, capital).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil // 已存在：幂等不动（重启不重置 cash）
-	}
-	if err != nil {
+		ON CONFLICT (id) DO UPDATE
+			SET capital = CASE WHEN sim_account.capital = 0 THEN EXCLUDED.capital ELSE sim_account.capital END,
+			    updated_at = now()
+		RETURNING id`, capital).Scan(&id); err != nil {
 		return fmt.Errorf("pgstore: init sim account: %w", err)
 	}
-	if err := applyCashFlow(ctx, tx, 0, 0, store.CashKindCapitalIn, capital); err != nil {
-		return fmt.Errorf("pgstore: init sim account: capital_in: %w", err)
+	// 幂等：已有 capital_in 流水（order_id IS NULL）即视为已入金，重启不重复入金。
+	var funded bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM sim_cash_flow WHERE kind = $1 AND order_id IS NULL)`,
+		store.CashKindCapitalIn).Scan(&funded); err != nil {
+		return fmt.Errorf("pgstore: init sim account: funded check: %w", err)
+	}
+	if !funded {
+		if err := applyCashFlow(ctx, tx, 0, 0, store.CashKindCapitalIn, capital); err != nil {
+			return fmt.Errorf("pgstore: init sim account: capital_in: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("pgstore: init sim account: commit: %w", err)

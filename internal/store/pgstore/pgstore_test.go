@@ -5,9 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"arbcn/internal/fact"
@@ -24,6 +26,15 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	dsn := os.Getenv("ARBCN_TEST_PG_DSN")
 	if dsn == "" {
 		t.Skip("ARBCN_TEST_PG_DSN 未设置，跳过需真库的测试")
+	}
+	// 安全闸（D-056 事故教训）：测试会对目标库 TRUNCATE/DROP，绝不允许指向非测试库。
+	// ARBCN_TEST_PG_DSN 误配到生产库会把真实 sim 账本清空——dbname 必须含 "test"。
+	cfg, err := pgx.ParseConfig(dsn)
+	if err != nil {
+		t.Fatalf("parse ARBCN_TEST_PG_DSN: %v", err)
+	}
+	if !strings.Contains(cfg.Database, "test") {
+		t.Fatalf("ARBCN_TEST_PG_DSN 指向非测试库 %q：测试会 TRUNCATE/DROP 该库，拒绝执行", cfg.Database)
 	}
 	pool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {

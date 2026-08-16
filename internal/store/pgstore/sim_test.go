@@ -538,6 +538,62 @@ func TestRejectSimOrderAppendsFlag(t *testing.T) {
 	}
 }
 
+// TestInitSimAccountRepairsUnfunded（D-056 事故教训）：账户行已被 applyCashFlow 以
+// capital=0 兜底建行（先于入金，cash 已有流水累加）→ InitSimAccount 必须补正资本，
+// 不能把资本永久卡在 0；第二次调用幂等（不重复入金）。
+// [对抗测试锚点] 删 InitSimAccount 的 capital=0 补正（CASE 分支）→ 资本断言必红；
+// 删入金（funded 分支）→ cash 断言必红。
+func TestInitSimAccountRepairsUnfunded(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "sim_account", "sim_cash_flow")
+
+	s := New(pool)
+	// 模拟 applyCashFlow 先于入金建行（D-056 兜底 upsert：capital=0，cash 从 0 起加）。
+	if err := applyCashFlow(ctx, pool, 13, 7, store.CashKindOpen, 600000000); err != nil {
+		t.Fatalf("applyCashFlow(open): %v", err)
+	}
+	acct, err := s.GetSimAccount(ctx)
+	if err != nil || acct.Capital != 0 || acct.Cash != 600000000 {
+		t.Fatalf("pre-seed account = %+v/%v, want capital=0 cash=600000000", acct, err)
+	}
+
+	// 首启入金：补正 capital + 补 capital_in（cash = 既有 600000000 + 入金 100000）。
+	if err := s.InitSimAccount(ctx, 100000); err != nil {
+		t.Fatalf("InitSimAccount: %v", err)
+	}
+	acct, err = s.GetSimAccount(ctx)
+	if err != nil || acct.Capital != 100000 {
+		t.Fatalf("account after init = %+v/%v, want capital=100000（补正）", acct, err)
+	}
+	if acct.Cash != 600100000 {
+		t.Fatalf("cash after init = %v, want 600100000", acct.Cash)
+	}
+
+	// 重启幂等：不重复入金，cash 不变。
+	if err := s.InitSimAccount(ctx, 100000); err != nil {
+		t.Fatalf("InitSimAccount#2: %v", err)
+	}
+	acct, _ = s.GetSimAccount(ctx)
+	if acct.Cash != 600100000 {
+		t.Fatalf("cash after 2nd init = %v, want 600100000（幂等）", acct.Cash)
+	}
+	flows, err := s.ListCashFlows(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("ListCashFlows: %v", err)
+	}
+	capIn := 0
+	for _, f := range flows {
+		if f.Kind == store.CashKindCapitalIn {
+			capIn++
+		}
+	}
+	if capIn != 1 {
+		t.Fatalf("capital_in flows = %d, want 1", capIn)
+	}
+}
+
 // simRiskWhitelist 与 sim 包常量对齐的测试局部别名（pgstore 不 import internal/sim，
 // 避免循环依赖；值域以 04-m3-spec §1.1 为准）。
 const simRiskWhitelist = "WHITELIST"
