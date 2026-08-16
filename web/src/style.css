@@ -96,6 +96,15 @@ main {
 .row > .card {
   margin-bottom: 16px; /* 行内卡片下边距由后续内容承担，双栏底部对齐 */
 }
+.row > .card:first-child {
+  grid-row: span 2; /* 机会面板左列跨两行，右列 Alerts+Confirm 与之同行（对话 #60） */
+}
+.row-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
 @media (max-width: 860px) {
   .row {
     grid-template-columns: 1fr;

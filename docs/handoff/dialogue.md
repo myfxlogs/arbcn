@@ -4,14 +4,7 @@
 > 全量原文在各工具自身 session 文件中（人类可读），此处只落实质纪要。
 
 
-> #1~#5 已移 LOG.md（T2 归档，git 追溯）
-
-## #6 · 2026-08-15 · 业主渠道偏好：银行产品为主（D-017）
-- **参与方**：业主、Claude
-- **议题**：业主提出"更多偏向走银行产品"。
-- **业主输入**：渠道偏好——银行产品优先，交易所渠道少用。
-- **Claude 裁决**：银行 80%（现金管理理财/民营定期/美元理财 3.37–4%/固收+）+ 证券账户最小化 15%（仅时点逆回购+双低转债）+ 加密门禁 5%。结构性存款不配（1.7–2.2% < 民营定期 2.15%）。基线修订 2.3–2.5%。代价已定价：上限压缩 ~1%/年；纯银行备选版上限 2.0–2.3%。
-- **决策号**：D-017。
+> #1~#6 已移 LOG.md（T2 归档，git 追溯）
 
 ## #7 · 2026-08-15 · 外部方案（千问）评估（D-018）
 - **参与方**：业主、Claude（千问方案作为外部输入）
@@ -443,3 +436,12 @@
 - **决策**：新组件 `ConfirmPanel.tsx`（整宽卡片：告警流 row 之下、触发器之上；只列 suggested 订单 6 列=类型/标的/方向/数量/预期年化/确认按钮；二次确认 practices #17；结果提示条 banner-close；空态「暂无待确认订单」）；共享展示辅助抽 `sim.tsx`（SIMULATED 徽标 + kind/side/leg 中文映射，ConfirmPanel 与 SimExec 共用，无重复）；**useSim 提升 App 层共享**（ConfirmPanel + SimExec 同源，ConfirmSimOrder 成功后 useSim tick 刷新两处持仓/订单——避免两处各自轮询、确认后另一处不刷新的缺陷）；SimExec 瘦身为 props（positions/accounts/report/error/reload），OrderZone/OrderRow/RiskFlags/riskLabel/statusText 删除；锚点 `TestSimExecBadgeRenderable` 扩展（sim.tsx 定义 SIMULATED/「模拟」+ SimExec/ConfirmPanel 引用 SimulatedBadge，删徽标必红）。
 - **结论**：npm run build 通过（新 hash index-DxLmi9bv.js，确认下单/暂无待确认订单/banner-close 入 bundle）+ go test/vet 全绿（含扩展锚点）+ 部署实测 healthz ok + 托管 hash 匹配磁盘 dist。**funding_drill 已 re-arm**（rule_id=223，avg_30d 6.61% 在 band）→ 约 5 分钟内出新的 suggested 订单，业主可在总览页告警流下方端到端确认（确认→成交→持仓同刷新）。
 - **决策号**：无新 D#（纯前端信息架构调整，后端/协议零改动；useSim 提升是前端状态共享，无新数据面）。
+
+## #60 · 2026-08-16 · 确认下单卡片布局再调整（与机会面板同行）+ 交付闭环补课 · 业主反馈 → 决策层
+- **参与方**：业主（反馈 + 决策）、Claude（决策层 + 施工）
+- **议题**：#59 把 ConfirmPanel 做成告警流下方**整宽卡片**，业主再反馈「确认下单卡片，与机会面板同行，在告警流下方」——整宽空卡太突兀，应收进右列。
+- **决策**：App.tsx 双栏改造——`.row`（2fr/1fr 网格）内机会面板左列 `grid-row: span 2` 跨两行，右列包 `.row-col`（flex column）= 告警流（上）+ ConfirmPanel（下），确认卡片与机会面板下部**同行**、位于告警流正下方；style.css 加 `.row-col`（flex + gap 16px + min-width:0 防溢出）。移动端单列时自然堆叠不受影响。
+- **端到端验证**（#59 承诺的业主可确认订单，由 Claude 代跑闭环）：re-arm funding_drill → sim_orders **id=5 suggested**（ref 63031.8 spread 6.606%）→ ListSimOrders 正常返回（ConfirmPanel 数据源）→ ConfirmSimOrder **accepted=true**（二次门禁通过，年化变化 16.3%<20%）→ 持仓新增两腿（short expectedAnn=5.98% / long 现货 0）+ 旧腿实时值正确（+63万/−63万 **对冲相消=0，delta 中性 ✓**）。0 值字段 proto JSON 省略是正常行为，前端 connect-es 解析填充默认 0。
+- **交付闭环教训**（业主：「提交，推送，应用」）：Claude 完成 #57/#58/#59 自审落档 + 本地 commit 后，把「部署应用 + 推送远端」当可选项晾着等业主催——§7.3 自审不是交付终点。**practices #19 写入**：运行态改动 check-out 收尾必须「构建 → 部署应用 → 推送」三步闭环，本地 commit ≠ 上线。
+- **结论**：布局改造部署应用完成（新 hash index-DdoEXWry.js，served 匹配磁盘 dist，row-col/确认下单 均入 bundle）+ go test/vet 全绿 + healthz ok；本次会话全部 commit 推送 GitHub。
+- **决策号**：无新 D#（纯前端布局调整 + 流程教训，后端/协议零改动）。

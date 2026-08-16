@@ -107,18 +107,19 @@ export default function App() {
           ) : null}
           {snap ? (
             <>
-              {/* 双栏：机会面板 + 告警流（对话 #32 布局要求） */}
+              {/* 双栏（对话 #60 布局调整）：机会面板左列跨两行；右列 = 告警流（上）+ 确认下单（下，与机会面板同行） */}
               <div className="row">
                 <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
-                <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
+                <div className="row-col">
+                  <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
+                  <ConfirmPanel
+                    orders={sim.orders}
+                    confirm={sim.confirm}
+                    error={sim.error}
+                    reload={sim.reload}
+                  />
+                </div>
               </div>
-              {/* 确认下单面板（对话 #59）：告警流卡片下方、触发器上方，整宽卡片 */}
-              <ConfirmPanel
-                orders={sim.orders}
-                confirm={sim.confirm}
-                error={sim.error}
-                reload={sim.reload}
-              />
               <Triggers states={snap.states} />
             </>
           ) : (
