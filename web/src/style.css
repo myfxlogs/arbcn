@@ -1003,6 +1003,12 @@ button.btn-close:disabled {
 .gate-bg {
   color: var(--ink-2, #555);
 }
+/* 回放证伪门禁卡内每策略分区（D-065 修订：三策略 kind 各自判据分块，上沿分隔）。 */
+.card-inner {
+  border-top: 1px solid var(--border, #ddd);
+  margin-top: 10px;
+  padding-top: 10px;
+}
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;

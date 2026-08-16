@@ -3,6 +3,7 @@ package sim
 import (
 	"math"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -248,4 +249,70 @@ func waitFor(t *testing.T, d time.Duration, cond func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition not met in time")
+}
+
+// —— D-065 修订：回放证伪门禁（falsified/watch → REPLAY_VETO 拒单；pass/no_window 放行）——
+
+// TestSignalToOrderRejectsReplayFalsified：[对抗测试锚点 D-065] 回放证伪（结构性否定，
+// practices #38）→ 拒单。删除 SignalToOrder 中 replay 拒单分支 → 本测试必红。
+func TestSignalToOrderRejectsReplayFalsified(t *testing.T) {
+	sig := validSignal()
+	sig.ReplayVerdict = ReplayFalsified
+	sig.ReplayNote = "回放证伪：1 个 ≥15% 窗口均值净年化 -20.50% ≤ 0（短窗口覆盖不了摩擦）"
+	o := SignalToOrder(sig, DefaultConfig())
+	if o.Status != store.SimStatusRejected || !hasFlag(o, RiskReplay) {
+		t.Fatalf("status/flags = %q/%v, want rejected/REPLAY_VETO", o.Status, o.RiskFlags)
+	}
+	if !strings.Contains(o.Note, "回放证伪") {
+		t.Fatalf("note = %q, want 含回放证伪自述", o.Note)
+	}
+}
+
+// TestSignalToOrderRejectsReplayWatch：[对抗测试锚点 D-065] 回放观察（净 ∈(0,4.5] 不抵
+// 稳定币基档，宁缺毋滥 D-019）→ 拒单。删除 replay 拒单分支 → 本测试必红。
+func TestSignalToOrderRejectsReplayWatch(t *testing.T) {
+	sig := validSignal()
+	sig.ReplayVerdict = ReplayWatch
+	sig.ReplayNote = "回放观察：1 个 ≥15% 窗口均值净年化 1.51% ∈ (0, 4.5%]"
+	o := SignalToOrder(sig, DefaultConfig())
+	if o.Status != store.SimStatusRejected || !hasFlag(o, RiskReplay) {
+		t.Fatalf("status/flags = %q/%v, want rejected/REPLAY_VETO", o.Status, o.RiskFlags)
+	}
+}
+
+// TestSignalToOrderAllowsReplayPass：回放通过（证伪未发生，非收益预测）→ 放行，
+// 不得误拒（replay 门禁只做证伪性否决）。
+func TestSignalToOrderAllowsReplayPass(t *testing.T) {
+	sig := validSignal()
+	sig.ReplayVerdict = ReplayPass
+	sig.ReplayNote = "回放通过：4 个 ≥15% 窗口均值净年化 16.78% > 4.5%"
+	o := SignalToOrder(sig, DefaultConfig())
+	if o.Status != store.SimStatusSuggested || hasFlag(o, RiskReplay) {
+		t.Fatalf("status/flags = %q/%v, want suggested/无 REPLAY_VETO", o.Status, o.RiskFlags)
+	}
+}
+
+// TestSignalToOrderAllowsReplayNoWindow：环境无窗口（D-061 ② 门禁休眠 = 正确输出）→
+// 放行 + note 保留（不误判成 falsified）。
+func TestSignalToOrderAllowsReplayNoWindow(t *testing.T) {
+	sig := validSignal()
+	sig.ReplayVerdict = ReplayNoWindow
+	sig.ReplayNote = "历史 0 份读数均 < 15%：无高费率窗口档（D-061 ②）"
+	o := SignalToOrder(sig, DefaultConfig())
+	if o.Status != store.SimStatusSuggested || hasFlag(o, RiskReplay) {
+		t.Fatalf("status/flags = %q/%v, want suggested/无 REPLAY_VETO", o.Status, o.RiskFlags)
+	}
+}
+
+// TestSignalToOrderReplayEmptyNoteFailClosed：falsified 判据缺自述 note → 仍拒单
+// （fail-closed，不因 note 缺失而静默放行；note 缺失 = Driver 填判据层的 bug）。
+// [对抗测试锚点] 删除 fail-closed 守卫 → 本测试必红。
+func TestSignalToOrderReplayEmptyNoteFailClosed(t *testing.T) {
+	sig := validSignal()
+	sig.ReplayVerdict = ReplayFalsified
+	sig.ReplayNote = "" // 模拟 Driver 未填 note（不应发生）
+	o := SignalToOrder(sig, DefaultConfig())
+	if o.Status != store.SimStatusRejected || !hasFlag(o, RiskReplay) || !strings.Contains(o.Note, "fail-closed") {
+		t.Fatalf("status/flags/note = %q/%v/%q, want rejected/REPLAY_VETO/fail-closed 兜底", o.Status, o.RiskFlags, o.Note)
+	}
 }

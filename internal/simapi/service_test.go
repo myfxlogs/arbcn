@@ -1342,3 +1342,88 @@ func TestGetPerformanceReport(t *testing.T) {
 		}
 	})
 }
+
+// —— D-065 修订：GetReplayState 回放证伪门禁证据面（只读）——
+
+// kindByName 取响应中指定策略 kind 的 ReplayStateKind（测试辅助）。
+func kindByName(t *testing.T, resp *simv1.GetReplayStateResponse, kind string) *simv1.ReplayStateKind {
+	t.Helper()
+	for _, k := range resp.Kinds {
+		if k.Kind == kind {
+			return k
+		}
+	}
+	t.Fatalf("response 缺 kind %s（resp=%+v）", kind, resp.Kinds)
+	return nil
+}
+
+// TestGetReplayState_EmptyNoWindow：空数据 → 各 kind no_window（D-061 ②，不编造），
+// 三 kind 齐全、history_days 正确。
+func TestGetReplayState_EmptyNoWindow(t *testing.T) {
+	ctx := context.Background()
+	resp, err := service(newFakeStore(), sim.DefaultConfig()).GetReplayState(ctx, connect.NewRequest(&simv1.GetReplayStateRequest{}))
+	if err != nil {
+		t.Fatalf("GetReplayState: %v", err)
+	}
+	if len(resp.Msg.Kinds) != 3 {
+		t.Fatalf("kinds = %d, want 3（funding_hedge/carry_asset/repo）", len(resp.Msg.Kinds))
+	}
+	if resp.Msg.HistoryDays != int32(sim.ReplayHistoryDays) {
+		t.Errorf("history_days = %d, want %d", resp.Msg.HistoryDays, int32(sim.ReplayHistoryDays))
+	}
+	for _, k := range resp.Msg.Kinds {
+		if k.Verdict != sim.ReplayNoWindow || k.TotalSamples != 0 {
+			t.Errorf("kind %s verdict/samples = %q/%d, want no_window/0", k.Kind, k.Verdict, k.TotalSamples)
+		}
+		if k.BestNetAnn != 0 || k.WorstNetAnn != 0 {
+			t.Errorf("kind %s best/worst = %v/%v, want 0（无窗口归零，非 ±Inf）", k.Kind, k.BestNetAnn, k.WorstNetAnn)
+		}
+	}
+}
+
+// TestGetReplayState_Falsified：okx/BTC 历史 funding 单读数 16%（≥15% 档）→ 短窗口摊
+// 不动 0.3% 摩擦 → funding_hedge falsified（结构性证伪），其余 kind 无窗口 no_window。
+func TestGetReplayState_Falsified(t *testing.T) {
+	ctx := context.Background()
+	st := newFakeStore()
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindFunding, Venue: "okx", Symbol: "BTC", Value: 16,
+		Ts: t0.Add(-24 * time.Hour), Src: "test",
+	})
+	resp, err := service(st, sim.DefaultConfig()).GetReplayState(ctx, connect.NewRequest(&simv1.GetReplayStateRequest{}))
+	if err != nil {
+		t.Fatalf("GetReplayState: %v", err)
+	}
+	fh := kindByName(t, resp.Msg, store.SimKindFundingHedge)
+	if fh.Verdict != sim.ReplayFalsified {
+		t.Fatalf("funding_hedge verdict = %q, want falsified", fh.Verdict)
+	}
+	if fh.WindowCount != 1 || fh.MeanNetAnn >= 0 {
+		t.Errorf("funding_hedge windows/net = %d/%v, want 1 个/净负", fh.WindowCount, fh.MeanNetAnn)
+	}
+	if c := kindByName(t, resp.Msg, store.SimKindCarryAsset); c.Verdict != sim.ReplayNoWindow {
+		t.Errorf("carry_asset verdict = %q, want no_window（无 defi_rate 数据）", c.Verdict)
+	}
+}
+
+// TestGetReplayState_RepoPass：reverse_repo sina/GC001 6.5%（≥5% 档）→ repo 摩擦 0 →
+// 净 6.5% > 4.5% → pass（时点逆回购季末高息真实机会，不被摩擦错杀）。
+func TestGetReplayState_RepoPass(t *testing.T) {
+	ctx := context.Background()
+	st := newFakeStore()
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindReverseRepo, Venue: "sina", Symbol: "GC001", Value: 6.5,
+		Ts: t0.Add(-24 * time.Hour), Src: "manual",
+	})
+	resp, err := service(st, sim.DefaultConfig()).GetReplayState(ctx, connect.NewRequest(&simv1.GetReplayStateRequest{}))
+	if err != nil {
+		t.Fatalf("GetReplayState: %v", err)
+	}
+	r := kindByName(t, resp.Msg, store.SimKindRepo)
+	if r.Verdict != sim.ReplayPass {
+		t.Fatalf("repo verdict = %q (net=%v), want pass（摩擦 0，6.5%% > 基档 4.5%%）", r.Verdict, r.MeanNetAnn)
+	}
+	if r.FrictionPct != 0 {
+		t.Errorf("repo friction = %v, want 0（OTC 无 taker 费）", r.FrictionPct)
+	}
+}

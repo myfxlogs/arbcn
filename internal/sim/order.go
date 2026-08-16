@@ -22,6 +22,11 @@ const (
 	// 时刻 ref_price 漂移 >2% 或 预期年化变化 >20%（任一独立触发）→ 拒单。确认时刻重查
 	// 行情（LatestFacts ticker/funding），查不到/非有限 → fail-closed 拒（practices #7）。
 	RiskSpreadDrift = "SPREAD_DRIFT"
+	// RiskReplay 回放证伪门禁（D-065 修订，业主指令：每个策略强制自动，做成门禁）。
+	// Driver 按策略自己的高费率档回放历史，falsified（均值净年化 ≤0，结构性证伪可信
+	// practices #38）/ watch（净 ∈(0, 稳定币基档]，宁缺毋滥 D-019）→ 拒单；pass（证伪
+	// 未发生，非收益预测）/ no_window（D-061 ② 环境无窗口）→ 放行。note 自述判据。
+	RiskReplay = "REPLAY_VETO"
 )
 
 // Signal 是订单生成器的信号输入（04-m3-spec §3.1）：规则命中 + 机会面板快照。
@@ -39,11 +44,16 @@ type Signal struct {
 	Notional       float64   // 建议名义（quote 币种，模拟 USD）；≤0 = 按单笔上限默认
 	CarryWhite     bool      // carry_asset 白名单命中
 	DayNotional    float64   // 当日已累计活跃订单名义（DAILY_OVER 数据面，调用方查询）
-	Ts             time.Time // 生成时刻（零值 → 由调用方回填）
+	// ReplayVerdict / ReplayNote 回放证伪判据（D-065 修订：Driver 在 buildSignal 预计算，
+	// 经本字段透传，SignalToOrder 纯函数消费）。空 = 未回放（不拒）；falsified/watch →
+	// REPLAY_VETO 拒单；pass/no_window → 放行。
+	ReplayVerdict string
+	ReplayNote    string
+	Ts            time.Time // 生成时刻（零值 → 由调用方回填）
 }
 
 // SignalToOrder 信号 → 建议订单（04-m3-spec §3.1 核心转换器，纯函数、无 I/O）。
-// 生成时执行六道风险门禁（§4），risk_flags 落库；任一未过 → status=rejected + note
+// 生成时执行七道风险门禁（§4），risk_flags 落库；任一未过 → status=rejected + note
 // （拒单记录保留为负样本，§4"拒单不是失败"）。门禁数值来自 cfg（定稿默认）。
 //
 // [对抗测试锚点]（§11 锚点模式 + practices #4/#5）：
@@ -53,6 +63,7 @@ type Signal struct {
 //   - 删"日累计超限拒单" → TestSignalToOrderRejectsDailyOver 必红
 //   - 删"carry 白名单拒单" → TestSignalToOrderRejectsCarryWhitelist 必红
 //   - 删"carry 门槛分档" → TestCarryUsesCarryMinSpread 必红（D-045）
+//   - 删"回放证伪拒单" → TestSignalToOrderRejectsReplayFalsified / Watch 必红（D-065）
 func SignalToOrder(sig Signal, cfg Config) store.SimOrder {
 	spread := sig.ExpectedSpread
 	// L2：仅"未提供"（==0）才由 FundingAnn 回填；显式负值 = 坏信号，不得被覆盖后
@@ -153,6 +164,19 @@ func SignalToOrder(sig Signal, cfg Config) store.SimOrder {
 	// carry_asset 标的须在显式白名单（sUSDe/USDe 等生息资产）。
 	if sig.Kind == store.SimKindCarryAsset && !sig.CarryWhite {
 		reject(RiskWhitelist, "carry_asset 标的未在白名单")
+	}
+
+	// 回放证伪门禁（D-065 修订，业主指令「不做可选，是每个策略都自动做，做成门禁」）：
+	// falsified / watch → 拒单（fail-closed veto；falsified 结构性证伪可信，watch 宁缺
+	// 毋滥不抵稳定币基档）；pass = 证伪未发生（非收益预测，放行）；no_window = D-061 ②
+	// 环境无窗口（门禁休眠 = 正确输出，放行）。判定由 Driver 预计算经 sig 透传。
+	// [对抗测试锚点] 删本档 → TestSignalToOrderRejectsReplayFalsified / Watch 必红。
+	if sig.ReplayVerdict == ReplayFalsified || sig.ReplayVerdict == ReplayWatch {
+		reason := sig.ReplayNote
+		if reason == "" {
+			reason = "回放证伪判据 " + sig.ReplayVerdict + "（无自述 note，fail-closed 拒单）"
+		}
+		reject(RiskReplay, reason)
 	}
 
 	if len(o.RiskFlags) > 0 {

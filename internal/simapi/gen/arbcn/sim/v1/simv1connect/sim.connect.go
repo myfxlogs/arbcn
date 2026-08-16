@@ -1,7 +1,7 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：8 个 RPC（ListSimOrders / ConfirmSimOrder /
+// 独立域 arbcn.sim.v1（D-038 ①）：9 个 RPC（ListSimOrders / ConfirmSimOrder /
 // CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount /
-// GetPerformanceReport）。
+// GetPerformanceReport / GetReplayState）。
 // 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
 // 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
 // 按钮/路径（§6/§8；不赌原则 D-019）。
@@ -68,6 +68,9 @@ const (
 	// SimServiceGetPerformanceReportProcedure is the fully-qualified name of the SimService's
 	// GetPerformanceReport RPC.
 	SimServiceGetPerformanceReportProcedure = "/arbcn.sim.v1.SimService/GetPerformanceReport"
+	// SimServiceGetReplayStateProcedure is the fully-qualified name of the SimService's GetReplayState
+	// RPC.
+	SimServiceGetReplayStateProcedure = "/arbcn.sim.v1.SimService/GetReplayState"
 )
 
 // SimServiceClient is a client for the arbcn.sim.v1.SimService service.
@@ -80,6 +83,7 @@ type SimServiceClient interface {
 	GetTestnetAccounts(context.Context, *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error)
 	GetSimAccount(context.Context, *connect.Request[v1.GetSimAccountRequest]) (*connect.Response[v1.GetSimAccountResponse], error)
 	GetPerformanceReport(context.Context, *connect.Request[v1.GetPerformanceReportRequest]) (*connect.Response[v1.GetPerformanceReportResponse], error)
+	GetReplayState(context.Context, *connect.Request[v1.GetReplayStateRequest]) (*connect.Response[v1.GetReplayStateResponse], error)
 }
 
 // NewSimServiceClient constructs a client for the arbcn.sim.v1.SimService service. By default, it
@@ -141,6 +145,12 @@ func NewSimServiceClient(httpClient connect.HTTPClient, baseURL string, opts ...
 			connect.WithSchema(simServiceMethods.ByName("GetPerformanceReport")),
 			connect.WithClientOptions(opts...),
 		),
+		getReplayState: connect.NewClient[v1.GetReplayStateRequest, v1.GetReplayStateResponse](
+			httpClient,
+			baseURL+SimServiceGetReplayStateProcedure,
+			connect.WithSchema(simServiceMethods.ByName("GetReplayState")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
@@ -154,6 +164,7 @@ type simServiceClient struct {
 	getTestnetAccounts   *connect.Client[v1.GetTestnetAccountsRequest, v1.GetTestnetAccountsResponse]
 	getSimAccount        *connect.Client[v1.GetSimAccountRequest, v1.GetSimAccountResponse]
 	getPerformanceReport *connect.Client[v1.GetPerformanceReportRequest, v1.GetPerformanceReportResponse]
+	getReplayState       *connect.Client[v1.GetReplayStateRequest, v1.GetReplayStateResponse]
 }
 
 // ListSimOrders calls arbcn.sim.v1.SimService.ListSimOrders.
@@ -196,6 +207,11 @@ func (c *simServiceClient) GetPerformanceReport(ctx context.Context, req *connec
 	return c.getPerformanceReport.CallUnary(ctx, req)
 }
 
+// GetReplayState calls arbcn.sim.v1.SimService.GetReplayState.
+func (c *simServiceClient) GetReplayState(ctx context.Context, req *connect.Request[v1.GetReplayStateRequest]) (*connect.Response[v1.GetReplayStateResponse], error) {
+	return c.getReplayState.CallUnary(ctx, req)
+}
+
 // SimServiceHandler is an implementation of the arbcn.sim.v1.SimService service.
 type SimServiceHandler interface {
 	ListSimOrders(context.Context, *connect.Request[v1.ListSimOrdersRequest]) (*connect.Response[v1.ListSimOrdersResponse], error)
@@ -206,6 +222,7 @@ type SimServiceHandler interface {
 	GetTestnetAccounts(context.Context, *connect.Request[v1.GetTestnetAccountsRequest]) (*connect.Response[v1.GetTestnetAccountsResponse], error)
 	GetSimAccount(context.Context, *connect.Request[v1.GetSimAccountRequest]) (*connect.Response[v1.GetSimAccountResponse], error)
 	GetPerformanceReport(context.Context, *connect.Request[v1.GetPerformanceReportRequest]) (*connect.Response[v1.GetPerformanceReportResponse], error)
+	GetReplayState(context.Context, *connect.Request[v1.GetReplayStateRequest]) (*connect.Response[v1.GetReplayStateResponse], error)
 }
 
 // NewSimServiceHandler builds an HTTP handler from the service implementation. It returns the path
@@ -263,6 +280,12 @@ func NewSimServiceHandler(svc SimServiceHandler, opts ...connect.HandlerOption) 
 		connect.WithSchema(simServiceMethods.ByName("GetPerformanceReport")),
 		connect.WithHandlerOptions(opts...),
 	)
+	simServiceGetReplayStateHandler := connect.NewUnaryHandler(
+		SimServiceGetReplayStateProcedure,
+		svc.GetReplayState,
+		connect.WithSchema(simServiceMethods.ByName("GetReplayState")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.sim.v1.SimService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case SimServiceListSimOrdersProcedure:
@@ -281,6 +304,8 @@ func NewSimServiceHandler(svc SimServiceHandler, opts ...connect.HandlerOption) 
 			simServiceGetSimAccountHandler.ServeHTTP(w, r)
 		case SimServiceGetPerformanceReportProcedure:
 			simServiceGetPerformanceReportHandler.ServeHTTP(w, r)
+		case SimServiceGetReplayStateProcedure:
+			simServiceGetReplayStateHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -320,4 +345,8 @@ func (UnimplementedSimServiceHandler) GetSimAccount(context.Context, *connect.Re
 
 func (UnimplementedSimServiceHandler) GetPerformanceReport(context.Context, *connect.Request[v1.GetPerformanceReportRequest]) (*connect.Response[v1.GetPerformanceReportResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.sim.v1.SimService.GetPerformanceReport is not implemented"))
+}
+
+func (UnimplementedSimServiceHandler) GetReplayState(context.Context, *connect.Request[v1.GetReplayStateRequest]) (*connect.Response[v1.GetReplayStateResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.sim.v1.SimService.GetReplayState is not implemented"))
 }

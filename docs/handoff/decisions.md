@@ -529,3 +529,51 @@
   ⑤ **与判定门① 关系**：环境条件记录增强（D-061 ③ 的「有无窗口档」从 30 天高费率时段计数扩展出滚动 7d 窗口判据）——只读上下文，不改变 EvaluateGate 判定逻辑本身。
 - **理由**：方案二补的是「**当前这一刻**处于什么费率环境」——30 天判定门① 测跨窗口结果，7d 窗口统计测当下可交易性，两个时间尺度各司其职（判定门① 是回看、窗口统计是现在时）；「正费率占比 ≥90%」比「min ≥ 0」稳健（单次负读数不杀死整个窗口，反映「大多数时间为正」的可持续性）；判据不设新目标阈值（15% 复用 D-016，90%/50% 是「持续为正 vs 正负交替」的占比判定），宁缺毋滥（D-019：非窗口不造可交易假象，与「环境无机会零单是正确输出」同源）。
 - **结论**：D-064 落定方案二设计，通过 A–F 施工前自审后开始施工（纯函数 → proto → RPC → 前端 → 测试 → 部署）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（只读证据面）；不赌（D-019）；不接 LLM（D-043）。**
+
+## D-065 方案三：门禁条件回放——证伪自检引擎（D-061 候选之三，2026-08-16，对话 #87）
+
+- **背景**：D-061 列候选之三（末位），D-061 核心子句精确定义：**「门禁条件回放」——只在策略自己的高费率过滤条件（≥15% 窗口档）下回放历史，验证「历史上高费率窗口出现时门禁会不会正确触发、扣摩擦后是否为正」**。依据「回测能证伪不能证真」不对称性：证伪（历史高费率时段也覆盖不了摩擦 = 结构性否定）可信，证真（回放赚钱）对未来无预测力。业主排定序「所有决定引进的方案都要落地」→ 本 D# 落地方案三。对话 #85 调研：backpack-basis-trading-monitor 等扫描器只有模式可学（无密钥 D-010 / 不自动执行 D-019 / 不接 LLM D-043）。
+- **决策**：
+  ① **数据面 = 现有 funding facts 历史**（D-037 回填：binance ~365d / okx ~90d；`KindFunding` pct_annualized 百分点点数）：`QueryFacts(Kind=funding, From=now−days)`，days 默认 365 上限 730。**零新迁移零新采集**——纯读现有历史（A 架构复用）。回放覆盖**可交易面内** venue/symbol（诚实标注，与 D-062/D-064 同口径）。
+  ② **纯函数**（`internal/dashboard/replay.go`，dashboard 域只读证据面，D-064 windowstats 同模式）：
+     - **高费率窗口档 filter = funding ≥ `WindowTierHigh`（15.0，复用 D-064 具名常量，D-016 同源，P3 单源）**。
+     - **窗口 = 连续 ≥15% 读数的最大 run**（按 ts 升序扫描；读数落到 <15 即断开 → 窗口边界判定）；窗口持续天数 = end−start（单样本窗口按 `ReplayMinWindowDays=1` 摊薄下限防除极小爆负）。
+     - **扣摩擦净年化 = mean_funding − friction×365/max(windowDays, 1)**——一次性摩擦按**实际窗口时长**年化摊薄（复用 oppcalc 的 f×365/T 公式；但持有期 = 实际窗口时长而非固定 30 日，**更诚实**：短窗口摊不动 0.3% 往返成本，这是证伪的真实杠杆）。friction 为参数（RPC 编排从 `Service.OppFrictionFunding` 传，默认 0.3% D-046 已核实普通主户，env `ARBCN_OPP_FRICTION_FUNDING` 可配）。
+     - **证伪判定 `ClassifyReplay`（每对 + overall，样本加权）**：
+       - **`falsified`（证伪）** = 有窗口且均值净年化 ≤ 0 → 最高费率时段也覆盖不了摩擦 = **结构性证伪**（门禁在历史最佳环境也无法净正，practices #38 证伪可信）；
+       - **`watch`（观察）** = 有窗口且均值净年化 ∈ (0, `stableBasePct` 4.5%]（复用 D-021 稳定币基档）→ 窗口存在但净不抵无风险档（门禁在该阈值下无经济意义）；
+       - **`pass`（通过 = 证伪未发生）** = 有窗口且均值净年化 > 4.5% → 门禁机制在历史高费率窗口能抓净正（**非收益预测**，仅证伪未发生 = 机制未被否定）；
+       - **`no_window`（环境无窗口）** = 历史无任何 ≥15% 窗口 → **D-061 ② 环境无窗口档，门禁休眠 = 正确输出，非门禁故障**。
+     - 输出 `ReplayPair{Venue,Symbol,WindowCount,HighSamples,TotalSamples,MeanNetAnn,BestNetAnn,WorstNetAnn,Verdict,Note,Windows[]}`（Windows 明细 cap 前 10，防爆）。
+  ③ **RPC**：dashboard 域 `ReplayGateConditions`（`days` + `overall` + `per_pair`，只读，不碰任何执行门禁）。注入时钟 s.Now（同 windowstats）。**低频自检面**（历史数据不变、结果稳定）→ 前端独立 hook 挂载加载 + 全局刷新联动，不进 useSnapshot 60s 轮询（省一路空转 RPC）。
+  ④ **前端**：监控总览新折叠卡「门禁条件回放」（D-048 Collapse 模式，默认折叠——低频自检面不占首屏）：overall 徽标（证伪/通过/观察/无窗口）+ 窗口数/均值净年化/最差净年化瓦片 + 每对明细 + **caveat 条「证伪自检非收益预测」（practices #38：回放只答「门禁机制在历史高费率窗口能否净正」，不答「未来能赚多少」）**。
+  ⑤ **范围排除（第一性原则裁剪）**：D-061 候选摘要中的「回测摩擦/滑点/杠杆建模 + Sharpe/maxDD/VaR」**本 D# 不做**——摩擦已用 0.3% 核实值 + 实际窗口时长摊薄（够证伪）；滑点/杠杆建模与 Sharpe/maxDD/VaR 是在**假设收入流**上算的风险指标（隐含可交易性 + 收益分布假设），属证真侧，与「证伪不证真」边界冲突 + 超收益最大×路径最短（D-020）。留 L1 候选，数据累积后再议。
+  ⑥ **诚实边界**：回放只验证「≥15% 窗口档 filter + 扣摩擦净正」这一层门禁（funding 数据面有历史）；**价差 MinSpread / SPREAD_DRIFT / 规模/白名单等门禁是下单时刻的实时检查，历史无该数据面，不参与回放**（诚实标注不虚称全门禁验证）。预期现实结果：可交易面历史 funding 极少 ≥15%（极端 funding 在被砸微盘币，对话 #52 实证）→ 大概率 `no_window` = 环境无窗口档的正确输出（D-061 ②），本身即有价值（门禁休眠的诚实证据面）。
+- **理由**：方案三补的是「**门禁机制自身在历史上靠不靠谱**」的证伪自检——判定门① 测策略跨窗口结果、7d 窗口统计测当下环境、回放测门禁机制的结构性存亡；证伪可信（结构性否定）而证真无预测力，故只做证伪不做收益预测；15%/摩擦/稳定币基档全复用既有具名常量与已核实值（P3 单源）；实际窗口时长摊摩擦比固定 30 日更严格更诚实（短窗口是证伪主要来源）。
+- **结论**：D-065 落定方案三设计，通过 A–F 施工前自审后开始施工（纯函数 → proto → RPC → 前端 → 测试 → 部署）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（只读证据面）；不赌（D-019）；不接 LLM（D-043）。**
+
+### D-065 修订（2026-08-16，对话 #87 收尾业主纠偏）：回放判据 → 强制自动门禁
+
+- **触发**：原 D-065 将方案三定为「可选证伪自检 / dashboard 域只读证据面」。收尾时业主纠偏（原文）：「**不做可选，是每个策略都自动做，做成门禁**」→ 回放判据升格为**订单管线强制门禁**，所有策略自动执行，无开关无跳过。
+- **决策（修订，替换原 ①②③④ 的执行形态，判定语义与范围排除沿用）**：
+  ① **架构重定位**：判据从 dashboard 证据面 → **sim 域订单管线门禁**（`SignalToOrder` 门禁链增一档）。纯函数迁 `internal/sim/replay.go`（gate 域）；dashboard 版删除（`dashboard/replay.go` + `replay_test.go` 移除，不留双份，P3）。
+  ② **每策略自有高费率过滤档（D-061 核心子句泛化：非只 funding ≥15%）**：`replayGateCfgs` 表（kind → {rateKind, tierPct, frictionPct}）：
+     | 策略 | 回放数据面 | 高费率档 | 一次性摩擦 | 依据 |
+     |---|---|---|---|---|
+     | funding_hedge | funding | ≥15% | 0.3% | D-016 15% 档（同 D-064 WindowTierHigh）/ D-046 双开双平 taker 已核实 |
+     | carry_asset | defi_rate | ≥8% | 0.3% | D-021 收益阶梯 sUSDe 类 8% 档下沿 / D-046 |
+     | repo | reverse_repo | ≥5% | 0% | D-061 ① 民营定期 5% 档；OTC 协议存款无 taker 费（勿按 CEX 摊，否则单读数即误证伪） |
+     摩擦按**实际窗口时长**年化摊薄（复用 f×365/T 公式，最短 1 天）——短窗口摊不动往返成本 = 证伪主杠杆。
+  ③ **门禁语义（fail-closed veto）**：回放判据 `falsified`（有窗口且均值净年化 ≤0，结构性证伪可信 practices #38）或 `watch`（净 ∈(0, 稳定币基档 4.5%]，宁缺毋滥不抵无风险档 D-021）→ **拒单**（risk_flag `REPLAY_VETO` + 自述 note，拒单负样本照常落库）；`pass`（净 >4.5%，**证伪未发生 ≠ 收益预测**）→ 放行；`no_window`（历史无该策略高费率档窗口，D-061 ② 环境无窗口，门禁休眠 = 正确输出）→ 放行 + note 明示。**门禁只做证伪性否决，不做收益预测**。
+  ④ **接入（保纯函数边界）**：`Signal` 增 `ReplayVerdict`/`ReplayNote`（Driver 预计算，`SignalToOrder` 保持纯函数无 I/O）；`Driver.buildSignal` 对**每个**建单信号强制算回放判据（`QueryFacts` 历史 `ReplayHistoryDays=365`；venue/symbol 精确查询为空 → 放宽到 kind 全量，防 carry venue 归一化 miss）；`SignalToOrder` 门禁链尾加 replay 档。
+  ⑤ **可检查性（P4：门禁休眠也可见，不靠拒单负样本才暴露）**：simapi 只读 RPC `GetReplayState`（每策略 kind 当前 verdict/note/窗口数/样本数/均值净年化，注入时钟）+ SimExec 折叠卡。
+  ⑥ **摩擦口径**：门禁用 0.3%（D-046 核实值）；sim report 回填 `defaultFrictionRate=0.002`（0.2%）为旧口径，差异记 reconciliation（改它影响历史 PnL 与 D-062 判定门①，本次不动；practices #41 记录）。
+  ⑦ **范围排除不变**（沿用原 D-065 ⑤⑥）：不做 Sharpe/maxDD/VaR/滑点/杠杆建模；实时门禁（MinSpread/SPREAD_DRIFT/规模/白名单）历史无数据面不参与回放，诚实标注。
+- **A–F 施工前自审（修订版）**：
+  - **A 架构**：复用 `SignalToOrder` 门禁链（新档同构，零新表/迁移/采集，纯读现有 history）；`QueryFacts` 历史面；`settleFactKind` kind→rateKind 映射；simapi `GetPerformanceReport` 只读 RPC 模式；前端独立组件防超行（PerformanceZone 模式）。D-064 windowstats 保持独立（7d 监控 ≠ 回放门禁，不混）。
+  - **B 实现**：判据直接对应「每策略高费率档 + 扣摩擦净年化」门禁本质；Driver 预计算 + Signal 透传 + SignalToOrder 消费 = 一层间接（保纯函数），无多余抽象。
+  - **C 洁净**：dashboard/replay.go 删除不留死代码；纯函数单份在 sim；replayGate 独立文件不膨胀 driver.go；无 TODO/调试残留。
+  - **D 正确性**：边界——单样本窗口按 1 天摊（防除极小爆负）；tier 边界 ≥ 计入 / < 断开；乱序输入先排序；空历史 → no_window 不 panic 不编造（practices #7）；repo friction=0 不除零；查询失败 → no_window（门禁不因查询失败静默放行也不误拒）；对抗测试——删 replay 门禁分支 → order_test 必红；删短窗口摊摩擦 → replay_test 必红；删 no_window 守卫 → 空输入必红；删 buildSignal 回放填充 → driver_test 必红。
+  - **E 合规**：D-010 零密钥（纯读 store 历史，无网络）；D-019 不赌（门禁只否决不扩大敞口）；D-043 不接 LLM；无规则/阈值/MinSpread/CarryMinSpread/白名单改动（只增门禁档）；业主知情灰色加密层不变。
+  - **F 文档**：本 D# 修订 + practices #41（摩擦双口径 reconciliation + 门禁可检查性）+ dialogue #87 收尾 + STATE 施工表/下一步/清扫上翻。
+- **结论**：D-065 修订定稿，A–F 施工前自审通过，开始施工（sim/replay.go 纯函数 → SignalToOrder 门禁 → Driver 接入 → simapi RPC → 前端卡 → 测试 → 部署）。

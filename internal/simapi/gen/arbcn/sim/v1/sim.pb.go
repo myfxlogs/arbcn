@@ -1,7 +1,7 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：8 个 RPC（ListSimOrders / ConfirmSimOrder /
+// 独立域 arbcn.sim.v1（D-038 ①）：9 个 RPC（ListSimOrders / ConfirmSimOrder /
 // CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount /
-// GetPerformanceReport）。
+// GetPerformanceReport / GetReplayState）。
 // 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
 // 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
 // 按钮/路径（§6/§8；不赌原则 D-019）。
@@ -1543,6 +1543,229 @@ func (x *GetPerformanceReportResponse) GetSnapshotCoverage() float64 {
 	return 0
 }
 
+// GetReplayState 回放证伪门禁证据面（D-065 修订：只读，可检查性 P4——门禁休眠也可见）。
+// 每策略 kind 当前回放判据（订单管线在 buildSignal 对每个建单信号强制自动执行同款判据，
+// 本 RPC 只读重算展示当前状态；不触发任何写路径）。
+type GetReplayStateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReplayStateRequest) Reset() {
+	*x = GetReplayStateRequest{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReplayStateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReplayStateRequest) ProtoMessage() {}
+
+func (x *GetReplayStateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReplayStateRequest.ProtoReflect.Descriptor instead.
+func (*GetReplayStateRequest) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{21}
+}
+
+type ReplayStateKind struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`                                       // 策略 kind（funding_hedge / carry_asset / repo）
+	RateKind      string                 `protobuf:"bytes,2,opt,name=rate_kind,json=rateKind,proto3" json:"rate_kind,omitempty"`               // 回放数据面事实 kind（funding / defi_rate / reverse_repo）
+	Verdict       string                 `protobuf:"bytes,3,opt,name=verdict,proto3" json:"verdict,omitempty"`                                 // pass / watch / falsified / no_window（D-065）
+	Note          string                 `protobuf:"bytes,4,opt,name=note,proto3" json:"note,omitempty"`                                       // 自述判定（含判据/阈值，中文）
+	WindowCount   int32                  `protobuf:"varint,5,opt,name=window_count,json=windowCount,proto3" json:"window_count,omitempty"`     // 历史高费率窗口数（0 = 环境无窗口 D-061 ②）
+	TotalSamples  int32                  `protobuf:"varint,6,opt,name=total_samples,json=totalSamples,proto3" json:"total_samples,omitempty"`  // 回放样本数
+	HighSamples   int32                  `protobuf:"varint,7,opt,name=high_samples,json=highSamples,proto3" json:"high_samples,omitempty"`     // ≥ 高费率档读数数
+	MeanNetAnn    float64                `protobuf:"fixed64,8,opt,name=mean_net_ann,json=meanNetAnn,proto3" json:"mean_net_ann,omitempty"`     // 样本加权均值净年化 %（无窗口 = 0）
+	BestNetAnn    float64                `protobuf:"fixed64,9,opt,name=best_net_ann,json=bestNetAnn,proto3" json:"best_net_ann,omitempty"`     // 最佳窗口净年化 %
+	WorstNetAnn   float64                `protobuf:"fixed64,10,opt,name=worst_net_ann,json=worstNetAnn,proto3" json:"worst_net_ann,omitempty"` // 最差窗口净年化 %
+	TierPct       float64                `protobuf:"fixed64,11,opt,name=tier_pct,json=tierPct,proto3" json:"tier_pct,omitempty"`               // 该策略高费率档 %
+	FrictionPct   float64                `protobuf:"fixed64,12,opt,name=friction_pct,json=frictionPct,proto3" json:"friction_pct,omitempty"`   // 该策略一次性摩擦 %
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReplayStateKind) Reset() {
+	*x = ReplayStateKind{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReplayStateKind) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReplayStateKind) ProtoMessage() {}
+
+func (x *ReplayStateKind) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReplayStateKind.ProtoReflect.Descriptor instead.
+func (*ReplayStateKind) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *ReplayStateKind) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *ReplayStateKind) GetRateKind() string {
+	if x != nil {
+		return x.RateKind
+	}
+	return ""
+}
+
+func (x *ReplayStateKind) GetVerdict() string {
+	if x != nil {
+		return x.Verdict
+	}
+	return ""
+}
+
+func (x *ReplayStateKind) GetNote() string {
+	if x != nil {
+		return x.Note
+	}
+	return ""
+}
+
+func (x *ReplayStateKind) GetWindowCount() int32 {
+	if x != nil {
+		return x.WindowCount
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetTotalSamples() int32 {
+	if x != nil {
+		return x.TotalSamples
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetHighSamples() int32 {
+	if x != nil {
+		return x.HighSamples
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetMeanNetAnn() float64 {
+	if x != nil {
+		return x.MeanNetAnn
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetBestNetAnn() float64 {
+	if x != nil {
+		return x.BestNetAnn
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetWorstNetAnn() float64 {
+	if x != nil {
+		return x.WorstNetAnn
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetTierPct() float64 {
+	if x != nil {
+		return x.TierPct
+	}
+	return 0
+}
+
+func (x *ReplayStateKind) GetFrictionPct() float64 {
+	if x != nil {
+		return x.FrictionPct
+	}
+	return 0
+}
+
+type GetReplayStateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Kinds         []*ReplayStateKind     `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
+	HistoryDays   int32                  `protobuf:"varint,2,opt,name=history_days,json=historyDays,proto3" json:"history_days,omitempty"` // 回放历史窗口天（ReplayHistoryDays）
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetReplayStateResponse) Reset() {
+	*x = GetReplayStateResponse{}
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetReplayStateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetReplayStateResponse) ProtoMessage() {}
+
+func (x *GetReplayStateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_arbcn_sim_v1_sim_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetReplayStateResponse.ProtoReflect.Descriptor instead.
+func (*GetReplayStateResponse) Descriptor() ([]byte, []int) {
+	return file_arbcn_sim_v1_sim_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *GetReplayStateResponse) GetKinds() []*ReplayStateKind {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
+}
+
+func (x *GetReplayStateResponse) GetHistoryDays() int32 {
+	if x != nil {
+		return x.HistoryDays
+	}
+	return 0
+}
+
 var File_arbcn_sim_v1_sim_proto protoreflect.FileDescriptor
 
 const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
@@ -1670,7 +1893,27 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	"\tend_ts_ms\x18\x11 \x01(\x03R\aendTsMs\x12%\n" +
 	"\x0esnapshot_count\x18\x12 \x01(\x05R\rsnapshotCount\x12-\n" +
 	"\x12expected_snapshots\x18\x13 \x01(\x05R\x11expectedSnapshots\x12+\n" +
-	"\x11snapshot_coverage\x18\x14 \x01(\x01R\x10snapshotCoverage2\x8c\x06\n" +
+	"\x11snapshot_coverage\x18\x14 \x01(\x01R\x10snapshotCoverage\"\x17\n" +
+	"\x15GetReplayStateRequest\"\x81\x03\n" +
+	"\x0fReplayStateKind\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1b\n" +
+	"\trate_kind\x18\x02 \x01(\tR\brateKind\x12\x18\n" +
+	"\averdict\x18\x03 \x01(\tR\averdict\x12\x12\n" +
+	"\x04note\x18\x04 \x01(\tR\x04note\x12!\n" +
+	"\fwindow_count\x18\x05 \x01(\x05R\vwindowCount\x12#\n" +
+	"\rtotal_samples\x18\x06 \x01(\x05R\ftotalSamples\x12!\n" +
+	"\fhigh_samples\x18\a \x01(\x05R\vhighSamples\x12 \n" +
+	"\fmean_net_ann\x18\b \x01(\x01R\n" +
+	"meanNetAnn\x12 \n" +
+	"\fbest_net_ann\x18\t \x01(\x01R\n" +
+	"bestNetAnn\x12\"\n" +
+	"\rworst_net_ann\x18\n" +
+	" \x01(\x01R\vworstNetAnn\x12\x19\n" +
+	"\btier_pct\x18\v \x01(\x01R\atierPct\x12!\n" +
+	"\ffriction_pct\x18\f \x01(\x01R\vfrictionPct\"p\n" +
+	"\x16GetReplayStateResponse\x123\n" +
+	"\x05kinds\x18\x01 \x03(\v2\x1d.arbcn.sim.v1.ReplayStateKindR\x05kinds\x12!\n" +
+	"\fhistory_days\x18\x02 \x01(\x05R\vhistoryDays2\xe9\x06\n" +
 	"\n" +
 	"SimService\x12X\n" +
 	"\rListSimOrders\x12\".arbcn.sim.v1.ListSimOrdersRequest\x1a#.arbcn.sim.v1.ListSimOrdersResponse\x12^\n" +
@@ -1680,7 +1923,8 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	"\fGetSimReport\x12!.arbcn.sim.v1.GetSimReportRequest\x1a\".arbcn.sim.v1.GetSimReportResponse\x12g\n" +
 	"\x12GetTestnetAccounts\x12'.arbcn.sim.v1.GetTestnetAccountsRequest\x1a(.arbcn.sim.v1.GetTestnetAccountsResponse\x12X\n" +
 	"\rGetSimAccount\x12\".arbcn.sim.v1.GetSimAccountRequest\x1a#.arbcn.sim.v1.GetSimAccountResponse\x12m\n" +
-	"\x14GetPerformanceReport\x12).arbcn.sim.v1.GetPerformanceReportRequest\x1a*.arbcn.sim.v1.GetPerformanceReportResponseB.Z,arbcn/internal/simapi/gen/arbcn/sim/v1;simv1b\x06proto3"
+	"\x14GetPerformanceReport\x12).arbcn.sim.v1.GetPerformanceReportRequest\x1a*.arbcn.sim.v1.GetPerformanceReportResponse\x12[\n" +
+	"\x0eGetReplayState\x12#.arbcn.sim.v1.GetReplayStateRequest\x1a$.arbcn.sim.v1.GetReplayStateResponseB.Z,arbcn/internal/simapi/gen/arbcn/sim/v1;simv1b\x06proto3"
 
 var (
 	file_arbcn_sim_v1_sim_proto_rawDescOnce sync.Once
@@ -1694,7 +1938,7 @@ func file_arbcn_sim_v1_sim_proto_rawDescGZIP() []byte {
 	return file_arbcn_sim_v1_sim_proto_rawDescData
 }
 
-var file_arbcn_sim_v1_sim_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var file_arbcn_sim_v1_sim_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_arbcn_sim_v1_sim_proto_goTypes = []any{
 	(*SimOrder)(nil),                     // 0: arbcn.sim.v1.SimOrder
 	(*SimPosition)(nil),                  // 1: arbcn.sim.v1.SimPosition
@@ -1717,6 +1961,9 @@ var file_arbcn_sim_v1_sim_proto_goTypes = []any{
 	(*GetSimAccountResponse)(nil),        // 18: arbcn.sim.v1.GetSimAccountResponse
 	(*GetPerformanceReportRequest)(nil),  // 19: arbcn.sim.v1.GetPerformanceReportRequest
 	(*GetPerformanceReportResponse)(nil), // 20: arbcn.sim.v1.GetPerformanceReportResponse
+	(*GetReplayStateRequest)(nil),        // 21: arbcn.sim.v1.GetReplayStateRequest
+	(*ReplayStateKind)(nil),              // 22: arbcn.sim.v1.ReplayStateKind
+	(*GetReplayStateResponse)(nil),       // 23: arbcn.sim.v1.GetReplayStateResponse
 }
 var file_arbcn_sim_v1_sim_proto_depIdxs = []int32{
 	0,  // 0: arbcn.sim.v1.ListSimOrdersResponse.orders:type_name -> arbcn.sim.v1.SimOrder
@@ -1725,27 +1972,30 @@ var file_arbcn_sim_v1_sim_proto_depIdxs = []int32{
 	12, // 3: arbcn.sim.v1.TestnetAccount.details:type_name -> arbcn.sim.v1.TestnetAccountDetail
 	13, // 4: arbcn.sim.v1.GetTestnetAccountsResponse.accounts:type_name -> arbcn.sim.v1.TestnetAccount
 	16, // 5: arbcn.sim.v1.GetSimAccountResponse.flows:type_name -> arbcn.sim.v1.CashFlow
-	2,  // 6: arbcn.sim.v1.SimService.ListSimOrders:input_type -> arbcn.sim.v1.ListSimOrdersRequest
-	4,  // 7: arbcn.sim.v1.SimService.ConfirmSimOrder:input_type -> arbcn.sim.v1.ConfirmSimOrderRequest
-	8,  // 8: arbcn.sim.v1.SimService.CloseSimOrder:input_type -> arbcn.sim.v1.CloseSimOrderRequest
-	6,  // 9: arbcn.sim.v1.SimService.ListSimPositions:input_type -> arbcn.sim.v1.ListSimPositionsRequest
-	10, // 10: arbcn.sim.v1.SimService.GetSimReport:input_type -> arbcn.sim.v1.GetSimReportRequest
-	14, // 11: arbcn.sim.v1.SimService.GetTestnetAccounts:input_type -> arbcn.sim.v1.GetTestnetAccountsRequest
-	17, // 12: arbcn.sim.v1.SimService.GetSimAccount:input_type -> arbcn.sim.v1.GetSimAccountRequest
-	19, // 13: arbcn.sim.v1.SimService.GetPerformanceReport:input_type -> arbcn.sim.v1.GetPerformanceReportRequest
-	3,  // 14: arbcn.sim.v1.SimService.ListSimOrders:output_type -> arbcn.sim.v1.ListSimOrdersResponse
-	5,  // 15: arbcn.sim.v1.SimService.ConfirmSimOrder:output_type -> arbcn.sim.v1.ConfirmSimOrderResponse
-	9,  // 16: arbcn.sim.v1.SimService.CloseSimOrder:output_type -> arbcn.sim.v1.CloseSimOrderResponse
-	7,  // 17: arbcn.sim.v1.SimService.ListSimPositions:output_type -> arbcn.sim.v1.ListSimPositionsResponse
-	11, // 18: arbcn.sim.v1.SimService.GetSimReport:output_type -> arbcn.sim.v1.GetSimReportResponse
-	15, // 19: arbcn.sim.v1.SimService.GetTestnetAccounts:output_type -> arbcn.sim.v1.GetTestnetAccountsResponse
-	18, // 20: arbcn.sim.v1.SimService.GetSimAccount:output_type -> arbcn.sim.v1.GetSimAccountResponse
-	20, // 21: arbcn.sim.v1.SimService.GetPerformanceReport:output_type -> arbcn.sim.v1.GetPerformanceReportResponse
-	14, // [14:22] is the sub-list for method output_type
-	6,  // [6:14] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	22, // 6: arbcn.sim.v1.GetReplayStateResponse.kinds:type_name -> arbcn.sim.v1.ReplayStateKind
+	2,  // 7: arbcn.sim.v1.SimService.ListSimOrders:input_type -> arbcn.sim.v1.ListSimOrdersRequest
+	4,  // 8: arbcn.sim.v1.SimService.ConfirmSimOrder:input_type -> arbcn.sim.v1.ConfirmSimOrderRequest
+	8,  // 9: arbcn.sim.v1.SimService.CloseSimOrder:input_type -> arbcn.sim.v1.CloseSimOrderRequest
+	6,  // 10: arbcn.sim.v1.SimService.ListSimPositions:input_type -> arbcn.sim.v1.ListSimPositionsRequest
+	10, // 11: arbcn.sim.v1.SimService.GetSimReport:input_type -> arbcn.sim.v1.GetSimReportRequest
+	14, // 12: arbcn.sim.v1.SimService.GetTestnetAccounts:input_type -> arbcn.sim.v1.GetTestnetAccountsRequest
+	17, // 13: arbcn.sim.v1.SimService.GetSimAccount:input_type -> arbcn.sim.v1.GetSimAccountRequest
+	19, // 14: arbcn.sim.v1.SimService.GetPerformanceReport:input_type -> arbcn.sim.v1.GetPerformanceReportRequest
+	21, // 15: arbcn.sim.v1.SimService.GetReplayState:input_type -> arbcn.sim.v1.GetReplayStateRequest
+	3,  // 16: arbcn.sim.v1.SimService.ListSimOrders:output_type -> arbcn.sim.v1.ListSimOrdersResponse
+	5,  // 17: arbcn.sim.v1.SimService.ConfirmSimOrder:output_type -> arbcn.sim.v1.ConfirmSimOrderResponse
+	9,  // 18: arbcn.sim.v1.SimService.CloseSimOrder:output_type -> arbcn.sim.v1.CloseSimOrderResponse
+	7,  // 19: arbcn.sim.v1.SimService.ListSimPositions:output_type -> arbcn.sim.v1.ListSimPositionsResponse
+	11, // 20: arbcn.sim.v1.SimService.GetSimReport:output_type -> arbcn.sim.v1.GetSimReportResponse
+	15, // 21: arbcn.sim.v1.SimService.GetTestnetAccounts:output_type -> arbcn.sim.v1.GetTestnetAccountsResponse
+	18, // 22: arbcn.sim.v1.SimService.GetSimAccount:output_type -> arbcn.sim.v1.GetSimAccountResponse
+	20, // 23: arbcn.sim.v1.SimService.GetPerformanceReport:output_type -> arbcn.sim.v1.GetPerformanceReportResponse
+	23, // 24: arbcn.sim.v1.SimService.GetReplayState:output_type -> arbcn.sim.v1.GetReplayStateResponse
+	16, // [16:25] is the sub-list for method output_type
+	7,  // [7:16] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_arbcn_sim_v1_sim_proto_init() }
@@ -1759,7 +2009,7 @@ func file_arbcn_sim_v1_sim_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_arbcn_sim_v1_sim_proto_rawDesc), len(file_arbcn_sim_v1_sim_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -1,7 +1,7 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：8 个 RPC（ListSimOrders / ConfirmSimOrder /
+// 独立域 arbcn.sim.v1（D-038 ①）：9 个 RPC（ListSimOrders / ConfirmSimOrder /
 // CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount /
-// GetPerformanceReport）。
+// GetPerformanceReport / GetReplayState）。
 // 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
 // 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
 // 按钮/路径（§6/§8；不赌原则 D-019）。
@@ -177,6 +177,29 @@ message GetPerformanceReportResponse {
   double snapshot_coverage = 20; // 实际/期望覆盖率（0–1；<0.9 → 判定不采信）
 }
 
+// GetReplayState 回放证伪门禁证据面（D-065 修订：只读，可检查性 P4——门禁休眠也可见）。
+// 每策略 kind 当前回放判据（订单管线在 buildSignal 对每个建单信号强制自动执行同款判据，
+// 本 RPC 只读重算展示当前状态；不触发任何写路径）。
+message GetReplayStateRequest {}
+message ReplayStateKind {
+  string kind = 1;         // 策略 kind（funding_hedge / carry_asset / repo）
+  string rate_kind = 2;    // 回放数据面事实 kind（funding / defi_rate / reverse_repo）
+  string verdict = 3;      // pass / watch / falsified / no_window（D-065）
+  string note = 4;         // 自述判定（含判据/阈值，中文）
+  int32 window_count = 5;  // 历史高费率窗口数（0 = 环境无窗口 D-061 ②）
+  int32 total_samples = 6; // 回放样本数
+  int32 high_samples = 7;  // ≥ 高费率档读数数
+  double mean_net_ann = 8; // 样本加权均值净年化 %（无窗口 = 0）
+  double best_net_ann = 9; // 最佳窗口净年化 %
+  double worst_net_ann = 10; // 最差窗口净年化 %
+  double tier_pct = 11;    // 该策略高费率档 %
+  double friction_pct = 12; // 该策略一次性摩擦 %
+}
+message GetReplayStateResponse {
+  repeated ReplayStateKind kinds = 1;
+  int32 history_days = 2; // 回放历史窗口天（ReplayHistoryDays）
+}
+
 // SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
 service SimService {
   rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
@@ -187,4 +210,5 @@ service SimService {
   rpc GetTestnetAccounts(GetTestnetAccountsRequest) returns (GetTestnetAccountsResponse);
   rpc GetSimAccount(GetSimAccountRequest) returns (GetSimAccountResponse);
   rpc GetPerformanceReport(GetPerformanceReportRequest) returns (GetPerformanceReportResponse);
+  rpc GetReplayState(GetReplayStateRequest) returns (GetReplayStateResponse);
 }

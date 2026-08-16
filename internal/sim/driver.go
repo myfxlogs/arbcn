@@ -85,15 +85,32 @@ func (d *Driver) OnRuleActive(ctx context.Context, r store.Rule, entities []stor
 }
 
 // buildSignal 按映射表组装 Signal。返回 ok=false = 不建单（未知规则且未白名单）。
+// 对**每个**建单信号强制计算回放证伪判据（D-065 修订：业主指令「不做可选，每个策略
+// 都自动做，做成门禁」）——Driver 预计算经 Signal 透传，SignalToOrder 门禁链消费
+// （保纯函数无 I/O）。
+//
+// [对抗测试锚点] D-065：删本段回放判据填充 → TestDriverReplayVerdictAttached 必红。
 func (d *Driver) buildSignal(ctx context.Context, r store.Rule, h store.EntityHit) (*Signal, bool, error) {
+	var sig *Signal
 	if m, ok := signalMappers[r.Name]; ok {
-		return m(ctx, d, r, h)
+		s, ok, err := m(ctx, d, r, h)
+		if err != nil || !ok {
+			return s, ok, err
+		}
+		sig = s
+	} else if slices.Contains(d.cfg.CarryWhitelist, h.Symbol) {
+		// carry 白名单（§9.6）：命中标的 ∈ CarryWhitelist → carry_asset。
+		s, ok, err := d.carrySignal(ctx, r, h)
+		if err != nil || !ok {
+			return s, ok, err
+		}
+		sig = s
+	} else {
+		return nil, false, nil
 	}
-	// carry 白名单（§9.6）：命中标的 ∈ CarryWhitelist → carry_asset。
-	if slices.Contains(d.cfg.CarryWhitelist, h.Symbol) {
-		return d.carrySignal(ctx, r, h)
-	}
-	return nil, false, nil
+	v, note := d.replayGate(ctx, sig.Kind, sig.Venue, sig.Symbol)
+	sig.ReplayVerdict, sig.ReplayNote = v, note
+	return sig, true, nil
 }
 
 // fundingHedgeSignal 组装 funding_hedge Signal（04-m3-spec §3.1.1 首行 + §9.2 诚实标注）。
@@ -260,18 +277,11 @@ func (d *Driver) snapshotEquity(ctx context.Context) error {
 // settleFactKind 腿 kind → 结算数据面 kind（practices #13 结算侧：数据面按实体类型
 // 分派，D-045）。funding_hedge→funding / carry_asset→defi_rate / repo→reverse_repo，
 // 各自权威事实；未知 kind → (false) 跳过（腿仅经 BuildLegs 产生，未知 kind 不会
-// 出现，防御性 fail-closed，不 panic 不误结算）。
+// 出现，防御性 fail-closed，不 panic 不误结算）。kind→rateKind 映射 SSOT 在
+// replayGateCfgs（replay.go，D-065），结算与回放门禁共用一表（P3 单源）。
 func settleFactKind(kind string) (string, bool) {
-	switch kind {
-	case store.SimKindFundingHedge:
-		return fact.KindFunding, true
-	case store.SimKindCarryAsset:
-		return fact.KindDefiRate, true
-	case store.SimKindRepo:
-		return fact.KindReverseRepo, true
-	default:
-		return "", false
-	}
+	rateKind, _, _, ok := ReplayKindConfig(kind)
+	return rateKind, ok
 }
 
 // settleOnce 执行一轮结算：列出全部 open funding 腿 → 按 (kind,symbol,venue) 分组 →

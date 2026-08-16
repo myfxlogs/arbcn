@@ -1,7 +1,7 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：8 个 RPC（ListSimOrders / ConfirmSimOrder /
+// 独立域 arbcn.sim.v1（D-038 ①）：9 个 RPC（ListSimOrders / ConfirmSimOrder /
 // CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount /
-// GetPerformanceReport）。
+// GetPerformanceReport / GetReplayState）。
 // 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
 // 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
 // 按钮/路径（§6/§8；不赌原则 D-019）。
@@ -22,7 +22,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file arbcn/sim/v1/sim.proto.
  */
 export const file_arbcn_sim_v1_sim: GenFile = /*@__PURE__*/
-  fileDesc("ChZhcmJjbi9zaW0vdjEvc2ltLnByb3RvEgxhcmJjbi5zaW0udjEi3QEKCFNpbU9yZGVyEgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCHNyY19ydWxlGAMgASgJEgwKBGtpbmQYBCABKAkSDQoFdmVudWUYBSABKAkSDgoGc3ltYm9sGAYgASgJEgwKBHNpZGUYByABKAkSCwoDcXR5GAggASgBEhEKCXJlZl9wcmljZRgJIAEoARIXCg9leHBlY3RlZF9zcHJlYWQYCiABKAESEgoKcmlza19mbGFncxgLIAMoCRIOCgZzdGF0dXMYDCABKAkSDAoEbm90ZRgNIAEoCSKVAgoLU2ltUG9zaXRpb24SCgoCaWQYASABKAMSEAoIb3JkZXJfaWQYAiABKAMSDQoFdHNfbXMYAyABKAMSDAoEa2luZBgEIAEoCRINCgV2ZW51ZRgFIAEoCRIOCgZzeW1ib2wYBiABKAkSDAoEc2lkZRgHIAEoCRILCgNxdHkYCCABKAESEQoJcmVmX3ByaWNlGAkgASgBEg8KB2Z1bmRpbmcYCiABKAgSCwoDcG5sGAsgASgBEg8KB3BubF9ybWIYDCABKAESDgoGc3RhdHVzGA0gASgJEhEKCWN1cl9wcmljZRgOIAEoARIUCgxleHBlY3RlZF9hbm4YDyABKAESFgoOdW5yZWFsaXplZF9wbmwYECABKAEiJgoUTGlzdFNpbU9yZGVyc1JlcXVlc3QSDgoGc3RhdHVzGAEgASgJIj8KFUxpc3RTaW1PcmRlcnNSZXNwb25zZRImCgZvcmRlcnMYASADKAsyFi5hcmJjbi5zaW0udjEuU2ltT3JkZXIiJAoWQ29uZmlybVNpbU9yZGVyUmVxdWVzdBIKCgJpZBgBIAEoAyJSChdDb25maXJtU2ltT3JkZXJSZXNwb25zZRIlCgVvcmRlchgBIAEoCzIWLmFyYmNuLnNpbS52MS5TaW1PcmRlchIQCghhY2NlcHRlZBgCIAEoCCIZChdMaXN0U2ltUG9zaXRpb25zUmVxdWVzdCJeChhMaXN0U2ltUG9zaXRpb25zUmVzcG9uc2USLAoJcG9zaXRpb25zGAEgAygLMhkuYXJiY24uc2ltLnYxLlNpbVBvc2l0aW9uEhQKDGZ4X2F2YWlsYWJsZRgCIAEoCCIwChRDbG9zZVNpbU9yZGVyUmVxdWVzdBIKCgJpZBgBIAEoAxIMCgRub3RlGAIgASgJImoKFUNsb3NlU2ltT3JkZXJSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoAxITCgtjbG9zZWRfbGVncxgCIAEoBRIUCgxyZWFsaXplZF9wbmwYAyABKAESFAoMcmVhbGl6ZWRfcm1iGAQgASgBIhUKE0dldFNpbVJlcG9ydFJlcXVlc3QiRgoUR2V0U2ltUmVwb3J0UmVzcG9uc2USEAoIbWFya2Rvd24YASABKAkSDgoGZXhpc3RzGAIgASgIEgwKBG5vdGUYAyABKAkiSgoUVGVzdG5ldEFjY291bnREZXRhaWwSDQoFYXNzZXQYASABKAkSDwoHYmFsYW5jZRgCIAEoCRISCgplcXVpdHlfdXNkGAMgASgBIpcBCg5UZXN0bmV0QWNjb3VudBIOCgZzb3VyY2UYASABKAkSFQoNYWNjb3VudF9hbGlhcxgCIAEoCRISCgplcXVpdHlfdXNkGAMgASgBEjMKB2RldGFpbHMYBCADKAsyIi5hcmJjbi5zaW0udjEuVGVzdG5ldEFjY291bnREZXRhaWwSFQoNdXBkYXRlZF9hdF9tcxgFIAEoAyIbChlHZXRUZXN0bmV0QWNjb3VudHNSZXF1ZXN0IkwKGkdldFRlc3RuZXRBY2NvdW50c1Jlc3BvbnNlEi4KCGFjY291bnRzGAEgAygLMhwuYXJiY24uc2ltLnYxLlRlc3RuZXRBY2NvdW50InMKCENhc2hGbG93EgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCG9yZGVyX2lkGAMgASgDEg4KBmxlZ19pZBgEIAEoAxIMCgRraW5kGAUgASgJEg4KBmFtb3VudBgGIAEoARIMCgRub3RlGAcgASgJIhYKFEdldFNpbUFjY291bnRSZXF1ZXN0ItsBChVHZXRTaW1BY2NvdW50UmVzcG9uc2USDwoHY2FwaXRhbBgBIAEoARIMCgRjYXNoGAIgASgBEhQKDHJlYWxpemVkX3BubBgDIAEoARIWCg51bnJlYWxpemVkX3BubBgEIAEoARIUCgxtYXJrZXRfdmFsdWUYBSABKAESDgoGZXF1aXR5GAYgASgBEhQKDGZ4X2F2YWlsYWJsZRgHIAEoCBISCgplcXVpdHlfcm1iGAggASgBEiUKBWZsb3dzGAkgAygLMhYuYXJiY24uc2ltLnYxLkNhc2hGbG93Ih0KG0dldFBlcmZvcm1hbmNlUmVwb3J0UmVxdWVzdCLrAwocR2V0UGVyZm9ybWFuY2VSZXBvcnRSZXNwb25zZRITCgt3aW5kb3dfZGF5cxgBIAEoARIWCg50d3JfYW5udWFsaXplZBgCIAEoARIWCg5td3JfYW5udWFsaXplZBgDIAEoARIOCgZzdGF0dXMYBCABKAkSEwoLc3RhdHVzX25vdGUYBSABKAkSFAoMYmFzZWxpbmVfbG93GAYgASgBEhUKDWJhc2VsaW5lX2hpZ2gYByABKAESFwoPZnJpY3Rpb25fbWFyZ2luGAggASgBEhYKDmdhdGVfdGhyZXNob2xkGAkgASgBEhYKDmZ1bmRpbmdfbWVkaWFuGAogASgBEhMKC2Z1bmRpbmdfbWF4GAsgASgBEhoKEmhpZ2hfd2luZG93X2V2ZW50cxgMIAEoBRIWCg50cmFkYWJsZV9wYWlycxgNIAEoBRITCgtvcmRlcl9jb3VudBgOIAEoBRIWCg5yZWplY3RlZF9jb3VudBgPIAEoBRITCgtzdGFydF90c19tcxgQIAEoAxIRCgllbmRfdHNfbXMYESABKAMSFgoOc25hcHNob3RfY291bnQYEiABKAUSGgoSZXhwZWN0ZWRfc25hcHNob3RzGBMgASgFEhkKEXNuYXBzaG90X2NvdmVyYWdlGBQgASgBMowGCgpTaW1TZXJ2aWNlElgKDUxpc3RTaW1PcmRlcnMSIi5hcmJjbi5zaW0udjEuTGlzdFNpbU9yZGVyc1JlcXVlc3QaIy5hcmJjbi5zaW0udjEuTGlzdFNpbU9yZGVyc1Jlc3BvbnNlEl4KD0NvbmZpcm1TaW1PcmRlchIkLmFyYmNuLnNpbS52MS5Db25maXJtU2ltT3JkZXJSZXF1ZXN0GiUuYXJiY24uc2ltLnYxLkNvbmZpcm1TaW1PcmRlclJlc3BvbnNlElgKDUNsb3NlU2ltT3JkZXISIi5hcmJjbi5zaW0udjEuQ2xvc2VTaW1PcmRlclJlcXVlc3QaIy5hcmJjbi5zaW0udjEuQ2xvc2VTaW1PcmRlclJlc3BvbnNlEmEKEExpc3RTaW1Qb3NpdGlvbnMSJS5hcmJjbi5zaW0udjEuTGlzdFNpbVBvc2l0aW9uc1JlcXVlc3QaJi5hcmJjbi5zaW0udjEuTGlzdFNpbVBvc2l0aW9uc1Jlc3BvbnNlElUKDEdldFNpbVJlcG9ydBIhLmFyYmNuLnNpbS52MS5HZXRTaW1SZXBvcnRSZXF1ZXN0GiIuYXJiY24uc2ltLnYxLkdldFNpbVJlcG9ydFJlc3BvbnNlEmcKEkdldFRlc3RuZXRBY2NvdW50cxInLmFyYmNuLnNpbS52MS5HZXRUZXN0bmV0QWNjb3VudHNSZXF1ZXN0GiguYXJiY24uc2ltLnYxLkdldFRlc3RuZXRBY2NvdW50c1Jlc3BvbnNlElgKDUdldFNpbUFjY291bnQSIi5hcmJjbi5zaW0udjEuR2V0U2ltQWNjb3VudFJlcXVlc3QaIy5hcmJjbi5zaW0udjEuR2V0U2ltQWNjb3VudFJlc3BvbnNlEm0KFEdldFBlcmZvcm1hbmNlUmVwb3J0EikuYXJiY24uc2ltLnYxLkdldFBlcmZvcm1hbmNlUmVwb3J0UmVxdWVzdBoqLmFyYmNuLnNpbS52MS5HZXRQZXJmb3JtYW5jZVJlcG9ydFJlc3BvbnNlQi5aLGFyYmNuL2ludGVybmFsL3NpbWFwaS9nZW4vYXJiY24vc2ltL3YxO3NpbXYxYgZwcm90bzM");
+  fileDesc("ChZhcmJjbi9zaW0vdjEvc2ltLnByb3RvEgxhcmJjbi5zaW0udjEi3QEKCFNpbU9yZGVyEgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCHNyY19ydWxlGAMgASgJEgwKBGtpbmQYBCABKAkSDQoFdmVudWUYBSABKAkSDgoGc3ltYm9sGAYgASgJEgwKBHNpZGUYByABKAkSCwoDcXR5GAggASgBEhEKCXJlZl9wcmljZRgJIAEoARIXCg9leHBlY3RlZF9zcHJlYWQYCiABKAESEgoKcmlza19mbGFncxgLIAMoCRIOCgZzdGF0dXMYDCABKAkSDAoEbm90ZRgNIAEoCSKVAgoLU2ltUG9zaXRpb24SCgoCaWQYASABKAMSEAoIb3JkZXJfaWQYAiABKAMSDQoFdHNfbXMYAyABKAMSDAoEa2luZBgEIAEoCRINCgV2ZW51ZRgFIAEoCRIOCgZzeW1ib2wYBiABKAkSDAoEc2lkZRgHIAEoCRILCgNxdHkYCCABKAESEQoJcmVmX3ByaWNlGAkgASgBEg8KB2Z1bmRpbmcYCiABKAgSCwoDcG5sGAsgASgBEg8KB3BubF9ybWIYDCABKAESDgoGc3RhdHVzGA0gASgJEhEKCWN1cl9wcmljZRgOIAEoARIUCgxleHBlY3RlZF9hbm4YDyABKAESFgoOdW5yZWFsaXplZF9wbmwYECABKAEiJgoUTGlzdFNpbU9yZGVyc1JlcXVlc3QSDgoGc3RhdHVzGAEgASgJIj8KFUxpc3RTaW1PcmRlcnNSZXNwb25zZRImCgZvcmRlcnMYASADKAsyFi5hcmJjbi5zaW0udjEuU2ltT3JkZXIiJAoWQ29uZmlybVNpbU9yZGVyUmVxdWVzdBIKCgJpZBgBIAEoAyJSChdDb25maXJtU2ltT3JkZXJSZXNwb25zZRIlCgVvcmRlchgBIAEoCzIWLmFyYmNuLnNpbS52MS5TaW1PcmRlchIQCghhY2NlcHRlZBgCIAEoCCIZChdMaXN0U2ltUG9zaXRpb25zUmVxdWVzdCJeChhMaXN0U2ltUG9zaXRpb25zUmVzcG9uc2USLAoJcG9zaXRpb25zGAEgAygLMhkuYXJiY24uc2ltLnYxLlNpbVBvc2l0aW9uEhQKDGZ4X2F2YWlsYWJsZRgCIAEoCCIwChRDbG9zZVNpbU9yZGVyUmVxdWVzdBIKCgJpZBgBIAEoAxIMCgRub3RlGAIgASgJImoKFUNsb3NlU2ltT3JkZXJSZXNwb25zZRIQCghvcmRlcl9pZBgBIAEoAxITCgtjbG9zZWRfbGVncxgCIAEoBRIUCgxyZWFsaXplZF9wbmwYAyABKAESFAoMcmVhbGl6ZWRfcm1iGAQgASgBIhUKE0dldFNpbVJlcG9ydFJlcXVlc3QiRgoUR2V0U2ltUmVwb3J0UmVzcG9uc2USEAoIbWFya2Rvd24YASABKAkSDgoGZXhpc3RzGAIgASgIEgwKBG5vdGUYAyABKAkiSgoUVGVzdG5ldEFjY291bnREZXRhaWwSDQoFYXNzZXQYASABKAkSDwoHYmFsYW5jZRgCIAEoCRISCgplcXVpdHlfdXNkGAMgASgBIpcBCg5UZXN0bmV0QWNjb3VudBIOCgZzb3VyY2UYASABKAkSFQoNYWNjb3VudF9hbGlhcxgCIAEoCRISCgplcXVpdHlfdXNkGAMgASgBEjMKB2RldGFpbHMYBCADKAsyIi5hcmJjbi5zaW0udjEuVGVzdG5ldEFjY291bnREZXRhaWwSFQoNdXBkYXRlZF9hdF9tcxgFIAEoAyIbChlHZXRUZXN0bmV0QWNjb3VudHNSZXF1ZXN0IkwKGkdldFRlc3RuZXRBY2NvdW50c1Jlc3BvbnNlEi4KCGFjY291bnRzGAEgAygLMhwuYXJiY24uc2ltLnYxLlRlc3RuZXRBY2NvdW50InMKCENhc2hGbG93EgoKAmlkGAEgASgDEg0KBXRzX21zGAIgASgDEhAKCG9yZGVyX2lkGAMgASgDEg4KBmxlZ19pZBgEIAEoAxIMCgRraW5kGAUgASgJEg4KBmFtb3VudBgGIAEoARIMCgRub3RlGAcgASgJIhYKFEdldFNpbUFjY291bnRSZXF1ZXN0ItsBChVHZXRTaW1BY2NvdW50UmVzcG9uc2USDwoHY2FwaXRhbBgBIAEoARIMCgRjYXNoGAIgASgBEhQKDHJlYWxpemVkX3BubBgDIAEoARIWCg51bnJlYWxpemVkX3BubBgEIAEoARIUCgxtYXJrZXRfdmFsdWUYBSABKAESDgoGZXF1aXR5GAYgASgBEhQKDGZ4X2F2YWlsYWJsZRgHIAEoCBISCgplcXVpdHlfcm1iGAggASgBEiUKBWZsb3dzGAkgAygLMhYuYXJiY24uc2ltLnYxLkNhc2hGbG93Ih0KG0dldFBlcmZvcm1hbmNlUmVwb3J0UmVxdWVzdCLrAwocR2V0UGVyZm9ybWFuY2VSZXBvcnRSZXNwb25zZRITCgt3aW5kb3dfZGF5cxgBIAEoARIWCg50d3JfYW5udWFsaXplZBgCIAEoARIWCg5td3JfYW5udWFsaXplZBgDIAEoARIOCgZzdGF0dXMYBCABKAkSEwoLc3RhdHVzX25vdGUYBSABKAkSFAoMYmFzZWxpbmVfbG93GAYgASgBEhUKDWJhc2VsaW5lX2hpZ2gYByABKAESFwoPZnJpY3Rpb25fbWFyZ2luGAggASgBEhYKDmdhdGVfdGhyZXNob2xkGAkgASgBEhYKDmZ1bmRpbmdfbWVkaWFuGAogASgBEhMKC2Z1bmRpbmdfbWF4GAsgASgBEhoKEmhpZ2hfd2luZG93X2V2ZW50cxgMIAEoBRIWCg50cmFkYWJsZV9wYWlycxgNIAEoBRITCgtvcmRlcl9jb3VudBgOIAEoBRIWCg5yZWplY3RlZF9jb3VudBgPIAEoBRITCgtzdGFydF90c19tcxgQIAEoAxIRCgllbmRfdHNfbXMYESABKAMSFgoOc25hcHNob3RfY291bnQYEiABKAUSGgoSZXhwZWN0ZWRfc25hcHNob3RzGBMgASgFEhkKEXNuYXBzaG90X2NvdmVyYWdlGBQgASgBIhcKFUdldFJlcGxheVN0YXRlUmVxdWVzdCL/AQoPUmVwbGF5U3RhdGVLaW5kEgwKBGtpbmQYASABKAkSEQoJcmF0ZV9raW5kGAIgASgJEg8KB3ZlcmRpY3QYAyABKAkSDAoEbm90ZRgEIAEoCRIUCgx3aW5kb3dfY291bnQYBSABKAUSFQoNdG90YWxfc2FtcGxlcxgGIAEoBRIUCgxoaWdoX3NhbXBsZXMYByABKAUSFAoMbWVhbl9uZXRfYW5uGAggASgBEhQKDGJlc3RfbmV0X2FubhgJIAEoARIVCg13b3JzdF9uZXRfYW5uGAogASgBEhAKCHRpZXJfcGN0GAsgASgBEhQKDGZyaWN0aW9uX3BjdBgMIAEoASJcChZHZXRSZXBsYXlTdGF0ZVJlc3BvbnNlEiwKBWtpbmRzGAEgAygLMh0uYXJiY24uc2ltLnYxLlJlcGxheVN0YXRlS2luZBIUCgxoaXN0b3J5X2RheXMYAiABKAUy6QYKClNpbVNlcnZpY2USWAoNTGlzdFNpbU9yZGVycxIiLmFyYmNuLnNpbS52MS5MaXN0U2ltT3JkZXJzUmVxdWVzdBojLmFyYmNuLnNpbS52MS5MaXN0U2ltT3JkZXJzUmVzcG9uc2USXgoPQ29uZmlybVNpbU9yZGVyEiQuYXJiY24uc2ltLnYxLkNvbmZpcm1TaW1PcmRlclJlcXVlc3QaJS5hcmJjbi5zaW0udjEuQ29uZmlybVNpbU9yZGVyUmVzcG9uc2USWAoNQ2xvc2VTaW1PcmRlchIiLmFyYmNuLnNpbS52MS5DbG9zZVNpbU9yZGVyUmVxdWVzdBojLmFyYmNuLnNpbS52MS5DbG9zZVNpbU9yZGVyUmVzcG9uc2USYQoQTGlzdFNpbVBvc2l0aW9ucxIlLmFyYmNuLnNpbS52MS5MaXN0U2ltUG9zaXRpb25zUmVxdWVzdBomLmFyYmNuLnNpbS52MS5MaXN0U2ltUG9zaXRpb25zUmVzcG9uc2USVQoMR2V0U2ltUmVwb3J0EiEuYXJiY24uc2ltLnYxLkdldFNpbVJlcG9ydFJlcXVlc3QaIi5hcmJjbi5zaW0udjEuR2V0U2ltUmVwb3J0UmVzcG9uc2USZwoSR2V0VGVzdG5ldEFjY291bnRzEicuYXJiY24uc2ltLnYxLkdldFRlc3RuZXRBY2NvdW50c1JlcXVlc3QaKC5hcmJjbi5zaW0udjEuR2V0VGVzdG5ldEFjY291bnRzUmVzcG9uc2USWAoNR2V0U2ltQWNjb3VudBIiLmFyYmNuLnNpbS52MS5HZXRTaW1BY2NvdW50UmVxdWVzdBojLmFyYmNuLnNpbS52MS5HZXRTaW1BY2NvdW50UmVzcG9uc2USbQoUR2V0UGVyZm9ybWFuY2VSZXBvcnQSKS5hcmJjbi5zaW0udjEuR2V0UGVyZm9ybWFuY2VSZXBvcnRSZXF1ZXN0GiouYXJiY24uc2ltLnYxLkdldFBlcmZvcm1hbmNlUmVwb3J0UmVzcG9uc2USWwoOR2V0UmVwbGF5U3RhdGUSIy5hcmJjbi5zaW0udjEuR2V0UmVwbGF5U3RhdGVSZXF1ZXN0GiQuYXJiY24uc2ltLnYxLkdldFJlcGxheVN0YXRlUmVzcG9uc2VCLlosYXJiY24vaW50ZXJuYWwvc2ltYXBpL2dlbi9hcmJjbi9zaW0vdjE7c2ltdjFiBnByb3RvMw");
 
 /**
  * SimOrder 与 store.SimOrder 对应（04-m3-spec §1.1 建议订单；§10.2 C1）。
@@ -865,6 +865,143 @@ export const GetPerformanceReportResponseSchema: GenMessage<GetPerformanceReport
   messageDesc(file_arbcn_sim_v1_sim, 20);
 
 /**
+ * GetReplayState 回放证伪门禁证据面（D-065 修订：只读，可检查性 P4——门禁休眠也可见）。
+ * 每策略 kind 当前回放判据（订单管线在 buildSignal 对每个建单信号强制自动执行同款判据，
+ * 本 RPC 只读重算展示当前状态；不触发任何写路径）。
+ *
+ * @generated from message arbcn.sim.v1.GetReplayStateRequest
+ */
+export type GetReplayStateRequest = Message<"arbcn.sim.v1.GetReplayStateRequest"> & {
+};
+
+/**
+ * Describes the message arbcn.sim.v1.GetReplayStateRequest.
+ * Use `create(GetReplayStateRequestSchema)` to create a new message.
+ */
+export const GetReplayStateRequestSchema: GenMessage<GetReplayStateRequest> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 21);
+
+/**
+ * @generated from message arbcn.sim.v1.ReplayStateKind
+ */
+export type ReplayStateKind = Message<"arbcn.sim.v1.ReplayStateKind"> & {
+  /**
+   * 策略 kind（funding_hedge / carry_asset / repo）
+   *
+   * @generated from field: string kind = 1;
+   */
+  kind: string;
+
+  /**
+   * 回放数据面事实 kind（funding / defi_rate / reverse_repo）
+   *
+   * @generated from field: string rate_kind = 2;
+   */
+  rateKind: string;
+
+  /**
+   * pass / watch / falsified / no_window（D-065）
+   *
+   * @generated from field: string verdict = 3;
+   */
+  verdict: string;
+
+  /**
+   * 自述判定（含判据/阈值，中文）
+   *
+   * @generated from field: string note = 4;
+   */
+  note: string;
+
+  /**
+   * 历史高费率窗口数（0 = 环境无窗口 D-061 ②）
+   *
+   * @generated from field: int32 window_count = 5;
+   */
+  windowCount: number;
+
+  /**
+   * 回放样本数
+   *
+   * @generated from field: int32 total_samples = 6;
+   */
+  totalSamples: number;
+
+  /**
+   * ≥ 高费率档读数数
+   *
+   * @generated from field: int32 high_samples = 7;
+   */
+  highSamples: number;
+
+  /**
+   * 样本加权均值净年化 %（无窗口 = 0）
+   *
+   * @generated from field: double mean_net_ann = 8;
+   */
+  meanNetAnn: number;
+
+  /**
+   * 最佳窗口净年化 %
+   *
+   * @generated from field: double best_net_ann = 9;
+   */
+  bestNetAnn: number;
+
+  /**
+   * 最差窗口净年化 %
+   *
+   * @generated from field: double worst_net_ann = 10;
+   */
+  worstNetAnn: number;
+
+  /**
+   * 该策略高费率档 %
+   *
+   * @generated from field: double tier_pct = 11;
+   */
+  tierPct: number;
+
+  /**
+   * 该策略一次性摩擦 %
+   *
+   * @generated from field: double friction_pct = 12;
+   */
+  frictionPct: number;
+};
+
+/**
+ * Describes the message arbcn.sim.v1.ReplayStateKind.
+ * Use `create(ReplayStateKindSchema)` to create a new message.
+ */
+export const ReplayStateKindSchema: GenMessage<ReplayStateKind> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 22);
+
+/**
+ * @generated from message arbcn.sim.v1.GetReplayStateResponse
+ */
+export type GetReplayStateResponse = Message<"arbcn.sim.v1.GetReplayStateResponse"> & {
+  /**
+   * @generated from field: repeated arbcn.sim.v1.ReplayStateKind kinds = 1;
+   */
+  kinds: ReplayStateKind[];
+
+  /**
+   * 回放历史窗口天（ReplayHistoryDays）
+   *
+   * @generated from field: int32 history_days = 2;
+   */
+  historyDays: number;
+};
+
+/**
+ * Describes the message arbcn.sim.v1.GetReplayStateResponse.
+ * Use `create(GetReplayStateResponseSchema)` to create a new message.
+ */
+export const GetReplayStateResponseSchema: GenMessage<GetReplayStateResponse> = /*@__PURE__*/
+  messageDesc(file_arbcn_sim_v1_sim, 23);
+
+/**
  * SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
  *
  * @generated from service arbcn.sim.v1.SimService
@@ -933,6 +1070,14 @@ export const SimService: GenService<{
     methodKind: "unary";
     input: typeof GetPerformanceReportRequestSchema;
     output: typeof GetPerformanceReportResponseSchema;
+  },
+  /**
+   * @generated from rpc arbcn.sim.v1.SimService.GetReplayState
+   */
+  getReplayState: {
+    methodKind: "unary";
+    input: typeof GetReplayStateRequestSchema;
+    output: typeof GetReplayStateResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_arbcn_sim_v1_sim, 0);

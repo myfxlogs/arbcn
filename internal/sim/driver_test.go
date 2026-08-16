@@ -430,3 +430,64 @@ func TestDriverOnRuleActiveNoEntities(t *testing.T) {
 		t.Fatalf("orders = %d, want 0", len(st.orders))
 	}
 }
+
+// —— D-065 修订：回放证伪门禁 driver 全链（buildSignal 预计算 → SignalToOrder 消费）——
+
+// TestDriverReplayGateRejectsFalsified：[对抗测试锚点 D-065] 历史 funding 单读数 16%
+// （≥15% 档）→ 短窗口摊不动 0.3% 摩擦 → 回放 falsified → 订单被 REPLAY_VETO 拒单。
+// 删 buildSignal 的回放判据填充 → 本测试必红（订单会变 suggested）。
+func TestDriverReplayGateRejectsFalsified(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	seedTicker(st, "okx", "BTC", 60000)
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindFunding, Venue: "okx", Symbol: "BTC", Value: 16,
+		Ts: t0.Add(-24 * time.Hour), Src: "test",
+	})
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "funding_warn"},
+		[]store.EntityHit{{Venue: "okx", Symbol: "BTC", Value: 10}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 {
+		t.Fatalf("orders = %d, want 1（拒单也是负样本，落库）", len(st.orders))
+	}
+	o := st.orders[0]
+	if o.Status != store.SimStatusRejected || !hasFlag(o, RiskReplay) {
+		t.Fatalf("status/flags = %q/%v, want rejected/REPLAY_VETO（回放 falsified 拒单）", o.Status, o.RiskFlags)
+	}
+}
+
+// TestDriverReplayGateAllowsPass：历史 funding 90 天长窗口 18% → 净正 → 回放 pass →
+// 订单照常 suggested（门禁通过不误拒；证伪未发生 = 放行）。
+func TestDriverReplayGateAllowsPass(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	seedTicker(st, "okx", "BTC", 60000)
+	base := t0.Add(-120 * 24 * time.Hour)
+	for i := 0; i < 45; i++ { // 45 份 × 2 天 ≈ 90 天窗口
+		st.facts = append(st.facts, ffactAt(base.Add(time.Duration(i)*2*24*time.Hour), 18))
+	}
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "funding_warn"},
+		[]store.EntityHit{{Venue: "okx", Symbol: "BTC", Value: 10}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 || st.orders[0].Status != store.SimStatusSuggested || hasFlag(st.orders[0], RiskReplay) {
+		t.Fatalf("orders = %+v, want 1 条 suggested 无 REPLAY_VETO（回放 pass 放行）", st.orders)
+	}
+}
+
+// TestDriverReplayGateNoWindowAllows：历史无 ≥15% 窗口（低 funding）→ no_window
+// （D-061 ② 门禁休眠 = 正确输出）→ 订单放行，不误拒。
+func TestDriverReplayGateNoWindowAllows(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	seedTicker(st, "binance", "BTC", 60000)
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Value: 10.95,
+		Ts: t0.Add(-24 * time.Hour), Src: "test",
+	})
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "funding_warn"},
+		[]store.EntityHit{{Venue: "binance", Symbol: "BTC", Value: 10}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 || st.orders[0].Status != store.SimStatusSuggested || hasFlag(st.orders[0], RiskReplay) {
+		t.Fatalf("orders = %+v, want 1 条 suggested 无 REPLAY_VETO（no_window 放行）", st.orders)
+	}
+}

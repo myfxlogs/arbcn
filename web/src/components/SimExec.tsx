@@ -13,6 +13,7 @@ import type {
 import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
 import { OrderHistoryZone } from "./OrderHistoryZone";
 import { PerformanceZone } from "./PerformanceZone"; // D-062 判定门① 测量（独立组件防 SimExec 超 450 行）
+import { ReplayGateZone } from "./ReplayGateZone"; // D-065 回放证伪门禁证据面（独立组件，自包含拉取）
 
 // flowKindText 现金流类型 → 中文（D-056 逐笔流水表）。
 function flowKindText(kind: string): string {
@@ -399,6 +400,7 @@ export function SimExec({
       ) : null}
       {account ? <AccountZone account={account} fxAvailable={fxAvailable} /> : null}
       {performance ? <PerformanceZone perf={performance} /> : null}
+      <ReplayGateZone />
       <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
       {/* 对话 #81：订单历史（含 rejected 拒单负样本）置于持仓之后、账户信息之前 */}
       <OrderHistoryZone orders={orders} />
