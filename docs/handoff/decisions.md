@@ -343,3 +343,10 @@
   ⑥ **节序定稿**：error 横幅 → ConfirmPanel（置顶整宽）→ `.row`(Opportunity + Alerts 双栏) → Insights → Triggers → KnowledgeBoard。`.row` 简化为纯 2fr/1fr 双栏，**删除 `.row-col` 与 `grid-row: span 2`**（对话 #60 为「ConfirmPanel 进右列」建的，现不再需要，删死样式）。
 - **理由**：布局顺序直接对应「第一眼问题层级」（行动→裁决→信号→数据），纯前端零后端/RPC/门禁改动；折叠复用单一组件 + 原生语义（A 原则）；低频内容（经验库/全量规则）不占首屏是「数据下钻留给需要时」，不丢数据面（均可展开）。
 - **结论**：`Collapse.tsx` + Opportunity.tsx（实算卡置前 + 4 块折叠）+ Triggers.tsx（active 顶部 + 全量折叠）+ KnowledgeBoard.tsx（defaultOpen prop + 折叠）+ OverviewPage.tsx（ConfirmPanel 置顶 + `.row` 简化为双栏 + Insights 提序 + hasKnowledgeMatch 传入）+ style.css（.collapse 系列 + 删 .row-col/span 2）。grep 锚点恒绿（Opportunity 仍 import kindText 无字面量、ConfirmPanel 仍引 SimulatedBadge，测试未动）；全量 go test/vet/npm build 绿；部署重启（SIGKILL 既有模式）+ 实测 healthz ok + 新二进制 inode 匹配 + served bundle == 新 dist（index-DTovgGTO.js）。**纯前端布局，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——确认下单仍 SIMULATED + 人工确认。**
+
+## D-049 funding 数据源范围裁决：不加所，值得扩标的不扩所（2026-08-16）
+- **背景**：业主问「资金费率矩阵只有 binance/okx 两家，有必要引入更多吗？」（对话 #67）。
+- **决策**：**暂不引入更多交易所，数据面维持 binance + okx**。理由按第一性：① 矩阵回答「(币×所) 存在可吃的 funding 窗口」，瓶颈不在所个数——流动性所（binance/okx/bybit）BTC/ETH funding 高度趋同（做市商套利拉平费率），加第三家**不改「流动性币 funding 极少过 D-016 15% 门槛」基本面**（对话 #52 全市场扫描实证：极端 funding 全在被砸的微盘陷阱币）；② **业主可交易面 = binance/okx 两家**（普通主户费率已核实，D-046），矩阵价值是「看到→能下」，展示不能下单的所 = 噪音；③ 加所成本 = 新 collector + 部署机端点实测（practices #12）+ freshness 状态面 + 故障面，收益未确证前不加（先核实再采纳 D-028）。
+- **例外触发（何时才值得动）**：① 跨所费率分歧（`funding:cross_venue_divergence`，TRX binance vs okx 已核实真实分歧）在**流动性标的上**反复命中且业主确证两腿可套 → 才有加第三所（Bybit）的可度量动机（2 所 = 每币 1 分歧对 / 3 所 = 3 分歧对）；② 若拓宽 funding 窗口监测，**优先加流动性中市值标的（SOL/XRP 等）而非加所**——同样须先核实两所均有现货+永续（可对冲）且实证过 ≥15% 可持续窗口，受宁缺毋滥约束。
+- **理由**：这是「不加」的边界决策——未来 agent 提「引入 Bybit」须先过本决策触发条件，避免盲目扩数据面。纯数据源范围裁决，零代码改动。
+- **结论**：方向记录在案（facts.md 落档「funding 数据源边界」现行）；不建新 collector；改动须走 D#。

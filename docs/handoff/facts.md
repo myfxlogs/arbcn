@@ -46,6 +46,7 @@
 | Binance API 可达性 | fapi.binance.com 间歇 451；data-api.binance.vision 仅 spot /api/v3（fapi 404）→ 保留原域（D-031） | 2026-08-15 | arbcn 实测 | 现行 |
 | CEX 稳定币阶梯陷阱 | 头条 8–10% 仅 200–300 USDT 小档；超额档 1.6–2.2% | 2026-08-15 | BlockBeats | 现行（金额档原则） |
 | **交易所执行摩擦（funding_hedge 双开双平）** | **0.3%**（现货 taker 0.1%×2 + 永续 taker 0.05%×2）；**两交易所均普通主户费率（非 VIP、无抵扣），业主核实** | 2026-08-16 | 业主核实（对话 #64，D-046） | **已核实 · 普通主户**（D-046 机会实算卡默认摩擦；后续升 VIP/启用 BNB 抵扣 → 改 env `ARBCN_OPP_FRICTION_FUNDING` 不改代码） |
+| **funding 数据源范围（arbcn live）** | **维持 binance + okx 两家，不加所**：两所已覆盖业主可交易面（普通主户已核实）；加第三所不改「流动性币 funding 极少过 15% 门槛」基本面（极端 funding 全在微盘陷阱币，对话 #52 实证）→ 加所 = 负期望投入（新 collector + 部署机端点实测 practices #12 + freshness 故障面）。**值得扩的是标的维度**（SOL/XRP 等，须两所均有现货+永续可对冲 + 实证过门槛，受宁缺毋滥约束）。例外触发 = 跨所费率分歧在流动性标的上反复命中且业主确证可套 → 才考虑加第三所（Bybit，2 所 = 每币 1 分歧对 / 3 所 = 3 对） | 2026-08-16 | 裁决（对话 #67，D-049） | 现行（数据源边界） |
 | 稳定币大额档 | Binance Earn 定期 USDT 5.8%/USDC 4.5%；Bybit 4.8–5.5%；OKX USDT 5.0% | 2026-08-15 | StableLens | 现行（执行前复核） |
 | DeFi 稳定币 | Aave USDC 4.67%；Morpho 4–6.5%；sDAI 5–8%；sUSDe 8–11.8%（高风险档） | 2026-06/07 | StableLens 类 | 监控中（均衡卫星） |
 | 代币化美债 | BUIDL 3.4%；USDY/BENJI 4–5% | 2026-06 | StableLens | 现行（自托管备选） |

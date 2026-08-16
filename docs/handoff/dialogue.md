@@ -116,3 +116,10 @@
 - **验证**：grep 锚点恒绿（TestSimKindLabelCoverage 要求 Opportunity 无 funding_hedge 字面量、TestSimExecBadgeRenderable 要求 ConfirmPanel 引 SimulatedBadge——均未触及）；全量 go test（含真库 DSN）/vet/npm build 绿（tsc strict 无未用变量/import）。
 - **部署**：构建 → 部署 → 推送闭环（practices #19）。构建后 sudo 交互受阻 → D-035 既有「SIGKILL 重启」模式（systemd Restart=on-failure 拉起，状态全在 PG 持久化）；生产实测 healthz ok + 新二进制 inode 匹配（stat -L，21244274→21244337）+ served bundle == 新 dist（index-DTovgGTO.js 匹配磁盘）+ 前端第一眼顺序核对（待确认下单置顶 → 实算卡裁决在前 funding 展开 → 告警流右列 → 进化建议 → 触发器仅 active → 经验库折叠）。
 - **决策号**：D-048（决策 + 留痕）; 教训入 practices #25（布局 = 第一眼问题层级，裁决在数据前）。
+
+## #67 · 2026-08-16 · 资金费率矩阵数据源范围（要不要加更多交易所）· 业主提问 → 决策层裁决
+- **参与方**：业主（提问）、Claude（决策层）
+- **议题**：业主「资金费率矩阵里，只有 binance/okx 2 家，有必要引入更多吗？」
+- **裁决（D-049）**：**暂不加所**——① 矩阵瓶颈在标的维度不在所维度：流动性所 funding 高度趋同，加第三家不改「流动性币 funding 极少过 D-016 15% 门槛」基本面（对话 #52 实证：极端 funding 全在微盘陷阱币）；② 业主可交易面就是这两家（普通主户费率已核实），展示不能下单的所 = 噪音；③ 加所成本（collector + 部署机端点实测 practices #12 + 故障面）在收益未确证前不加（D-028）。**值得扩的是标的维度**（SOL/XRP 等，受宁缺毋滥约束）；**例外触发** = 跨所费率分歧在流动性标的上反复命中且业主确证可套 → 才考虑加第三所（Bybit，3 所 = 每币 3 分歧对）。
+- **结论**：数据面维持 binance+okx，零代码改动；facts.md 落档数据源边界（现行）+ decisions.md D-049 记录触发条件，未来提「引入 Bybit」须先过该条件。
+- **决策号**：D-049（数据源范围裁决，方向记录在案）。
