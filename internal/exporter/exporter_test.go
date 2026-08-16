@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -200,6 +201,11 @@ func TestExportWriteError(t *testing.T) {
 // boot 导出后，OnRuleActive 触发 → 新快照（新时刻）出现；ctx 取消 → Run 退出。
 func TestRunExportsOnTrigger(t *testing.T) {
 	x, path := newTestExporter(t)
+	// 并发安全时钟：与 Run goroutine 并发推进，用 atomic.Value 存 time.Time（D-067，同
+	// TestRunThrottlesRuleTrigger；裸变量赋值在 -race 下检测为 data race）。
+	var clock atomic.Value
+	clock.Store(expNow)
+	x.Now = func() time.Time { return clock.Load().(time.Time) }
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- x.Run(ctx) }()
@@ -211,7 +217,7 @@ func TestRunExportsOnTrigger(t *testing.T) {
 
 	// 触发规则事件：新时刻（18:44）快照应写入。
 	expNow2 := expNow.Add(30 * time.Minute)
-	x.Now = func() time.Time { return expNow2 }
+	clock.Store(expNow2)
 	x.OnRuleActive(context.Background(), store.Rule{}, nil)
 	waitFor(t, 2*time.Second, func() bool {
 		b, _ := os.ReadFile(path)
@@ -264,6 +270,12 @@ func TestExportCapsSnapshotCount(t *testing.T) {
 // 删除 Run 里节流判断 → 5min 内二次触发即出第二快照必红。
 func TestRunThrottlesRuleTrigger(t *testing.T) {
 	x, path := newTestExporter(t)
+	// 并发安全时钟：Run goroutine 内 x.now() 与测试推进时钟并发，裸变量赋值有
+	// data race（-race 必红）——用 atomic.Value 存 time.Time（写一次闭包，
+	// 之后测试只 Store 推进），读走 Load，无同步开销外的竞态。
+	var clock atomic.Value
+	clock.Store(expNow)
+	x.Now = func() time.Time { return clock.Load().(time.Time) }
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- x.Run(ctx) }()
@@ -274,7 +286,7 @@ func TestRunThrottlesRuleTrigger(t *testing.T) {
 	})
 	// 距 boot 导出 +5min（< 阈值）：触发被节流，无新快照。
 	early := expNow.Add(5 * time.Minute)
-	x.Now = func() time.Time { return early }
+	clock.Store(early)
 	x.OnRuleActive(context.Background(), store.Rule{}, nil)
 	time.Sleep(300 * time.Millisecond)
 	b, _ := os.ReadFile(path)
@@ -283,7 +295,7 @@ func TestRunThrottlesRuleTrigger(t *testing.T) {
 	}
 	// 距 boot 导出 +12min（≥ 阈值）：触发生效，出新快照。
 	late := expNow.Add(12 * time.Minute)
-	x.Now = func() time.Time { return late }
+	clock.Store(late)
 	x.OnRuleActive(context.Background(), store.Rule{}, nil)
 	waitFor(t, 2*time.Second, func() bool {
 		b, _ := os.ReadFile(path)

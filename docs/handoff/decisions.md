@@ -597,3 +597,22 @@
   - **E 合规**：零执行门禁/规则/阈值/MinSpread/CarryMinSpread/白名单改动（纯 exporter 文件管理，只读证据面）；D-019 不赌；D-043 不接 LLM；D-010 零密钥。
   - **F 文档**：本 D# + practices #42 + dialogue #90 + STATE 施工表/下一步/清扫上翻。
 - **结论**：D-066 定稿，A–F 施工前自审通过，开始施工（exporter cap+throttle → 对抗测试 → 部署自愈收敛 → 收工落档）。
+
+## D-067 前端 monolith 拆分（hooks.ts + style.css）+ 补 CI（对话 #93，业主指令「回到本项目，先补上本项目的缺失」）
+
+- **背景**：跨项目审计（arb D-097 / arbcn 对话 #92）确认 arbcn 自身短板 = **前端 monolith + 无 CI**。三处证据：① `web/src/hooks.ts` **450 行**正好卡在 check-lines 硬线（`>450` 硬阻断，practices #40 已记录 463→449 事故）——任意 +1 行即 pre-commit 阻断；② `web/src/style.css` **1248 行**唯一样式文件，41 个注释分段按组件/D# 组织，与 `components/` 1:1 对应，但 **check-lines 只查 .go/.ts/.tsx 不查 .css** = CSS 是无门禁约束的债；③ 无任何 CI（无 `.github/workflows`、无 Makefile，pre-commit 三门禁仅本地生效）。范围经业主定夺（AskUserQuestion）= **全拆：hooks + CSS + CI**（最彻底选项）。
+- **决策**：
+  ① **hooks.ts → `web/src/hooks/` 8 文件**：6 个 hook 零依赖整块搬 + `shared.ts`（POLL_MS + Snapshot + Quote）+ `index.ts` barrel re-export——消费方 `./hooks`/`../hooks` import 路径不变（`moduleResolution:bundler` 自动解析 barrel）。**纯物理搬迁零逻辑改**。
+  ② **style.css → `web/src/styles/` 12 文件（00-base…11-account-responsive）**：按原 1248 行顺序切分（切分脚本 `''.join == src` 无损断言），`main.tsx` 按原顺序 import 一列——**顺序即级联**。**零回归锚点 = 拆分前记录 build 产物 CSS md5 → 拆分后重新 build 产物 CSS 逐字节一致**（物理分行合并后 = 原顺序，产物一致 = 零视觉回归，无需逐视口肉测兜底）。
+  ③ **补 CI `.github/workflows/ci.yml`**：照搬 arb 已验证骨架 + arbcn 适配（无 broker/真金/EnsureMigrations 无需裁剪项）——checkout@v4 / setup-go@v5 go-version-file / setup-node@v4 node-22 cache:npm / `npm ci --legacy-peer-deps` / `npm run build`（**前端产物须在 go build 之前**，web/embed.go `go:embed dist`）/ go mod download / go build ./... / go vet ./... / `go test -race -count=1 ./...`（DB 集成测试无 `ARBCN_TEST_PG_DSN` 自动 skip practices #33，network 门禁测试纯文件扫描）/ check-lines.sh。**首版不加 govulncheck**（arb 也未在 CI 跑，且 arbcn go.mod 缺 toolchain 钉版会先扫 stdlib 漏洞需另钉）、**不加 postgres service**（后续可选增强）。
+  ④ **既有测试 data race 修复**（CI 前置）：`go test -race` 暴露 `internal/exporter` 2 个测试（TestRunThrottlesRuleTrigger / TestRunExportsOnTrigger）在 `go x.Run(ctx)` goroutine 执行期间直接写 `x.Now` 字段（与 Run 内 `x.now()` 读并发）→ 改 **atomic.Value 时钟闭包**（goroutine 启动前 `var clock atomic.Value; clock.Store(expNow); x.Now = func() time.Time { return clock.Load().(time.Time) }`，之后只 `clock.Store(...)` 推进），删修复必红。
+- **理由**：第一性——① check-lines 硬线是门禁（P4），hooks.ts 卡线 = 债务到期；CSS 无门禁 = 隐性债，拆到 12 文件各 <200 行回归门禁管辖；② CI 把门禁从「本地可选」升为「远端强制」（P4：无人为绕过），arb 骨架已验证直接照搬（B 实现复用，零新依赖）；③ CSS 顺序切分 = 级联保持的最小改动方案（不引 CSS Modules，免全仓类名重命名——全局类名跨组件共享，拆 Modules 是高风险大改）。
+- **影响**：web/src/hooks.ts → hooks/（8 文件）；web/src/style.css → styles/（12 文件）；main.tsx import 顺序；.github/workflows/ci.yml 新；internal/exporter/exporter_test.go 2 测试 atomic clock；STATE 施工表/清扫上翻/下一步 + dialogue #93 + practices #43/#44。
+- **A–F 施工前自审**：
+  - **A 架构**：复用既有 `windowDefaults.ts` 先例（practices #40 同模式）+ barrel re-export；CI 照搬 arb 已验证骨架零新依赖；不引 CSS Modules（全局类名 + 顺序 import = 最低风险）。
+  - **B 实现**：hooks 拆分纯物理搬迁零逻辑改；style.css 拆分纯顺序切分零规则改；CI 配置新增——三处都无多余间接层。
+  - **C 洁净**：删原 hooks.ts/style.css 不留死文件；barrel 只 re-export 不藏逻辑；CI 无冗余 step。
+  - **D 正确性**：零回归锚点 = 产物 CSS 逐字节一致（拆分前后 md5 `23ea63ef2a9cde1176bb5fe9aeb54a53` 完全相同）+ tsc/vite 编译过（import 路径全对）+ 全量 go test -race 绿；对抗——任意 import 顺序错乱 → 产物 CSS diff 必不一致；任意 hook import 漏改 → tsc noUnusedLocals 必红；删 atomic clock → exporter race 测试必红。
+  - **E 合规**：纯前端工程 + CI，零执行门禁/规则/阈值/MinSpread/CarryMinSpread/白名单改动；不触碰 §1 定位、D-010/D-013/D-016/D-019。
+  - **F 文档**：本 D# + practices #43（CSS 顺序切分零回归锚点）/ #44（CI 照搬 arb 骨架裁剪 + race 时钟注入）+ dialogue #93 + STATE 施工表/清扫上翻/下一步。
+- **结论**：D-067 定稿，A–F 施工前自审通过。A/B/C 三工作流施工完成 + 本地复刻 CI 全绿 + 部署闭环（served bundle 引用新 hash，CSS md5 与拆分前锚点逐字节一致）。

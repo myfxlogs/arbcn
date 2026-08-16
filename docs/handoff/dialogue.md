@@ -356,3 +356,11 @@
 - **arbcn 侧自省**（审计副产品，arbcn 自身短板，指向 arb D-097 证据）：arb 的 react-table 引擎 / i18n / Zustand 薄 store / CI / migration 自愈双轨 / tech-debt 台账 / govulncheck / Playwright 均强于 arbcn；arbcn 前端 hooks.ts/style.css monolith（vs arb 薄 CSS）是待偿债。不另行重复落 arbcn 文档（P3 单一真相源，指向 arb 侧）。
 - **落档**：arb decisions.md **D-097**（综合方案 A 机制①-⑥ / B 前端五件 / C 工程三项 / 明确不引 6 类 / 优先级 A2→B/C→A1→A3-A6）+ arb STATE（最后更新 / 当前施工 / 阻塞待决策 三处）+ arb practices §8。arb commit **b99106e**，未 push（arb 本地领先 origin 183 commit 是其自身节奏，D-096 亦未推，不擅推）。
 - **决策号**：arb D-097（arbcn 侧无 D#）。每项施工另立独立 D#（A2→D-098 起），**待业主授权逐项施工**。
+
+## #93 · 2026-08-17 · 补 arbcn 自身缺失（前端 monolith 拆分 + CI，D-067）+ 机会核实（当前无机会）
+
+- **参与方**：业主（「回到本项目 arbcn，先补上本项目的缺失，然后确认一下，arbcn 目前都没有机会吧？」）、Claude（施工 + 核实）
+- **议题**：业主指令返回 arbcn 补缺。缺失 = 对话 #92 审计确认的 arbcn 自身短板（D-097 副产品）：前端 monolith（hooks.ts 450 行卡 check-lines 硬线 + style.css 1248 行无门禁）+ 无 CI。范围经 AskUserQuestion 定夺 = **全拆（hooks + CSS + CI）**。
+- **施工（D-067，A→B→C 三工作流，本地复刻 CI 全绿）**：**A hooks.ts → hooks/ 8 文件**（6 hook 零依赖整块搬 + shared + barrel，消费方 import 路径不变）；**B style.css → styles/ 12 文件**（按原 1248 行顺序切分，main.tsx 按原顺序 import，**产物 CSS md5 与拆分前锚点逐字节一致 `23ea63ef2a9cde1176bb5fe9aeb54a53` = 零视觉回归锚点**）；**C .github/workflows/ci.yml**（照搬 arb 骨架 + arbcn 适配：npm build 在 go build 前 / go test -race / check-lines，首版不加 govulncheck + postgres）。**CI 复刻暴露 2 个既有测试 data race**（TestRunThrottlesRuleTrigger/TestRunExportsOnTrigger——测试在 Run goroutine 执行期间直接写 x.Now 字段，`go test` 不带 -race 全绿、`-race` 必红）→ atomic.Value 时钟闭包修复。**部署闭环**：go build → systemctl restart arbcn-monitor（sudo）→ healthz ok → served bundle 引用新 hash（index-CuV4QYt8.css == dist 锚点）+ 全量 go test -race 绿。
+- **机会核实（全部 live RPC，三重证据）**：① **ListOppCards 13 张卡片全部 breakeven/trap，无 trade**（carry_asset ×5 最高 SUSDE 4.39% < 4.5% base；funding_hedge ×8 其中 3 张 trap 负值、最高 okx-BTC net 3.08% < 15%；repo ×2 breakeven）② **GetReplayState 三策略均 no_window**（funding 4598 样本 max 10.95% < 15% 档，与 D-065 门禁休眠正确输出一致）③ **GetSimAccount equity=100k 空仓**。**Nuance**：ListFundingWindowStats 7d overall = tradable（93% positive share，mean 5.29%）——**环境可行但当前无具体猎物**（「有场子但没猎物」：费率结构支持套利、但当下没有 ≥ 门槛的窗口档；阶段 0 判定门① 继续 env_no_window 是正确输出，非策略失败，D-061② 环境-策略分离）。
+- **决策号**：arbcn **D-067**（一个 D# 三个工作流：A hooks / B style.css / C CI，分别 commit，各可独立验收）。
