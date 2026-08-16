@@ -320,3 +320,12 @@
 - **施工**：`sim/replay.go`（ComputeReplay/OverallReplay/ReplayKindConfig/Driver.replayGate）+ `order.go`（Signal 字段 + RiskReplay 门禁）+ `driver.go`（buildSignal 强制回放填充 + settleFactKind 读 SSOT 表）+ `simapi/replaystate.go`（GetReplayState：每 kind 历史分组逐对回放 → overall）+ proto #9 RPC + 前端 ReplayGateZone（自包含拉取防 hooks.ts 顶 450）+ 对抗锚点测试（删门禁分支/删摊摩擦/删 no_window 守卫/删 buildSignal 填充/删表行必红）+ simapi 测试 + repo 摩擦=0 防错杀测试。
 - **部署实测（对话 #88）**：npm run build + go build → systemctl restart（sudo 密码业主提供沿用）→ healthz ok + **served bundle == dist（md5 逐字节一致，JS+CSS）** + **GetReplayState 真实数据：三策略均 no_window**（funding 4505 样本、max 10.95%、无 ≥15% 读数；carry 105 样本；repo 48 样本；与 psql 实查完全一致）= D-061② 门禁休眠正确输出（历史无高费率档，门禁不误判不空转）。
 - **决策号**：D-065（修订块）。**D-061 方案一/二/三全数落地毕**；下一步 = 阶段 0 运行态观察。
+
+## #89 · 2026-08-17 · SimExec 卡序重排：模拟持仓/订单历史上提（业主指令）
+
+- **参与方**：业主（「模拟持仓/订单历史，这两个卡片提上来，放到模拟账户与判定门① 阶段 0 测量之间」）、Claude（重排 + 部署）
+- **议题**：SimExec 面板卡片顺序。原序 = 模拟账户 → 判定门① 测量 → 回放证伪门禁 → 模拟持仓 → 订单历史。业主要求持仓/订单历史上提。
+- **决策**：新序 = **模拟账户 → 模拟持仓 → 订单历史 → 判定门① 测量 → 回放证伪门禁 → 测试网账户 → 对账报告**。持仓/订单历史 = 「第一眼」操作面（看仓 + 看拒单负样本），紧跟账户对账；判定门① 测量与回放门禁置后（只读观察面，非高频操作）。
+- **施工**：`SimExec.tsx` 仅 JSX 渲染序调整（PositionZone + OrderHistoryZone 移至 AccountZone 与 PerformanceZone 之间）；零后端/RPC/门禁/样式改动。
+- **部署实测**：npm run build → go build → systemctl restart → healthz ok + served bundle == dist（md5 逐字节一致）。
+- **决策号**：纯前端呈现层，无 D#（布局演进延续 D-048/D-050/D-052/D-053 既有线）。

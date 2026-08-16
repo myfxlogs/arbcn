@@ -399,11 +399,12 @@ export function SimExec({
         </div>
       ) : null}
       {account ? <AccountZone account={account} fxAvailable={fxAvailable} /> : null}
-      {performance ? <PerformanceZone perf={performance} /> : null}
-      <ReplayGateZone />
       <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
       {/* 对话 #81：订单历史（含 rejected 拒单负样本）置于持仓之后、账户信息之前 */}
       <OrderHistoryZone orders={orders} />
+      {/* 对话 #89：持仓/订单历史上提至模拟账户与判定门① 之间（业主指令） */}
+      {performance ? <PerformanceZone perf={performance} /> : null}
+      <ReplayGateZone />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone
         markdown={report?.markdown ?? ""}
