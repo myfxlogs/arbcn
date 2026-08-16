@@ -299,3 +299,13 @@
   ⑥ **动作一律指向 D# 人工决策**：每条 insight 的 actions 只给「核实/评估→走 D#」候选，不落任何自动执行路径。
 - **理由**：P4 可机械检查——纯函数 + 对抗测试（删判定/删计数必红）；与 D-019（不赌）/D-028（先核实再采纳）/D-043（不接 LLM）同源。只读证据表面：**决策永远手动**，引擎只把证据候选摆在决策层面前。
 - **结论**：`internal/dashboard/insights.go` + `insights_test.go`（对抗）+ proto `Insight/ListInsights` + 前端「进化建议」卡（触发器下方整宽卡）+ docs（practices #20 / dialogue #62）。部署实测：`reject_dist`（UNHEDGED ×2/SPREAD_DRIFT ×1）、`source_stale` ×3（repo/fx/deribit_iv 周末低活跃源）正确出现；`no_order` 被近 7 天 filled 单正确抑制；`defi_anomaly` 因最新截面平稳正确不报。L1 候选：统计自校准（窗口 max 冲高 / 阈值自适应）、L2 归因智能（拒单-阈值联动）——留给数据累积后按本决策边界续。
+
+## D-045 carry + repo 完整接入模拟盘（结算分派 + 门槛分档 + venue 对齐）（2026-08-16）
+- **背景**：业主观察模拟盘**只真正跑通 funding_hedge（现货+永续）**——面板看到的都是「预期收益」，其他机会类没在模拟里产生数据。业主问「能否把其他机会都接入模拟」，业主已定：**carry + repo 都接**，carry 白名单 **SUSDE / USDE / BUIDL / STEAKUSDC / USDY（能做的都做上）**。调查定位三个真实缺口（非「门禁太严」）：① 结算数据面只查 `funding` 事实 → carry/repo 腿建仓后永不生息；② repoSignal 落单硬编码 `GC001/domestic`，事实真实存 `sina/GC001` → 结算永 miss；③ `MinSpread=5%`（funding_hedge 摩擦假设）误用于 carry → 当前 defi 利率 3~5% 全被拒。
+- **决策**：
+  ① **结算数据面按腿 kind 分派**（`settleFactKind(kind)`）：funding_hedge→`fact.KindFunding` / carry_asset→`fact.KindDefiRate` / repo→`fact.KindReverseRepo`；`settleOnce` 分组键 `(kind,symbol,venue)`；`SettleFunding` 加 kind 参数（按 kind 过滤腿）。
+  ② **repoSignal 落单 venue/symbol 取事实真实值**（`fs[0].Symbol / fs[0].Venue`，不再硬编码 domestic/GC001）。
+  ③ **carry 门槛按 kind 分档**：新增 `CarryMinSpread`（默认 1.0%，env `ARBCN_SIM_CARRY_MIN_SPREAD`），carry 用低门槛；funding_hedge 与 repo 保持 `MinSpread=5%`（repo 时点逆回购意图不变）。**1% 是纠正口径错配（funding 摩擦假设误用于持有生息），非放宽门禁造数据**。
+  ④ **carry 白名单显式配置**：生产 env `ARBCN_SIM_CARRY_WHITELIST=SUSDE,USDE,BUIDL,STEAKUSDC,USDY`（事实库符号全集，大写；config.go 只 trim+去重、不做大小写归一）。
+- **理由**：practices #13「数据面按实体类型分派」的结算侧漏项（D-039 修了确认二次门禁侧，结算侧还漏着）；「一类实体的门禁/数据面天然通用」= 隐蔽假设坑（#13/#4 同源）。carry/repo 均为 D-021 已定义档位，非新方向；结算仍用真实市场公开事实（非 testnet，D-037 同口径）。
+- **结论**：driver.go（settleFactKind + settleOnce 分派 + repoSignal venue 对齐）+ backfill.go（SettleFunding 带 kind）+ config.go（CarryMinSpread）+ order.go（carry 门槛分档）+ 生产 env 白名单。对抗测试 3 个新锚点（删分派/改回硬编码/删分档必红已实证）+ config_test 扩展 + TestDriverRepoBuildsOrder 事实带真实 venue。全量测试/vet/-race 绿；部署重启实测：服务 active + 新 bundle served。**诚实标注**：carry 单是否真触发取决于 defi 池出现 ≥0.5%/h 变动（不造数据）；repo 当前 0.865% < 5% 会被 SPREAD_LOW 拒（负样本，符合时点逆回购意图）。

@@ -98,18 +98,20 @@ func BuildLegs(o store.SimOrder, now time.Time) []store.SimPosition {
 	return legs
 }
 
-// SettleFunding 按 funding 周期结算：对 (symbol, venue) 下全部 open 且 funding 的
-// 持仓腿，pnl += SettleFundingPnl(Per8hRate(annualized), qty)，置 updated_at。
-// 返回结算腿数。annualized 为年化资金费率（%）；调用方从行情/快照供给。
+// SettleFunding 按 funding 周期结算：对 (kind, symbol, venue) 下全部 open 且 funding
+// 的持仓腿，pnl += SettleFundingPnl(Per8hRate(annualized), qty)，置 updated_at。
+// 返回结算腿数。annualized 为年化费率（%）；调用方从行情/快照供给。
 // M3-b §9.3：venue 维度避免 BTC@binance 与 BTC@okx 互相污染（错 rate / 串 venue → 必红）。
-func (s *Simulator) SettleFunding(ctx context.Context, symbol, venue string, annualized float64) (int, error) {
+// D-045：kind 维度——carry/repo 腿与 funding_hedge 腿同 (venue,symbol) 时，只结算
+// 本 kind（carry 的 defi_rate 不能套到 funding_hedge 腿上，反之亦然）。
+func (s *Simulator) SettleFunding(ctx context.Context, kind, symbol, venue string, annualized float64) (int, error) {
 	legs, err := s.st.ListOpenSimPositions(ctx, symbol, venue)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
 	for _, l := range legs {
-		if !l.Funding {
+		if !l.Funding || l.Kind != kind {
 			continue
 		}
 		add := SettleFundingPnl(Per8hRate(annualized), l.Qty)

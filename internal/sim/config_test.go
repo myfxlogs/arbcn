@@ -13,12 +13,14 @@ func TestFromEnvDefaults(t *testing.T) {
 	}
 	d := DefaultConfig()
 	if cfg.Capital != d.Capital || cfg.MinSpread != d.MinSpread ||
+		cfg.CarryMinSpread != d.CarryMinSpread ||
 		cfg.MaxSizePct != d.MaxSizePct || cfg.MaxDailyPct != d.MaxDailyPct ||
 		cfg.HistoryDays != d.HistoryDays || cfg.ReportPath != d.ReportPath ||
 		!slices.Equal(cfg.CarryWhitelist, d.CarryWhitelist) {
 		t.Fatalf("cfg = %+v, want default %+v", cfg, d)
 	}
-	if cfg.Capital != 100_000 || cfg.MinSpread != 5 || cfg.MaxSizePct != 0.20 || cfg.MaxDailyPct != 0.50 {
+	if cfg.Capital != 100_000 || cfg.MinSpread != 5 || cfg.CarryMinSpread != 1 ||
+		cfg.MaxSizePct != 0.20 || cfg.MaxDailyPct != 0.50 {
 		t.Fatalf("default values drift: %+v", cfg)
 	}
 	// 安全默认：白名单默认空（carry 先被 WHITELIST 拒单，§9.6）；历史窗口默认 365d（§9.5）。
@@ -30,16 +32,18 @@ func TestFromEnvDefaults(t *testing.T) {
 // TestFromEnvOverrides：ARBCN_SIM_* 逐项覆盖生效。
 func TestFromEnvOverrides(t *testing.T) {
 	env := map[string]string{
-		"ARBCN_SIM_CAPITAL":      "200000",
-		"ARBCN_SIM_MIN_SPREAD":   "6",
-		"ARBCN_SIM_MAX_SIZE_PCT": "0.10",
-		"ARBCN_SIM_MAX_DAILY_PCT": "0.40",
+		"ARBCN_SIM_CAPITAL":          "200000",
+		"ARBCN_SIM_MIN_SPREAD":       "6",
+		"ARBCN_SIM_CARRY_MIN_SPREAD": "2",
+		"ARBCN_SIM_MAX_SIZE_PCT":     "0.10",
+		"ARBCN_SIM_MAX_DAILY_PCT":    "0.40",
 	}
 	cfg, err := FromEnv(func(k string) string { return env[k] })
 	if err != nil {
 		t.Fatalf("FromEnv: %v", err)
 	}
-	if cfg.Capital != 200_000 || cfg.MinSpread != 6 || cfg.MaxSizePct != 0.10 || cfg.MaxDailyPct != 0.40 {
+	if cfg.Capital != 200_000 || cfg.MinSpread != 6 || cfg.CarryMinSpread != 2 ||
+		cfg.MaxSizePct != 0.10 || cfg.MaxDailyPct != 0.40 {
 		t.Fatalf("cfg = %+v, want overridden values", cfg)
 	}
 }
@@ -108,6 +112,22 @@ func TestFromEnvRejectsNaN(t *testing.T) {
 		return ""
 	}); err == nil {
 		t.Fatal("FromEnv(capital=+Inf) = nil, want error")
+	}
+	if _, err := FromEnv(func(k string) string {
+		if k == "ARBCN_SIM_CARRY_MIN_SPREAD" {
+			return "NaN"
+		}
+		return ""
+	}); err == nil {
+		t.Fatal("FromEnv(carry_min_spread=NaN) = nil, want error（非有限值拒载）")
+	}
+	if _, err := FromEnv(func(k string) string {
+		if k == "ARBCN_SIM_CARRY_MIN_SPREAD" {
+			return "0"
+		}
+		return ""
+	}); err == nil {
+		t.Fatal("FromEnv(carry_min_spread=0) = nil, want error（非正数拒绝）")
 	}
 }
 

@@ -129,7 +129,10 @@ func repoSignal(ctx context.Context, d *Driver, r store.Rule, h store.EntityHit)
 	spread := fs[0].Value
 	return &Signal{
 		RuleName: r.Name, Kind: store.SimKindRepo,
-		Symbol: "GC001", Venue: "domestic", // 交易所逆回购（现金等价，面值 100）
+		// D-045：用事实真实 (venue,symbol)（reverse_repo 事实存 venue=sina/symbol=GC001）。
+		// 勿硬编码——结算按 (kind,venue,symbol) 查 reverse_repo 事实，venue 错配则
+		// 建仓后永不结算（practices #22：落单 venue/symbol 取事实真实值）。
+		Symbol: fs[0].Symbol, Venue: fs[0].Venue,
 		RefPrice: 100, ExpectedSpread: spread, FundingAnn: spread,
 		Notional: 0, Ts: d.now(),
 	}, true, nil
@@ -195,47 +198,74 @@ func (d *Driver) settleLoop(ctx context.Context, ticks <-chan time.Time) error {
 	}
 }
 
-// settleOnce 执行一轮结算：列出全部 open funding 腿 → 按 (symbol,venue) 分组 →
-// 每组取 LatestFacts(kind=funding, venue, symbol) 最新值结算；无事实 skip+warn。
+// settleFactKind 腿 kind → 结算数据面 kind（practices #13 结算侧：数据面按实体类型
+// 分派，D-045）。funding_hedge→funding / carry_asset→defi_rate / repo→reverse_repo，
+// 各自权威事实；未知 kind → (false) 跳过（腿仅经 BuildLegs 产生，未知 kind 不会
+// 出现，防御性 fail-closed，不 panic 不误结算）。
+func settleFactKind(kind string) (string, bool) {
+	switch kind {
+	case store.SimKindFundingHedge:
+		return fact.KindFunding, true
+	case store.SimKindCarryAsset:
+		return fact.KindDefiRate, true
+	case store.SimKindRepo:
+		return fact.KindReverseRepo, true
+	default:
+		return "", false
+	}
+}
+
+// settleOnce 执行一轮结算：列出全部 open funding 腿 → 按 (kind,symbol,venue) 分组 →
+// 每组按 settleFactKind 分派数据面，取 LatestFacts 最新值结算；无事实/未知 kind
+// skip+warn。D-045：结算数据面按腿 kind 分派（此前只查 funding 事实，carry/repo 腿
+// 建了仓也永不生息）。
 //
-// [对抗测试锚点] §9.3 S2：按 (symbol,venue) 分组（不按 symbol 合并）→ 删除分组中的
-// venue 维度 → sim/driver_test.go TestSettleByVenue 跨 venue 污染断言必红。
+// [对抗测试锚点] §9.3 S2 + D-045：①按 (kind,symbol,venue) 分组（不按 symbol 合并）→
+// 删除分组中的 venue 维度 → TestSettleByVenue 跨 venue 污染断言必红；②kind 分派 →
+// 删除 settleFactKind 分派/改回只查 KindFunding → TestSettleDispatchByKind 必红。
 func (d *Driver) settleOnce(ctx context.Context) error {
 	legs, err := d.st.ListOpenSimPositions(ctx, "", "")
 	if err != nil {
 		return fmt.Errorf("sim settle: list open: %w", err)
 	}
-	seen := map[[2]string]bool{}
-	var keys [][2]string
+	seen := map[[3]string]bool{}
+	var keys [][3]string
 	for _, l := range legs {
 		if !l.Funding {
 			continue
 		}
-		key := [2]string{l.Symbol, l.Venue}
+		key := [3]string{l.Kind, l.Symbol, l.Venue}
 		if !seen[key] {
 			seen[key] = true
 			keys = append(keys, key)
 		}
 	}
 	sort.Slice(keys, func(i, j int) bool { // 确定性日志顺序
-		if keys[i][0] != keys[j][0] {
-			return keys[i][0] < keys[j][0]
+		for c := 0; c < 3; c++ {
+			if keys[i][c] != keys[j][c] {
+				return keys[i][c] < keys[j][c]
+			}
 		}
-		return keys[i][1] < keys[j][1]
+		return false
 	})
 	for _, key := range keys {
-		sym, venue := key[0], key[1]
-		fs, err := d.st.LatestFacts(ctx, fact.KindFunding, venue, sym)
-		if err != nil {
-			return fmt.Errorf("sim settle: latest funding %s@%s: %w", sym, venue, err)
-		}
-		if len(fs) == 0 {
-			d.log.Warn("sim settle: no funding fact, skip", "symbol", sym, "venue", venue)
+		kind, sym, venue := key[0], key[1], key[2]
+		factKind, ok := settleFactKind(kind)
+		if !ok {
+			d.log.Warn("sim settle: unknown leg kind, skip", "kind", kind, "symbol", sym, "venue", venue)
 			continue
 		}
-		rate := fs[0].Value // 真实市场公开 funding（§9.0 裁决：非 testnet）
-		if _, err := d.sim.SettleFunding(ctx, sym, venue, rate); err != nil {
-			return fmt.Errorf("sim settle: settle %s@%s: %w", sym, venue, err)
+		fs, err := d.st.LatestFacts(ctx, factKind, venue, sym)
+		if err != nil {
+			return fmt.Errorf("sim settle: latest %s %s@%s: %w", factKind, sym, venue, err)
+		}
+		if len(fs) == 0 {
+			d.log.Warn("sim settle: no fact, skip", "kind", factKind, "symbol", sym, "venue", venue)
+			continue
+		}
+		rate := fs[0].Value // 真实市场公开事实（§9.0 裁决：非 testnet）
+		if _, err := d.sim.SettleFunding(ctx, kind, sym, venue, rate); err != nil {
+			return fmt.Errorf("sim settle: settle %s %s@%s: %w", kind, sym, venue, err)
 		}
 	}
 	return nil

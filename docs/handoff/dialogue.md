@@ -77,3 +77,12 @@
 - **施工**：proto Insight/ListInsights + buf generate + `internal/dashboard/insights.go`（纯函数 + RPC 编排）+ `insights_test.go` 对抗（删判定/删计数必红已实证）+ fakeStore ListSimOrders 真语义 + 前端「进化建议」卡（触发器下方整宽卡，severity 色 + 类别中文 + actions 列表）。全量测试/vet/npm build 绿。
 - **部署实测**：`reject_dist`（UNHEDGED ×2/SPREAD_DRIFT ×1）、`source_stale` ×3（repo/fx/deribit_iv 周末低活跃源）正确出现；`no_order` 被近 7 天 filled 单正确抑制；`defi_anomaly` 因最新截面平稳**正确不报**（Aave 12.57% 尖峰两轮采集间已回落至 3.29%——L0 报「当前截面离群」非「历史曾冲高」，窗口内 max 语义留 L1）。
 - **结论**：构建 → 部署应用 → 推送闭环完成（practices #19）；docs 落档（D-044 / practices #20 / dialogue #62 / STATE）。L1 候选：窗口 max 冲高 / 阈值自适应统计自校准、拒单-阈值联动归因。
+
+## #63 · 2026-08-16 · 全面模拟（carry+repo 接入）+ 施工前自审纪律确认 · 业主需求 → 决策层
+- **参与方**：业主（需求 + 纪律追问）、Claude（决策层 + 施工）
+- **议题 1（全面模拟）**：业主「当前模拟只接进现货与永续，能否把其他机会都接入模拟」→ 业主定案 **carry + repo 都接**，carry 白名单 **SUSDE / USDE / BUIDL / STEAKUSDC / USDY（能做的都做上）**。调查定位三个真实缺口（非门禁太严）：① 结算数据面只查 funding 事实 → carry/repo 腿建仓后永不生息；② repoSignal 硬编码 domestic/GC001 vs 事实真实 sina/GC001 → 结算永 miss；③ MinSpread=5%（funding 摩擦假设）误用于 carry → 当前 defi 利率全被拒。
+- **决策（D-045）**：结算按腿 kind 分派数据面（settleFactKind：funding_hedge→funding / carry_asset→defi_rate / repo→reverse_repo）+ SettleFunding 带 kind 维；repoSignal 落单 venue/symbol 取事实真实值；carry 独立低门槛 `CarryMinSpread`（默认 1%，纠正口径错配非放宽门禁造数据，repo 5%/funding 15% 不变）；生产 env 显式白名单。
+- **议题 2（纪律追问）**：业主问「施工前的自我审计，是否写入到了纪律？」——如实回答：此前只在 D-045 计划文件里做了一次 A–F 自审，**没进共享纪律层**。随即落地：AGENTS.md §7.3 加「两时点强制」条款（施工前对设计文档 A–F + 交付前对成品 A–F），practices #21 记录该打回模式（自审是施工前置门禁，不是汇报材料，不待业主追问）。
+- **施工**：driver.go（settleFactKind + settleOnce 按 (kind,symbol,venue) 分派 + repoSignal venue 对齐）+ backfill.go（SettleFunding 带 kind）+ config.go（CarryMinSpread，env + NaN 拒载）+ order.go（carry 门槛分档）+ TestDriverRepoBuildsOrder 事实带真实 venue。对抗测试 3 个新锚点（删分派 / 改回硬编码 domestic / 删分档）已逐一实证必红后还原；全量测试/vet/-race 绿。
+- **部署**：新建 /etc/arbcn/arbcn-monitor.env（此前 systemd `EnvironmentFile=-` 指向该路径但文件缺失 = 全默认运行；本次创建仅含 `ARBCN_SIM_CARRY_WHITELIST` 一行，无影子冲突）→ npm build + go build → 重启服务 → active + 新二进制 inode 匹配（stat -L）+ 启动日志干净 + served bundle == 新 dist。**诚实标注**：carry 单是否真触发取决于 defi 池出现 ≥0.5%/h 变动（不造数据）；repo 当前 0.865% < 5% 会被 SPREAD_LOW 拒（负样本，符合时点逆回购意图）。
+- **结论**：构建 → 部署 → 推送闭环完成（practices #19）；docs 落档（D-045 / practices #21+#22 / dialogue #63 / STATE）。

@@ -12,11 +12,11 @@ import (
 
 // 风险门禁标记（04-m3-spec §1.1 risk_flags 值域；生成时落库）。
 const (
-	RiskUNHEDGED  = "UNHEDGED"  // 对冲缺腿 / 非白名单方向性敞口（不赌原则 D-019）
-	RiskSpreadLow = "SPREAD_LOW" // 预期年化价差 < 门槛（默认 5%，摩擦覆盖）
-	RiskSizeOver  = "SIZE_OVER"  // 单笔名义 > 模拟资金 20%
-	RiskDailyOver = "DAILY_OVER" // 当日新增名义 > 模拟资金 50%
-	RiskWhitelist = "WHITELIST"  // carry_asset 标的未在白名单（sUSDe/USDe 等）
+	RiskUNHEDGED  = "UNHEDGED"      // 对冲缺腿 / 非白名单方向性敞口（不赌原则 D-019）
+	RiskSpreadLow = "SPREAD_LOW"    // 预期年化价差 < 门槛（默认 5%，摩擦覆盖）
+	RiskSizeOver  = "SIZE_OVER"     // 单笔名义 > 模拟资金 20%
+	RiskDailyOver = "DAILY_OVER"    // 当日新增名义 > 模拟资金 50%
+	RiskWhitelist = "WHITELIST"     // carry_asset 标的未在白名单（sUSDe/USDe 等）
 	RiskInvalid   = "INVALID_INPUT" // 非有限值 / 未知 kind / 负日累计：门禁不可静默绕过的兜底
 	// RiskSpreadDrift 确认时刻二次门禁（04-m3-spec §10.3 C2 / D-036 G5）：生成 vs 确认
 	// 时刻 ref_price 漂移 >2% 或 预期年化变化 >20%（任一独立触发）→ 拒单。确认时刻重查
@@ -52,6 +52,7 @@ type Signal struct {
 //   - 删"单笔超限拒单" → TestSignalToOrderRejectsSizeOver 必红
 //   - 删"日累计超限拒单" → TestSignalToOrderRejectsDailyOver 必红
 //   - 删"carry 白名单拒单" → TestSignalToOrderRejectsCarryWhitelist 必红
+//   - 删"carry 门槛分档" → TestCarryUsesCarryMinSpread 必红（D-045）
 func SignalToOrder(sig Signal, cfg Config) store.SimOrder {
 	spread := sig.ExpectedSpread
 	// L2：仅"未提供"（==0）才由 FundingAnn 回填；显式负值 = 坏信号，不得被覆盖后
@@ -128,9 +129,15 @@ func SignalToOrder(sig Signal, cfg Config) store.SimOrder {
 		reject(RiskUNHEDGED, "非白名单方向性敞口（不赌原则 D-019）")
 	}
 
-	// 预期年化价差 < 门槛（默认 5%，摩擦覆盖）。
-	if spread < cfg.MinSpread {
-		reject(RiskSpreadLow, fmt.Sprintf("预期年化价差 %.2f%% < 门槛 %.2f%%", spread, cfg.MinSpread))
+	// 预期年化价差 < 门槛（默认 5%，摩擦覆盖）。D-045：carry 用独立低门槛
+	// CarryMinSpread（持有生息无方向摩擦，5% 是 funding_hedge 假设，语义错配）；
+	// funding_hedge 与 repo 保持 MinSpread=5%（repo 时点逆回购意图不变）。
+	minSpread := cfg.MinSpread
+	if sig.Kind == store.SimKindCarryAsset {
+		minSpread = cfg.CarryMinSpread
+	}
+	if spread < minSpread {
+		reject(RiskSpreadLow, fmt.Sprintf("预期年化价差 %.2f%% < 门槛 %.2f%%", spread, minSpread))
 	}
 
 	// 单笔名义 > 模拟资金 20%。

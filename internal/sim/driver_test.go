@@ -119,8 +119,11 @@ func TestDriverUnknownRuleNoOrder(t *testing.T) {
 // 平时 2-4% 会 SPREAD_LOW 拒单负样本，这是正确行为——宁缺毋滥。
 func TestDriverRepoBuildsOrder(t *testing.T) {
 	d, st := newDriver(t, DefaultConfig())
+	// D-045：reverse_repo 事实存真实 venue=sina/symbol=GC001（事实库已核实）→ repoSignal
+	// 落单沿用事实真实 (venue,symbol)，不再硬编码 domestic/GC001（否则结算按 (venue,symbol)
+	// 查 reverse_repo 事实永远 miss）。改回硬编码 → 本断言必红。
 	st.facts = append(st.facts, fact.Fact{
-		Kind: fact.KindReverseRepo, Value: 6.5, Ts: t0, Src: "manual",
+		Kind: fact.KindReverseRepo, Venue: "sina", Symbol: "GC001", Value: 6.5, Ts: t0, Src: "manual",
 	})
 	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "reverse_repo_timing"},
 		[]store.EntityHit{{Value: 1}}); err != nil {
@@ -130,8 +133,8 @@ func TestDriverRepoBuildsOrder(t *testing.T) {
 		t.Fatalf("orders = %d, want 1", len(st.orders))
 	}
 	o := st.orders[0]
-	if o.Kind != store.SimKindRepo || o.Symbol != "GC001" || o.RefPrice != 100 || o.ExpectedSpread != 6.5 {
-		t.Fatalf("order = %+v, want repo GC001 @100 spread 6.5（来自 reverse_repo 事实）", o)
+	if o.Kind != store.SimKindRepo || o.Symbol != "GC001" || o.Venue != "sina" || o.RefPrice != 100 || o.ExpectedSpread != 6.5 {
+		t.Fatalf("order = %+v, want repo sina/GC001 @100 spread 6.5（venue/symbol 取事实真实值）", o)
 	}
 	if o.Status != store.SimStatusSuggested || len(o.RiskFlags) != 0 {
 		t.Fatalf("status/flags = %q/%v, want suggested/empty", o.Status, o.RiskFlags)
@@ -210,6 +213,15 @@ func openLeg(id int64, venue, symbol string, qty float64, funding bool) store.Si
 	}
 }
 
+// openLegKind 构造指定 kind 的 open funding 腿（D-045 结算 kind 分派测试用；
+// carry/repo 单腿生息侧 = long，同 BuildLegs default 分支）。
+func openLegKind(id int64, venue, symbol string, qty float64, funding bool, kind string) store.SimPosition {
+	return store.SimPosition{
+		OrderID: id, Ts: t0, Kind: kind, Venue: venue, Symbol: symbol,
+		Side: store.SimSideLong, Qty: qty, RefPrice: 1, Funding: funding, Status: store.SimPosStatusOpen,
+	}
+}
+
 // TestSettleByVenue：[对抗测试锚点 §9.3 S2] BTC@binance 与 BTC@okx 隔离结算——
 // 各取各 venue 的 LatestFacts(funding) 最新值，互不污染。删 settleOnce 分组中的 venue
 // 维度（按 symbol 合并）→ 本测试必红。
@@ -284,6 +296,94 @@ func TestSettleNoFactSkips(t *testing.T) {
 	}
 	if len(st.positions) != 1 || st.positions[0].PnL != 0 {
 		t.Fatalf("positions = %+v, want 未结算（无事实 skip）", st.positions)
+	}
+}
+
+// TestSettleDispatchByKind：[对抗测试锚点 D-045] 结算数据面按腿 kind 分派——funding_hedge
+// →funding、carry_asset→defi_rate、repo→reverse_repo，各取各自权威事实结算；此前
+// settleOnce 只查 funding 事实，carry/repo 腿建了仓也永不生息。删 settleFactKind 分派
+// （改回只查 KindFunding）→ defi_rate/reverse_repo 事实查不到 → carry/repo 腿 PnL=0 → 必红。
+func TestSettleDispatchByKind(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	legs := []store.SimPosition{
+		openLegKind(1, "binance", "BTC", 10_000, true, store.SimKindFundingHedge),
+		openLegKind(2, "ethena", "SUSDE", 10_000, true, store.SimKindCarryAsset),
+		openLegKind(3, "sina", "GC001", 10_000, true, store.SimKindRepo),
+	}
+	for _, l := range legs {
+		if _, err := st.InsertSimPosition(context.Background(), l); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st.facts = append(st.facts,
+		fact.Fact{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTC", Value: 10.95, Ts: t0, Src: "test"},
+		fact.Fact{Kind: fact.KindDefiRate, Venue: "ethena", Symbol: "SUSDE", Value: 4.35, Ts: t0, Src: "test"},
+		fact.Fact{Kind: fact.KindReverseRepo, Venue: "sina", Symbol: "GC001", Value: 0.865, Ts: t0, Src: "manual"},
+	)
+	if err := d.settleOnce(context.Background()); err != nil {
+		t.Fatalf("settleOnce: %v", err)
+	}
+	want := map[string]float64{
+		"BTC":   SettleFundingPnl(Per8hRate(10.95), 10_000),
+		"SUSDE": SettleFundingPnl(Per8hRate(4.35), 10_000),
+		"GC001": SettleFundingPnl(Per8hRate(0.865), 10_000),
+	}
+	got := map[string]float64{}
+	for _, p := range st.positions {
+		got[p.Symbol] = p.PnL
+	}
+	for sym, w := range want {
+		if math.Abs(got[sym]-w) > 1e-9 {
+			t.Fatalf("%s pnl = %v, want %v（按各自 kind 数据面结算）", sym, got[sym], w)
+		}
+	}
+}
+
+// TestSettleRepoUsesRealVenue：[对抗测试锚点 D-045] repo 事实 venue=sina/symbol=GC001
+// （事实库已核实，非硬编码 domestic）→ repoSignal 落单沿用事实真实 venue/symbol，结算按
+// (repo, GC001, sina) 查 reverse_repo 事实命中。改回 repoSignal 硬编码 domestic → 订单
+// venue=domestic → 本测试必红（且结算按 domestic 查 reverse_repo 事实永 miss）。
+func TestSettleRepoUsesRealVenue(t *testing.T) {
+	d, st := newDriver(t, DefaultConfig())
+	st.facts = append(st.facts, fact.Fact{
+		Kind: fact.KindReverseRepo, Venue: "sina", Symbol: "GC001", Value: 6.5, Ts: t0, Src: "manual",
+	})
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "reverse_repo_timing"},
+		[]store.EntityHit{{Value: 1}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 || st.orders[0].Venue != "sina" || st.orders[0].Symbol != "GC001" {
+		t.Fatalf("order = %+v, want repo sina/GC001（venue 取事实真实值）", st.orders)
+	}
+	// 结算侧：repo 腿 venue=sina → reverse_repo 事实（sina/GC001）命中。
+	if _, err := st.InsertSimPosition(context.Background(),
+		openLegKind(1, "sina", "GC001", 10_000, true, store.SimKindRepo)); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.settleOnce(context.Background()); err != nil {
+		t.Fatalf("settleOnce: %v", err)
+	}
+	want := SettleFundingPnl(Per8hRate(6.5), 10_000)
+	if len(st.positions) != 1 || math.Abs(st.positions[0].PnL-want) > 1e-9 {
+		t.Fatalf("repo pnl = %+v, want %v（6.5%% 年化按 reverse_repo 事实结算）", st.positions, want)
+	}
+}
+
+// TestCarryUsesCarryMinSpread：[对抗测试锚点 D-045] carry 用独立低门槛 CarryMinSpread
+// （默认 1%），不套用 funding_hedge 的 5%——预期年化 4% 的 carry 在 CarryMinSpread=1 下
+// 建议通过。删 SignalToOrder 中 carry 门槛分档（回到统一 MinSpread=5）→ 4% < 5% →
+// SPREAD_LOW 拒单 → 本测试必红。
+func TestCarryUsesCarryMinSpread(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.CarryMinSpread = 1
+	cfg.CarryWhitelist = []string{"SUSDE"}
+	d, st := newDriver(t, cfg)
+	if err := d.OnRuleActive(context.Background(), store.Rule{Name: "carry_monitor"},
+		[]store.EntityHit{{Venue: "ethena", Symbol: "SUSDE", Value: 4.0}}); err != nil {
+		t.Fatalf("OnRuleActive: %v", err)
+	}
+	if len(st.orders) != 1 || st.orders[0].Status != store.SimStatusSuggested {
+		t.Fatalf("orders = %+v, want 1 条 carry suggested（4%% 年化 > CarryMinSpread 1%%）", st.orders)
 	}
 }
 

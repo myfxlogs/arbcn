@@ -344,7 +344,7 @@ func TestSettleFunding(t *testing.T) {
 		t.Fatalf("ConfirmAndFill: %v", err)
 	}
 
-	n, err := s.SettleFunding(context.Background(), "BTC", "", 10.95)
+	n, err := s.SettleFunding(context.Background(), store.SimKindFundingHedge, "BTC", "", 10.95)
 	if err != nil {
 		t.Fatalf("SettleFunding: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestSettleFundingSkipsNonFunding(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	n, err := s.SettleFunding(context.Background(), "", "", 10.95)
+	n, err := s.SettleFunding(context.Background(), store.SimKindCarryAsset, "", "", 10.95)
 	if err != nil {
 		t.Fatalf("SettleFunding: %v", err)
 	}

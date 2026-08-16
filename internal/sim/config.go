@@ -14,8 +14,13 @@ import (
 
 // Config 是 M3-a 本地模拟盘配置（04-m3-spec §3/§4）。缺省值 = 决策层定稿。
 type Config struct {
-	Capital        float64 // 模拟资金基数（模拟 USD；ARBCN_SIM_CAPITAL；默认 100_000）
-	MinSpread      float64 // 预期年化价差门槛 %（ARBCN_SIM_MIN_SPREAD；默认 5）
+	Capital   float64 // 模拟资金基数（模拟 USD；ARBCN_SIM_CAPITAL；默认 100_000）
+	MinSpread float64 // 预期年化价差门槛 %（ARBCN_SIM_MIN_SPREAD；默认 5）
+	// CarryMinSpread carry 生息资产独立价差门槛 %（ARBCN_SIM_CARRY_MIN_SPREAD；默认 1）。
+	// D-045：MinSpread=5% 是 funding_hedge 的「交易摩擦覆盖」假设（价差需覆盖开平摩擦），
+	// 套在 carry（无方向摩擦的持有生息）上是语义错配——当前 defi 利率 3~5% 全被 5% 拒掉。
+	// 1% 是纠正口径错配（carry 预期年化 ≥ 1% 即可持有），非为数据放宽门禁。
+	CarryMinSpread float64
 	MaxSizePct     float64 // 单笔名义上限 = Capital×MaxSizePct（ARBCN_SIM_MAX_SIZE_PCT；默认 0.20）
 	MaxDailyPct    float64 // 日累计名义上限 = Capital×MaxDailyPct（ARBCN_SIM_MAX_DAILY_PCT；默认 0.50）
 	// CarryWhitelist 白名单生息资产（sUSDe/USDe 等，M3-b §9.6）。
@@ -32,7 +37,7 @@ type Config struct {
 // DefaultConfig 返回定稿默认值（04-m3-spec §4 表 + M3-b §9.5/§9.6 默认）。
 func DefaultConfig() Config {
 	return Config{
-		Capital: 100_000, MinSpread: 5, MaxSizePct: 0.20, MaxDailyPct: 0.50,
+		Capital: 100_000, MinSpread: 5, CarryMinSpread: 1, MaxSizePct: 0.20, MaxDailyPct: 0.50,
 		HistoryDays: 365, ReportPath: "docs/handoff/sim_report.md",
 	}
 }
@@ -47,6 +52,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	}{
 		{"ARBCN_SIM_CAPITAL", &cfg.Capital},
 		{"ARBCN_SIM_MIN_SPREAD", &cfg.MinSpread},
+		{"ARBCN_SIM_CARRY_MIN_SPREAD", &cfg.CarryMinSpread},
 		{"ARBCN_SIM_MAX_SIZE_PCT", &cfg.MaxSizePct},
 		{"ARBCN_SIM_MAX_DAILY_PCT", &cfg.MaxDailyPct},
 	}
@@ -94,6 +100,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	}{
 		{"capital", cfg.Capital},
 		{"min_spread", cfg.MinSpread},
+		{"carry_min_spread", cfg.CarryMinSpread},
 		{"max_size_pct", cfg.MaxSizePct},
 		{"max_daily_pct", cfg.MaxDailyPct},
 	} {
