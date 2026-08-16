@@ -235,3 +235,12 @@
 - **参与方**：业主（澄清追问 + 两次纠偏 + 确认）、Claude（澄清 + 采纳）
 - **议题**：①「看了诚实的边界，这么说来，其实对盈利能力的测试，意义不大？」→ 澄清：**「用 testnet 测盈利」意义不大；「盈利测试」只能靠真金，testnet 的作用是保证真金测试不被执行层 bug 污染**（三层测试分工：策略层=本地 sim 账本 + 真实行情，行情真成交假；执行层=testnet，机制真价格假；盈利层=真金，全真）。②「如果只是验证执行机制，那大可不必；第 1 原则是盈利，策略不盈利执行机制有什么用？本地模拟盘能否校验策略盈利能力？能，就不必浪费时间到 API 接入；确认能盈利再接入 testnet 不晚」→ 采纳：本地模拟盘**能**校验策略层盈利（真实行情 + 真实费率 D-037，只假设按报价成交），是第一道闸且不需要 API；testnet 从必经降为**可选预演**（冒烟前想假钱演练执行全流程才用，非必经随时可补）；路线重排为盈利验证优先。③「模拟和实盘有差距这个正确，但模拟都是亏损的，说明这条路就不通，何必再走下去？方向一致！」→ 确认，D-058 定稿。
 - **决策号**：D-058（盈利验证优先路线，testnet 降级可选预演，D-010/D-034 维持只读不扩下单）。
+
+## #81 · 2026-08-16 · 确认下单布局 + 平仓卡 + 拒单记录 + 复核自动证据 · 业主三问 → AskUserQuestion 确认 → 施工部署
+- **参与方**：业主（三问 + AskUserQuestion 确认）、Claude（核验 + 施工 + 部署）
+- **议题**：①「监控总览里的确认下单内容太长需滑块才能看到（刚改了不知是否生效）；市场结构与确认下单之间有空白可否加平仓卡？第二门槛拦下的订单没有记录？」②「市场结构复核手动完全对应不上，更填不上『本次复核的依据/结论』，自动验证审核是否行得通？」
+- **核验**：部署确为最新（served bundle 含复核表单/平仓/账户区）；ConfirmPanel 待确认单多时无高度封顶会向下延伸（业主"需要滑块"）；拒单负样本在库（id=18 rejected SPREAD_DRIFT 53.28%）但 UI 不可见（OrderZone 对话 #59 移除后无出口）；复核"对应不上"根因 = 条目 rationale 是历史案例，当前数据无对照。
+- **AskUserQuestion 确认**：复核自动验证 = **「自动证据 + 人确认（推荐）」**（系统自动生成当前数据证据，人工做最终裁决，边界 = 系统永不自动改判定）；拒单记录展示 = **「模拟执行 tab 订单历史」**。
+- **施工（D-059）**：后端 proto KnowledgeEntry.current_evidence + knowledgeEvidence/三 helper + ListKnowledgeEntries 编排（故障降级/缺数据不编造）；前端 ClosePanel 平仓卡（市场结构与确认下单之间）+ ConfirmPanel/ClosePanel scroll-cap + OrderHistoryZone（模拟执行 tab 六态订单历史 + rejected 拒单原因）+ KnowledgeBoard 证据行 + ReviewForm note 自动预填。零执行门禁改动。
+- **部署实测**：全量测试/vet/npm build 绿；原子替换重启 healthz ok；served bundle == 新 dist（index-DRVZi1Rk.js 含「订单历史/当前核验/确认平仓/已拒单/自动核验」）；live ListKnowledgeEntries 三条 evidence 正确（spike_trap 命中 ETH 10.95% vs 均值 3.75%（×2.9）/ cross_venue 命中 BTC 7.5pp·ETH 8.3pp / defi 未命中 SUSDE 4.39%）；ListSimOrders 拒单 18 负样本在库（SPREAD_DRIFT 53.28%）。
+- **决策号**：D-059。

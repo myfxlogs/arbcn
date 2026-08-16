@@ -110,7 +110,9 @@ export function ConfirmPanel({
       {pendingList.length === 0 ? (
         <p className="empty">暂无待确认订单（funding 窗口档低水位时常态）</p>
       ) : (
-        <ul className="pending-list">
+        // 对话 #81：列表高度封顶卡内滚动（scroll-cap 复用）——待确认单多时不向下无限
+        // 拉伸挤占平仓/经验库卡片，「确认成交」按钮始终在视口内不用翻页找。
+        <ul className="pending-list scroll-cap">
           {pendingList.map((o) => (
             <ConfirmRow key={o.id.toString()} o={o} pending={pending} busy={busy} onConfirm={onConfirm} />
           ))}

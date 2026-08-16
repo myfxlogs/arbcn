@@ -1,4 +1,5 @@
 import { useKnowledge, useQuotes, useSim, type Snapshot } from "../hooks";
+import { ClosePanel } from "./ClosePanel";
 import { ConfirmPanel } from "./ConfirmPanel";
 import { Insights } from "./Insights";
 import { KnowledgeBoard } from "./KnowledgeBoard";
@@ -51,6 +52,14 @@ export function OverviewPage({
             onReload={knowledge.reload}
             defaultOpen
             review={knowledge.review}
+          />
+          {/* 对话 #81：市场结构与确认下单之间的空白 → 平仓卡（当前持仓 + 整单平） */}
+          <ClosePanel
+            positions={sim.positions}
+            fxAvailable={sim.fxAvailable}
+            close={sim.close}
+            error={sim.error}
+            reload={sim.reload}
           />
           <ConfirmPanel
             orders={sim.orders}

@@ -59,3 +59,24 @@ export function legSideText(side: string): string {
       return side;
   }
 }
+
+// statusText 订单状态 → 中文（对话 #81 订单历史；practices #18：映射对照后端
+// store.SimStatus* 六态全集，未知名回退原名）。rejected = 门禁拒单负样本（保留记录）。
+export function statusText(status: string): string {
+  switch (status) {
+    case "suggested":
+      return "待确认";
+    case "confirmed":
+      return "已确认";
+    case "filled":
+      return "已成交";
+    case "rejected":
+      return "已拒单";
+    case "expired":
+      return "已过期";
+    case "closed":
+      return "已平仓";
+    default:
+      return status;
+  }
+}

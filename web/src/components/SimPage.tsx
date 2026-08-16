@@ -8,6 +8,7 @@ export function SimPage() {
   const sim = useSim();
   return (
     <SimExec
+      orders={sim.orders}
       positions={sim.positions}
       accounts={sim.accounts}
       account={sim.account}

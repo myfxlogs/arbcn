@@ -2246,20 +2246,21 @@ func (x *ListOppCardsResponse) GetCards() []*OpportunityCard {
 // KnowledgeEntry 市场结构经验库条目（D-046）：一条已核实的市场结构模式判定记录。
 // 吸收 = 人工 + D#（git 跟踪 seed）；系统只匹配与呈现，不吸收、不改 verdict。
 type KnowledgeEntry struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
-	Ts             *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`                                                // 吸收时刻
-	Signature      string                 `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`                                  // 受控签名键（knowledge.Signature*）
-	Venue          string                 `protobuf:"bytes,4,opt,name=venue,proto3" json:"venue,omitempty"`                                          // seed 实例 venue（溯源用）
-	Symbol         string                 `protobuf:"bytes,5,opt,name=symbol,proto3" json:"symbol,omitempty"`                                        // seed 实例 symbol
-	Verdict        string                 `protobuf:"bytes,6,opt,name=verdict,proto3" json:"verdict,omitempty"`                                      // 人工判定（D# 落）
-	Rationale      string                 `protobuf:"bytes,7,opt,name=rationale,proto3" json:"rationale,omitempty"`                                  // 判定依据（中文）
-	Source         string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`                                        // 出处（对话 #N / D#）
-	Status         string                 `protobuf:"bytes,9,opt,name=status,proto3" json:"status,omitempty"`                                        // active / superseded / retracted
-	ValidatedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=validated_at,json=validatedAt,proto3" json:"validated_at,omitempty"`          // 复核时刻；缺省 = 待复核
-	ValidationNote string                 `protobuf:"bytes,11,opt,name=validation_note,json=validationNote,proto3" json:"validation_note,omitempty"` // 复核结论
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	Ts              *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=ts,proto3" json:"ts,omitempty"`                                                   // 吸收时刻
+	Signature       string                 `protobuf:"bytes,3,opt,name=signature,proto3" json:"signature,omitempty"`                                     // 受控签名键（knowledge.Signature*）
+	Venue           string                 `protobuf:"bytes,4,opt,name=venue,proto3" json:"venue,omitempty"`                                             // seed 实例 venue（溯源用）
+	Symbol          string                 `protobuf:"bytes,5,opt,name=symbol,proto3" json:"symbol,omitempty"`                                           // seed 实例 symbol
+	Verdict         string                 `protobuf:"bytes,6,opt,name=verdict,proto3" json:"verdict,omitempty"`                                         // 人工判定（D# 落）
+	Rationale       string                 `protobuf:"bytes,7,opt,name=rationale,proto3" json:"rationale,omitempty"`                                     // 判定依据（中文）
+	Source          string                 `protobuf:"bytes,8,opt,name=source,proto3" json:"source,omitempty"`                                           // 出处（对话 #N / D#）
+	Status          string                 `protobuf:"bytes,9,opt,name=status,proto3" json:"status,omitempty"`                                           // active / superseded / retracted
+	ValidatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=validated_at,json=validatedAt,proto3" json:"validated_at,omitempty"`             // 复核时刻；缺省 = 待复核
+	ValidationNote  string                 `protobuf:"bytes,11,opt,name=validation_note,json=validationNote,proto3" json:"validation_note,omitempty"`    // 复核结论
+	CurrentEvidence string                 `protobuf:"bytes,12,opt,name=current_evidence,json=currentEvidence,proto3" json:"current_evidence,omitempty"` // 当前核验证据（D-059：自动探测器对最新数据核验，供人工复核裁决；只读，不写判定）
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *KnowledgeEntry) Reset() {
@@ -2365,6 +2366,13 @@ func (x *KnowledgeEntry) GetValidatedAt() *timestamppb.Timestamp {
 func (x *KnowledgeEntry) GetValidationNote() string {
 	if x != nil {
 		return x.ValidationNote
+	}
+	return ""
+}
+
+func (x *KnowledgeEntry) GetCurrentEvidence() string {
+	if x != nil {
+		return x.CurrentEvidence
 	}
 	return ""
 }
@@ -2709,7 +2717,7 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	" \x01(\tR\tnarrative\"\x15\n" +
 	"\x13ListOppCardsRequest\"Q\n" +
 	"\x14ListOppCardsResponse\x129\n" +
-	"\x05cards\x18\x01 \x03(\v2#.arbcn.dashboard.v1.OpportunityCardR\x05cards\"\xe8\x02\n" +
+	"\x05cards\x18\x01 \x03(\v2#.arbcn.dashboard.v1.OpportunityCardR\x05cards\"\x93\x03\n" +
 	"\x0eKnowledgeEntry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12*\n" +
 	"\x02ts\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x02ts\x12\x1c\n" +
@@ -2722,7 +2730,8 @@ const file_arbcn_dashboard_v1_dashboard_proto_rawDesc = "" +
 	"\x06status\x18\t \x01(\tR\x06status\x12=\n" +
 	"\fvalidated_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\vvalidatedAt\x12'\n" +
-	"\x0fvalidation_note\x18\v \x01(\tR\x0evalidationNote\"\x1d\n" +
+	"\x0fvalidation_note\x18\v \x01(\tR\x0evalidationNote\x12)\n" +
+	"\x10current_evidence\x18\f \x01(\tR\x0fcurrentEvidence\"\x1d\n" +
 	"\x1bListKnowledgeEntriesRequest\"\\\n" +
 	"\x1cListKnowledgeEntriesResponse\x12<\n" +
 	"\aentries\x18\x01 \x03(\v2\".arbcn.dashboard.v1.KnowledgeEntryR\aentries\"\x96\x01\n" +

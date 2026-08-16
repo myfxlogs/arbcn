@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -237,5 +238,138 @@ func TestListInsightsKnowledgeMatch(t *testing.T) {
 	}
 	if byID[want].Category != "knowledge" {
 		t.Errorf("category = %q, want knowledge", byID[want].Category)
+	}
+}
+
+// evidenceStore 组装三条经验 + 指定数据面（复用 fundingSpikeFacts 尖峰数据）。
+func evidenceStore(facts []fact.Fact) *fakeStore {
+	return &fakeStore{
+		facts: facts,
+		knowledge: []store.KnowledgeEntry{
+			{Signature: knowledge.SignatureFundingSpikeTrap, Verdict: "坑", Rationale: "尖峰陷阱", Source: "对话 #64", Status: "active"},
+			{Signature: knowledge.SignatureDefiSinglePoolSpike, Verdict: "坑·核实", Rationale: "单池尖峰", Source: "对话 #63", Status: "active"},
+			{Signature: knowledge.SignatureFundingCrossVenueDiverg, Verdict: "已核实·真实分歧", Rationale: "跨所分歧", Source: "对话 #50", Status: "active"},
+		},
+	}
+}
+
+// TestKnowledgeEvidenceHit：复核自动证据（D-059）——三条经验 × 当前数据命中 →
+// CurrentEvidence 含「当前命中 + 关键数值 + 阈值」，供人工复核裁决（只读，不写判定）。
+// [对抗测试锚点] 删 evidenceSpikeTrap 命中判断（全给未命中）→ 本测试必红。
+func TestKnowledgeEvidenceHit(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	st := evidenceStore(append(fundingSpikeFacts(now), []fact.Fact{
+		{Kind: fact.KindFunding, Venue: "binance", Symbol: "TRXUSDT", Value: 2.3, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindFunding, Venue: "okx", Symbol: "TRXUSDT", Value: -3.5, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "aave-v3", Symbol: "USDC", Value: 3.5, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "morpho-blue", Symbol: "USDC", Value: 3.9, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "ethena-usde", Symbol: "USDC", Value: 4.0, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "aave-v3", Symbol: "USDT", Value: 12.57, Ts: now.Add(-time.Hour)},
+	}...))
+	svc := New(st, nil, nil, nil)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
+
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListKnowledgeEntries: %v", err)
+	}
+	if len(resp.Msg.Entries) != 3 {
+		t.Fatalf("entries = %d, want 3", len(resp.Msg.Entries))
+	}
+	bySig := map[string]string{}
+	for _, e := range resp.Msg.Entries {
+		bySig[e.Signature] = e.CurrentEvidence
+	}
+	for sig, want := range map[string][]string{
+		knowledge.SignatureFundingSpikeTrap:        {"当前命中", "ETHUSDT", "9.14", "×2.0"},
+		knowledge.SignatureDefiSinglePoolSpike:     {"当前命中", "aave-v3", "12.57"},
+		knowledge.SignatureFundingCrossVenueDiverg: {"当前命中", "TRXUSDT", "5.8"},
+	} {
+		ev := bySig[sig]
+		if ev == "" {
+			t.Errorf("%s: evidence 为空", sig)
+			continue
+		}
+		for _, w := range want {
+			if !strings.Contains(ev, w) {
+				t.Errorf("%s evidence = %q, want 含 %q", sig, ev, w)
+			}
+		}
+	}
+}
+
+// TestKnowledgeEvidenceMiss：数据面低于阈值 → 证据给「当前未命中 + 最接近处」，不空。
+func TestKnowledgeEvidenceMiss(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	st := evidenceStore([]fact.Fact{
+		// funding 平稳：瞬时=均值=5.0，比值 1.0 < 2.0。
+		{Kind: fact.KindFunding, Venue: "okx", Symbol: "ETHUSDT", Value: 5.0, Ts: now.Add(-30 * 24 * time.Hour)},
+		{Kind: fact.KindFunding, Venue: "okx", Symbol: "ETHUSDT", Value: 5.0, Ts: now.Add(-time.Hour)},
+		// defi 平稳：截面 3.5/3.9/4.0，无一达中位数×2。
+		{Kind: fact.KindDefiRate, Venue: "aave-v3", Symbol: "USDC", Value: 3.5, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "morpho-blue", Symbol: "USDC", Value: 3.9, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindDefiRate, Venue: "ethena-usde", Symbol: "USDC", Value: 4.0, Ts: now.Add(-time.Hour)},
+		// 跨所差距小：BTCUSDT 差 1.0 < 4.0。
+		{Kind: fact.KindFunding, Venue: "binance", Symbol: "BTCUSDT", Value: 5.0, Ts: now.Add(-time.Hour)},
+		{Kind: fact.KindFunding, Venue: "okx", Symbol: "BTCUSDT", Value: 6.0, Ts: now.Add(-time.Hour)},
+	})
+	svc := New(st, nil, nil, nil)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
+
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListKnowledgeEntries: %v", err)
+	}
+	for _, e := range resp.Msg.Entries {
+		if !strings.Contains(e.CurrentEvidence, "当前未命中") {
+			t.Errorf("%s evidence = %q, want 含「当前未命中」", e.Signature, e.CurrentEvidence)
+		}
+	}
+}
+
+// TestKnowledgeEvidenceMissingData：所需数据缺失 → 证据「无法自动核验」，不编造
+// （practices #20：只呈现证据，无数据不发明）。
+func TestKnowledgeEvidenceMissingData(t *testing.T) {
+	ctx := context.Background()
+	now := t0
+	svc := New(evidenceStore(nil), nil, nil, nil)
+	svc.Now = func() time.Time { return now }
+	client := newTestServer(t, svc)
+
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListKnowledgeEntries: %v", err)
+	}
+	for _, e := range resp.Msg.Entries {
+		if !strings.Contains(e.CurrentEvidence, "无法自动核验") {
+			t.Errorf("%s evidence = %q, want 含「无法自动核验」", e.Signature, e.CurrentEvidence)
+		}
+	}
+}
+
+// TestKnowledgeEvidenceDataFailure：数据面查询故障 → 证据降级「自动核验暂不可用」，
+// 浏览不阻断、RPC 不报错（证据是辅、浏览是主）。
+func TestKnowledgeEvidenceDataFailure(t *testing.T) {
+	ctx := context.Background()
+	st := evidenceStore(nil)
+	st.factsErr = errors.New("data face down")
+	svc := New(st, nil, nil, nil)
+	client := newTestServer(t, svc)
+
+	resp, err := client.ListKnowledgeEntries(ctx, connect.NewRequest(&dashboardv1.ListKnowledgeEntriesRequest{}))
+	if err != nil {
+		t.Fatalf("ListKnowledgeEntries: %v", err)
+	}
+	if len(resp.Msg.Entries) != 3 {
+		t.Fatalf("entries = %d, want 3（故障不阻断浏览）", len(resp.Msg.Entries))
+	}
+	for _, e := range resp.Msg.Entries {
+		if e.CurrentEvidence != "自动核验暂不可用（数据面故障）" {
+			t.Errorf("%s evidence = %q, want 降级文案", e.Signature, e.CurrentEvidence)
+		}
 	}
 }

@@ -27,6 +27,7 @@ type fakeStore struct {
 	knowledge []store.KnowledgeEntry
 	nextID    int64 // 台账自增 id（fake 内存版）
 	err       error // 注入存储层故障
+	factsErr  error // 仅数据面（QueryFacts）故障；ListKnowledgeEntries 等仍正常
 }
 
 func (f *fakeStore) LatestFacts(_ context.Context, kind, venue, symbol string) ([]fact.Fact, error) {
@@ -327,6 +328,9 @@ func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
 	panic("fakeStore: InsertFacts not used")
 }
 func (f *fakeStore) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
+	if f.factsErr != nil {
+		return nil, f.factsErr
+	}
 	if f.err != nil {
 		return nil, f.err
 	}

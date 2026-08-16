@@ -59,7 +59,11 @@ function ReviewForm({
 }) {
   const [status, setStatus] = useState(entry.status || "active");
   const [verdict, setVerdict] = useState(entry.verdict || "");
-  const [note, setNote] = useState("");
+  // D-059：note 自动预填当前核验证据（「当前命中/未命中 + 关键数值」），复核人确认或
+  // 修改后提交 = 人工在环裁决；证据缺失/不可用 → 留空让复核人自填，不代写结论。
+  const [note, setNote] = useState(
+    entry.currentEvidence?.startsWith("自动核验：") ? entry.currentEvidence : "",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
 
@@ -178,6 +182,14 @@ export function KnowledgeBoard({
                   </span>
                 </div>
                 {e.rationale ? <p className="insight-detail">{e.rationale}</p> : null}
+                {/* D-059 复核自动证据：系统用当前数据重跑探测器 → 当前命中/未命中 +
+                    关键数值，供人工复核裁决（只读；判定仍由下方表单人工提交） */}
+                {e.currentEvidence ? (
+                  <p className="evidence-note">
+                    <span className="evidence-label">当前核验</span>
+                    {e.currentEvidence}
+                  </p>
+                ) : null}
                 <ul className="insight-actions">
                   <li>
                     出处 {e.source || "—"} · 实例 {e.venue ? `${e.venue} · ${e.symbol}` : "—"}

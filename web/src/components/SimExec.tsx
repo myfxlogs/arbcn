@@ -5,10 +5,12 @@ import type {
   CloseSimOrderResponse,
   GetSimAccountResponse,
   GetSimReportResponse,
+  SimOrder,
   SimPosition,
   TestnetAccount,
 } from "../gen/arbcn/sim/v1/sim_pb";
 import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
+import { OrderHistoryZone } from "./OrderHistoryZone";
 
 // flowKindText 现金流类型 → 中文（D-056 逐笔流水表）。
 function flowKindText(kind: string): string {
@@ -358,6 +360,7 @@ function ReportZone({ markdown, exists, note }: { markdown: string; exists: bool
 // （与 ConfirmPanel 同源，确认后两处同刷新）。SIMULATED 徽标渲染自共享 sim.tsx。
 // 无任何通往真实资金的按钮/路径（§6/§8，不赌原则 D-019）。
 export function SimExec({
+  orders,
   positions,
   accounts,
   account,
@@ -367,6 +370,7 @@ export function SimExec({
   close,
   reload,
 }: {
+  orders: SimOrder[];
   positions: SimPosition[];
   accounts: TestnetAccount[];
   account: GetSimAccountResponse | null;
@@ -391,6 +395,8 @@ export function SimExec({
       ) : null}
       {account ? <AccountZone account={account} fxAvailable={fxAvailable} /> : null}
       <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
+      {/* 对话 #81：订单历史（含 rejected 拒单负样本）置于持仓之后、账户信息之前 */}
+      <OrderHistoryZone orders={orders} />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone
         markdown={report?.markdown ?? ""}

@@ -287,6 +287,7 @@ message KnowledgeEntry {
   string status = 9;                      // active / superseded / retracted
   google.protobuf.Timestamp validated_at = 10; // 复核时刻；缺省 = 待复核
   string validation_note = 11;            // 复核结论
+  string current_evidence = 12;           // 当前核验证据（D-059：自动探测器对最新数据核验，供人工复核裁决；只读，不写判定）
 }
 
 message ListKnowledgeEntriesRequest {}
