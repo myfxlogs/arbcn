@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { useFactsSnapshot, useSnapshot } from "./hooks";
+import { useFactsSnapshot, useSim, useSnapshot } from "./hooks";
 import { fmtClock, reasonText } from "./format";
 import { Alerts } from "./components/Alerts";
 import { Bell } from "./components/Bell";
 import { Chip } from "./components/Chip";
+import { ConfirmPanel } from "./components/ConfirmPanel";
 import { FactsSnapshot } from "./components/FactsSnapshot";
 import { Ledger } from "./components/Ledger";
 import { Opportunity } from "./components/Opportunity";
@@ -31,6 +32,9 @@ function initTheme(): "light" | "dark" {
 export default function App() {
   const { snap, error, reload, ackAlert, ackAll } = useSnapshot();
   const factsSnap = useFactsSnapshot();
+  // sim 数据提升到 App 层共享（对话 #59）：确认下单面板（总览页）+ 模拟执行 tab
+  // 同源，ConfirmSimOrder 成功后 useSim 内部 tick 刷新两处持仓/订单。
+  const sim = useSim();
   const [tab, setTab] = useState<Tab>("overview");
   const [theme, setTheme] = useState<"light" | "dark">(initTheme);
   const [ackBusy, setAckBusy] = useState<ReadonlySet<string>>(new Set());
@@ -108,6 +112,13 @@ export default function App() {
                 <Opportunity facts={snap.facts} sourceHealth={snap.sourceHealth} />
                 <Alerts alerts={snap.alerts} ackBusy={ackBusy} onAck={ack} />
               </div>
+              {/* 确认下单面板（对话 #59）：告警流卡片下方、触发器上方，整宽卡片 */}
+              <ConfirmPanel
+                orders={sim.orders}
+                confirm={sim.confirm}
+                error={sim.error}
+                reload={sim.reload}
+              />
               <Triggers states={snap.states} />
             </>
           ) : (
@@ -124,7 +135,13 @@ export default function App() {
           onReload={factsSnap.reload}
         />
       ) : tab === "sim" ? (
-        <SimExec />
+        <SimExec
+          positions={sim.positions}
+          accounts={sim.accounts}
+          report={sim.report}
+          error={sim.error}
+          reload={sim.reload}
+        />
       ) : (
         <Ledger />
       )}

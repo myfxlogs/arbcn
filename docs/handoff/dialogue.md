@@ -4,15 +4,7 @@
 > 全量原文在各工具自身 session 文件中（人类可读），此处只落实质纪要。
 
 
-> #1~#4 已移 LOG.md（T2 归档，git 追溯）
-
-## #5 · 2026-08-15 · 业主质疑最优解 → 方案自审计（D-015/D-016）
-- **参与方**：业主、Claude
-- **议题**：业主问"方案是否为最优解、是否有优化空间"。
-- **审计过程**：提出 6 项优化提案，其中 2 项被 2026 数据当场证伪——北交所打新（稳中 1 手需冻结 500 万+，20 万陪跑）与 QDII-LOF 溢价（限购 10–100 元/日 + 2026-08-07 退市新规）。审计协议 = 提案先核实再修订，证伪即弃。
-- **结论**：2026 国内零售真套利通道结构性枯竭（仅剩逆回购时点 + 存款利差）。修订：S1 存单→民营定期（2.3%）；S2 25%→15% + 6.6 加仓线；S3 引擎重写 + 改革触发器；S4 门禁 20% + 首轮 10%；基线修订 2.5–3.5%（差年 2.5–3.5 / 平年 3–4.5 / 好年 4.5–6）。
-- **决策号**：D-015（组合修订）、D-016（S4 门禁修订）。
-- **待办**：业主确认修订后 charter → Phase 0。
+> #1~#5 已移 LOG.md（T2 归档，git 追溯）
 
 ## #6 · 2026-08-15 · 业主渠道偏好：银行产品为主（D-017）
 - **参与方**：业主、Claude
@@ -443,3 +435,11 @@
 - **对抗测试**：TestListSimPositionsRealtime——short 腿 (105-100)×10000×-1=-50000 / long 腿 +50000 / expected_ann 6.6 / 现货腿 0；**删 unrealized 计算必红（已实测短路验证）**。
 - **结论**：全量测试 + vet 绿，npm run build 通过；部署实测——API：永续空腿 cur_price=63049 expected_ann=5.53%（当前 okx funding 年化，较生成时 avg_30d 6.63% 回落）unrealized=+286k，现货多腿 unrealized=−286k，**两腿对冲相消=0（delta 中性 ✓，D-019 不赌原则）**；前端：新 JS/CSS hash 托管匹配磁盘 dist，7 个中文徽标 + banner-close 均入 bundle。sim_orders id=4 拒单 SPREAD_DRIFT 20.08% 为设计内 fail-closed（确认时刻单点 funding 回落，二次门禁生效）。
 - **决策号**：无新 D#（纯 UI + 数据面展示增强，未触及架构/合规/资金面；口径由对话澄清落档）。
+
+## #59 · 2026-08-16 · 确认下单面板移入监控总览页（告警流下方）· 业主反馈 → 决策层
+- **参与方**：业主（反馈 + 两项决策）、Claude（决策层 + 施工）
+- **议题**：业主希望「确认下单面板简化一些，放到'告警流'卡片下方，监控总览页就整齐了」——确认下单藏第 4 tab（模拟执行）不易直达，移到总览页告警流下方（告警触发 → 下方确认，信息流更顺）。
+- **业主决策**（AskUserQuestion 两项）：① sim tab 保留，只留持仓/账户/报告（确认下单抽到总览页）；② 确认下单面板只显示「待确认」订单 + 确认按钮（"简化一些"）。
+- **决策**：新组件 `ConfirmPanel.tsx`（整宽卡片：告警流 row 之下、触发器之上；只列 suggested 订单 6 列=类型/标的/方向/数量/预期年化/确认按钮；二次确认 practices #17；结果提示条 banner-close；空态「暂无待确认订单」）；共享展示辅助抽 `sim.tsx`（SIMULATED 徽标 + kind/side/leg 中文映射，ConfirmPanel 与 SimExec 共用，无重复）；**useSim 提升 App 层共享**（ConfirmPanel + SimExec 同源，ConfirmSimOrder 成功后 useSim tick 刷新两处持仓/订单——避免两处各自轮询、确认后另一处不刷新的缺陷）；SimExec 瘦身为 props（positions/accounts/report/error/reload），OrderZone/OrderRow/RiskFlags/riskLabel/statusText 删除；锚点 `TestSimExecBadgeRenderable` 扩展（sim.tsx 定义 SIMULATED/「模拟」+ SimExec/ConfirmPanel 引用 SimulatedBadge，删徽标必红）。
+- **结论**：npm run build 通过（新 hash index-DxLmi9bv.js，确认下单/暂无待确认订单/banner-close 入 bundle）+ go test/vet 全绿（含扩展锚点）+ 部署实测 healthz ok + 托管 hash 匹配磁盘 dist。**funding_drill 已 re-arm**（rule_id=223，avg_30d 6.61% 在 band）→ 约 5 分钟内出新的 suggested 订单，业主可在总览页告警流下方端到端确认（确认→成交→持仓同刷新）。
+- **决策号**：无新 D#（纯前端信息架构调整，后端/协议零改动；useSim 提升是前端状态共享，无新数据面）。

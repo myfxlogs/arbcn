@@ -58,18 +58,32 @@ func TestNoAutoConfirmTimer(t *testing.T) {
 	}
 }
 
-// TestSimExecBadgeRenderable：前端 SimExec.tsx 含固定 SIMULATED / 「模拟」渲染
-// （§10.5/§10.6 C5 可检查锚点）。徽标贯穿 tab 顶部 + 每个订单/持仓行（"模拟"），
-// 永不出现真金按钮/路径。机械检查：删 SIMULATED 渲染 → 必红。
+// TestSimExecBadgeRenderable：前端模拟执行徽标（SIMULATED / 「模拟」）可 grep
+// （§10.5/§10.6 C5 可检查锚点，对话 #59 重构后徽标定义集中到共享 sim.tsx）。
+//   - sim.tsx：SIMULATED / 「模拟」字面量定义处（删徽标 → 必红）。
+//   - SimExec.tsx（模拟执行 tab）、ConfirmPanel.tsx（总览页确认下单面板）：
+//     必须引用 SimulatedBadge（面板顶部徽标渲染；防抽出确认面板时漏挂徽标）。
+// 永不出现真金按钮/路径。
 func TestSimExecBadgeRenderable(t *testing.T) {
-	path := filepath.Join("..", "..", "web", "src", "components", "SimExec.tsx")
-	body, err := os.ReadFile(path)
+	base := filepath.Join("..", "..", "web", "src", "components")
+	def := filepath.Join(base, "sim.tsx")
+	body, err := os.ReadFile(def)
 	if err != nil {
-		t.Fatalf("read %s: %v（web 源缺失 = 交付不完整）", path, err)
+		t.Fatalf("read %s: %v（web 源缺失 = 交付不完整）", def, err)
 	}
 	for _, tok := range []string{"SIMULATED", "模拟"} {
 		if !strings.Contains(string(body), tok) {
-			t.Errorf("%s 缺固定 %q 渲染（§10.5 验收锚点：SIMULATED 徽标可 grep）", path, tok)
+			t.Errorf("%s 缺固定 %q 渲染（§10.5 验收锚点：SIMULATED 徽标可 grep）", def, tok)
+		}
+	}
+	for _, f := range []string{"SimExec.tsx", "ConfirmPanel.tsx"} {
+		p := filepath.Join(base, f)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("read %s: %v（web 源缺失 = 交付不完整）", p, err)
+		}
+		if !strings.Contains(string(b), "SimulatedBadge") {
+			t.Errorf("%s 缺 SimulatedBadge 引用（模拟执行面板顶部须渲染 SIMULATED 徽标）", p)
 		}
 	}
 }
