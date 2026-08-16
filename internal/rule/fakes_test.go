@@ -235,6 +235,9 @@ func (f *fakeStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) 
 func (f *fakeStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
 	panic("fakeStore: ReviewKnowledgeEntry not used")
 }
+func (f *fakeStore) CloseSimOrder(context.Context, int64, string, []store.SimLegClose) (int, error) {
+	panic("fakeStore: CloseSimOrder not used")
+}
 
 func (f *fakeStore) alertsCopy() []store.Alert {
 	f.mu.Lock()

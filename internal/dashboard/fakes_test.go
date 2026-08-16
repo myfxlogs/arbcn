@@ -307,6 +307,11 @@ func (f *fakeStore) ReviewKnowledgeEntry(_ context.Context, signature, status, v
 	return store.ErrNotFound
 }
 
+// CloseSimOrder 平仓：dashboard 服务不经过（只读 + ack + knowledge 复核），误用即红。
+func (f *fakeStore) CloseSimOrder(context.Context, int64, string, []store.SimLegClose) (int, error) {
+	panic("fakeStore: CloseSimOrder not used")
+}
+
 // —— 其余写路径：dashboard 服务不经过（只读 + ack），误用即红 ——
 
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {

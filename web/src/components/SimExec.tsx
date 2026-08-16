@@ -1,26 +1,81 @@
+import { useState } from "react";
 import { fmtAmount } from "../format";
 import type {
+  CloseSimOrderResponse,
   GetSimReportResponse,
   SimPosition,
   TestnetAccount,
 } from "../gen/arbcn/sim/v1/sim_pb";
 import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
 
-// PositionZone 模拟持仓（对话 #57 需求 3 实时数值）：
+// PositionZone 模拟持仓（对话 #57 需求 3 实时数值 + D-055 平仓）：
 //   - pnl（USD 模拟）= 每 8h 已结算累计；pnl_rmb = 即期折算（汇率缺失标注 USD 原值）。
 //   - 开仓价 = ref_price；当前价 = ticker 实时（查不到标 —）。
 //   - 预期年化 = 当前 funding 年化%（仅生息腿；现货腿/查不到标 —）。
+//   - 浮动收益 = 未实现浮动（当前价 − 开仓价）× 数量 × 方向；当前价缺失标 —（不编造）。
 //   - 实时收益 = 已结算 pnl + 未实现浮动（funding_hedge 两腿对冲浮动≈0，主要体现资金费）。
-// funding 生息腿明示。
-function PositionZone({ positions, fxAvailable }: { positions: SimPosition[]; fxAvailable: boolean }) {
+//   - 平仓按钮 = 订单级（D-019 整单平：rowSpan 跨该订单全部腿，绝不单腿留裸敞口）。
+//     二次点击确认（同 ConfirmPanel 模式）；成功后横幅显示实现净 PnL。
+function PositionZone({
+  positions,
+  fxAvailable,
+  close,
+}: {
+  positions: SimPosition[];
+  fxAvailable: boolean;
+  close: (id: bigint, note?: string) => Promise<CloseSimOrderResponse | null>;
+}) {
+  const open = positions.filter((p) => p.status === "open"); // 持仓 = 当前持有（settled 已平，不进持仓表）
+  // 平仓按钮跨订单全部腿（整单平）：rowSpan = 该订单 open 腿数。
+  const legsPerOrder = new Map<bigint, number>();
+  for (const p of open) {
+    legsPerOrder.set(p.orderId, (legsPerOrder.get(p.orderId) ?? 0) + 1);
+  }
+  const [armId, setArmId] = useState<bigint | null>(null); // 二次确认：首次点击进入待确认态
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<CloseSimOrderResponse | null>(null);
+
+  const onClose = async (id: bigint) => {
+    if (armId !== id) {
+      setArmId(id);
+      setResult(null);
+      return;
+    }
+    setArmId(null);
+    setBusy(true);
+    setResult(null);
+    const res = await close(id);
+    setBusy(false);
+    setResult(res);
+  };
+
+  const renderedOrder = new Set<bigint>();
   return (
     <section className="card" aria-labelledby="sim-positions-title">
       <h2 id="sim-positions-title">模拟持仓 <SimTag /></h2>
       <p className="muted">
-        实时收益 = 已结算 PnL + 未实现浮动（当前价 − 开仓价）；pnl_rmb 按即期 USDCNH 折算
+        浮动收益 = 未实现（当前价 − 开仓价）；实时收益 = 已结算 PnL + 浮动；pnl_rmb 按即期 USDCNH 折算
         {fxAvailable ? "" : "（当前汇率不可用，标注 USD 原值）"}。
       </p>
-      {positions.length === 0 ? (
+      {result ? (
+        <div className="banner sim-result" role="status">
+          <span>
+            订单 {result.orderId.toString()} 已整单平仓：实现净 PnL {fmtAmount(result.realizedPnl)} USD
+            {fxAvailable ? `（≈ ${fmtAmount(result.realizedRmb)} RMB）` : "（汇率不可用，标注 USD 原值）"}
+            ，平 {result.closedLegs} 腿
+          </span>
+          <button
+            type="button"
+            className="banner-close"
+            aria-label="关闭提示"
+            title="关闭"
+            onClick={() => setResult(null)}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+      {open.length === 0 ? (
         <p className="empty">暂无模拟持仓</p>
       ) : (
         <div className="table-scroll">
@@ -35,42 +90,64 @@ function PositionZone({ positions, fxAvailable }: { positions: SimPosition[]; fx
                 <th scope="col">当前价</th>
                 <th scope="col">预期年化</th>
                 <th scope="col">已结算 PnL</th>
+                <th scope="col">浮动收益</th>
                 <th scope="col">实时收益（USD）</th>
                 <th scope="col">PnL（RMB 即期）</th>
                 <th scope="col">资金费</th>
+                <th scope="col">操作</th>
               </tr>
             </thead>
             <tbody>
-              {positions.map((p) => (
-                <tr key={p.id.toString()}>
-                  <th scope="row">
-                    {kindText(p.kind)} <SimTag />
-                  </th>
-                  <td>
-                    {p.symbol}
-                    <span className="muted">@{p.venue}</span>
-                  </td>
-                  <td>{legSideText(p.side)}</td>
-                  <td className="num">{fmtAmount(p.qty)}</td>
-                  <td className="num">{fmtAmount(p.refPrice)}</td>
-                  <td className={p.curPrice === 0 ? "muted" : "num"}>
-                    {p.curPrice === 0 ? "—" : fmtAmount(p.curPrice)}
-                  </td>
-                  <td className={p.expectedAnn > 0 ? "num" : "muted"}>
-                    {p.expectedAnn > 0 ? `${p.expectedAnn.toFixed(2)}%` : "—"}
-                  </td>
-                  <td className="num">{fmtAmount(p.pnl)}</td>
-                  <td className="num">{fmtAmount(p.pnl + p.unrealizedPnl)}</td>
-                  <td className={fxAvailable ? "num" : "muted"}>
-                    {fxAvailable ? fmtAmount(p.pnlRmb) : "USD 原值"}
-                  </td>
-                  <td>{p.funding ? <span className="sim-tag">生息腿</span> : "—"}</td>
-                </tr>
-              ))}
+              {open.map((p) => {
+                const first = !renderedOrder.has(p.orderId);
+                renderedOrder.add(p.orderId);
+                return (
+                  <tr key={p.id.toString()}>
+                    <th scope="row">
+                      {kindText(p.kind)} <SimTag />
+                    </th>
+                    <td>
+                      {p.symbol}
+                      <span className="muted">@{p.venue}</span>
+                    </td>
+                    <td>{legSideText(p.side)}</td>
+                    <td className="num">{fmtAmount(p.qty)}</td>
+                    <td className="num">{fmtAmount(p.refPrice)}</td>
+                    <td className={p.curPrice === 0 ? "muted" : "num"}>
+                      {p.curPrice === 0 ? "—" : fmtAmount(p.curPrice)}
+                    </td>
+                    <td className={p.expectedAnn > 0 ? "num" : "muted"}>
+                      {p.expectedAnn > 0 ? `${p.expectedAnn.toFixed(2)}%` : "—"}
+                    </td>
+                    <td className="num">{fmtAmount(p.pnl)}</td>
+                    <td className={p.curPrice === 0 ? "muted" : "num"}>
+                      {p.curPrice === 0 ? "—" : fmtAmount(p.unrealizedPnl)}
+                    </td>
+                    <td className="num">{fmtAmount(p.pnl + p.unrealizedPnl)}</td>
+                    <td className={fxAvailable ? "num" : "muted"}>
+                      {fxAvailable ? fmtAmount(p.pnlRmb) : "USD 原值"}
+                    </td>
+                    <td>{p.funding ? <span className="sim-tag">生息腿</span> : "—"}</td>
+                    <td>
+                      {first ? (
+                        <button
+                          type="button"
+                          className={armId === p.orderId ? "btn-close armed" : "btn-close"}
+                          onClick={() => void onClose(p.orderId)}
+                          disabled={busy}
+                        >
+                          {armId === p.orderId ? "确认平仓？" : "平仓"}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+      {busy ? <p className="muted">平仓处理中…</p> : null}
     </section>
   );
 }
@@ -171,6 +248,7 @@ export function SimExec({
   report,
   fxAvailable,
   error,
+  close,
   reload,
 }: {
   positions: SimPosition[];
@@ -178,6 +256,7 @@ export function SimExec({
   report: GetSimReportResponse | null;
   fxAvailable: boolean;
   error: string;
+  close: (id: bigint, note?: string) => Promise<CloseSimOrderResponse | null>;
   reload: () => void;
 }) {
   return (
@@ -193,7 +272,7 @@ export function SimExec({
           模拟执行加载失败：{error}
         </div>
       ) : null}
-      <PositionZone positions={positions} fxAvailable={fxAvailable} />
+      <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone
         markdown={report?.markdown ?? ""}

@@ -167,3 +167,17 @@
 - **真机视口实测（CDP 1280/375）**：桌面 matrix y121 h875 == right-stack y121 h875（经验库 603 + 确认下单 119 @ y755）、opp y1012 h618 == insights y1012 h618、trig y1645 h188、docH 1881；**D-054 加复核按钮后复测仍 875==875、618==618**（scroll-cap 封顶防撑破）；移动 375 docSW==innerW 无溢出、单列序 = 矩阵→经验库→确认下单→机会面板。
 - **验证/部署**：全量 go test（含锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable 均 PASS + pgstore roundtrip + service 校验）/vet/npm build/tsc 绿；构建 → SIGKILL 部署 → healthz ok + inode 匹配（21244439→21244442）+ served bundle == 新 dist（index-BRFIYzsI.js / index-_h0_Ebl1.css）。**RPC 实测**：空 note / 非法 status → 400 InvalidArgument、未知签名 → 503 Unavailable 三条拒绝路径 live 命中；CDP 复核表单渲染（select 三态、verdict 预填「坑·核实」、note 必填占位、确认复核按钮）。**零执行门禁/规则/阈值/D-016 改动；不接 LLM（D-043）；不赌（D-019）。**（practices #19 闭环）
 - **决策号**：D-053（布局第 3 版）+ D-054（人工复核闭环）。
+
+## #72 · 2026-08-16 · 模拟盘平仓补齐 + 浮动收益列 + 预期收益答疑（D-055）· 业主反馈 → 决策层施工 + 部署
+- **参与方**：业主（反馈两问）、Claude（答疑 + 决策层 + 施工 + 部署实测）
+- **议题**：① 「我们只做了开仓，还有平仓功能没做，也就只做了 1/2，模拟持仓中要显示浮动收益」；② 「持仓中预期收益是不是降了？」
+- **答疑（Q2 预期收益降了？）**：**是**，但非 bug——`expected_ann` 是**实时投影**（当前 okx BTC funding 年化，`latestValue(KindFunding)` 每 tick 查最新），不是开仓时锁定值。facts.md 证据：okx BTC funding 年化 8/15 20:42 8.018% → 22:12 8.284% → 23:55 7.225% → 8/16 09:57 4.059% → 当前 4.899%（与持仓区 expectedAnn=4.899 一致）。**市场条件变化（funding 回落），非系统错误**；持仓收益 = 已按 open 时刻起每 8h 结算的 funding 落袋 + 浮动，预期年化只是「现在若续持一年」的投影刻度。
+- **决策（D-055）**：
+  ① **平仓 = 订单级整单平**（D-019 绝不单腿）：新 RPC `CloseSimOrder` + store 单事务「filled 守卫 → 逐腿 pnl+=浮动 + settled（腿须属本单且 open，任一 miss 回滚）→ 订单 closed + note」；funding_hedge 两腿一起退。
+  ② **AddPnl = 当前价浮动** `(cur−ref)×qty×dir`，ticker 缺失 add=0（不编造浮动）；realized_pnl = 各腿 (pnl+add) 合计；realized_rmb = 即期折算（缺失 = 0 标 USD 原值）。
+  ③ **双层防重复平**：服务层 status != filled → FailedPrecondition + store 守卫（并发双平仅先到者成功）。
+  ④ **迁移 0008**：sim_orders.status CHECK 加 closed（部署自动应用）。
+  ⑤ **前端**：持仓表独立「浮动收益」列（当前价缺失标 —）+ 每订单首腿「平仓」按钮（二次点击确认 armed 警示高亮，rowSpan 整单表达）+ 成功横幅显示实现净 PnL（USD + 即期 RMB）；settled 腿移出持仓表。
+- **施工**：migration 0008_sim_close.sql + store.go（SimLegClose/SimStatusClosed/CloseSimOrder 接口）+ pgstore/sim.go CloseSimOrder（事务 + 三守卫 + 对抗锚点注释）+ sim_test TestCloseSimOrder + migrate_test want 7→8 + sim.proto（CloseSimOrderRequest/Response + rpc，头注释 4→6）+ `buf generate --template buf.gen.sim.yaml`（**教训：sim 域必须用独立模板，裸 `buf generate` 不碰 sim**）+ service.go CloseSimOrder（前置校验 + latestValue 浮动 + fx 折算，包 doc 5→6 RPC/双写路径）+ service_test fakeStore（ListOpenSimPositions/CloseSimOrder 真语义）+ 5 处 fake panic stub（dashboard/collect-manual/alert/rule）+ 6 场景服务测试 + hooks.ts useSim.close（返回响应含 realized_pnl）+ SimExec.tsx（浮动列 + rowSpan 平仓按钮 + 二次确认 + 结果横幅 + settled 过滤）+ SimPage 传参 + style.css .btn-close（默认警示描边 / armed 实心）。
+- **验证/部署**：全量 go test（pgstore TestMigrateIdempotent want 8 通过 = migration 0008 应用 + TestCloseSimOrder 全绿 + simapi 6 场景）+ vet + tsc/npm build 绿；锚点 TestSimKindLabelCoverage / TestSimExecBadgeRenderable PASS（SimExec/ConfirmPanel 仍引 SimulatedBadge，Opportunity 无 funding_hedge 字面量）；构建 → SIGKILL 部署（arbcn-monitor.service，MainPID 2919956→2935391）→ **healthz `pending_migrations` → `ok`（0008 自动应用）** + inode 匹配（21244442→21244499）+ served bundle == 新 dist（index-EdR3ou5I.js 含「确认平仓/浮动收益/closeSimOrder」）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——平仓仍人工触发、模拟盘无真实资金路径。**（practices #19 闭环）
+- **决策号**：D-055（平仓 + 浮动收益列 + 预期收益答疑）；教训候选入 practices #30（对称补全 checklist + buf 独立模板）。

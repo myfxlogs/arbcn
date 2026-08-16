@@ -13,6 +13,7 @@ export function SimPage() {
       report={sim.report}
       fxAvailable={sim.fxAvailable}
       error={sim.error}
+      close={sim.close}
       reload={sim.reload}
     />
   );

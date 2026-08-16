@@ -178,6 +178,41 @@ func (f *fakeStore) RejectSimOrder(_ context.Context, id int64, reason string, f
 	return nil
 }
 
+// CloseSimOrder 平仓（D-055，服务测试真语义，与 pgstore 守卫一致）：订单必须 filled
+// （否则 ErrNotFound）→ 逐腿 pnl += AddPnl + settled（腿必须属于本单且 open，任一 miss
+// 回滚）→ 订单 closed + note 覆盖（非空时）。返回平掉腿数。
+func (f *fakeStore) CloseSimOrder(_ context.Context, orderID int64, note string, closes []store.SimLegClose) (int, error) {
+	if len(closes) == 0 {
+		return 0, errors.New("fakeStore: CloseSimOrder: closes required")
+	}
+	o, ok := f.orderByID(orderID)
+	if !ok || o.Status != store.SimStatusFilled {
+		return 0, store.ErrNotFound
+	}
+	n := 0
+	for _, c := range closes {
+		idx := -1
+		for i := range f.positions {
+			if f.positions[i].ID == c.ID && f.positions[i].OrderID == orderID && f.positions[i].Status == store.SimPosStatusOpen {
+				idx = i
+				break
+			}
+		}
+		if idx < 0 {
+			return 0, errors.New("fakeStore: CloseSimOrder: leg 非 open/不属于本单（回滚，防半仓 D-019）")
+		}
+		f.positions[idx].PnL += c.AddPnl
+		f.positions[idx].Status = store.SimPosStatusSettled
+		n++
+	}
+	o.Status = store.SimStatusClosed
+	if note != "" {
+		o.Note = note
+	}
+	f.replaceOrder(o)
+	return n, nil
+}
+
 // —— 其余接口占位（未用即红） ——
 
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
@@ -246,8 +281,22 @@ func (f *fakeStore) TodaySimNotional(context.Context, time.Time) (float64, error
 func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
 	panic("fakeStore: InsertSimPosition not used")
 }
-func (f *fakeStore) ListOpenSimPositions(context.Context, string, string) ([]store.SimPosition, error) {
-	panic("fakeStore: ListOpenSimPositions not used")
+// ListOpenSimPositions 返回 open 腿（symbol/venue 空 = 不限；CloseSimOrder 数据面）。
+func (f *fakeStore) ListOpenSimPositions(_ context.Context, symbol, venue string) ([]store.SimPosition, error) {
+	out := []store.SimPosition{}
+	for _, p := range f.positions {
+		if p.Status != store.SimPosStatusOpen {
+			continue
+		}
+		if symbol != "" && p.Symbol != symbol {
+			continue
+		}
+		if venue != "" && p.Venue != venue {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out, nil
 }
 func (f *fakeStore) SettleSimPosition(context.Context, int64, float64, string) error {
 	panic("fakeStore: SettleSimPosition not used")
@@ -467,6 +516,142 @@ func TestConfirmSimOrderFailClosedNoData(t *testing.T) {
 		if !strings.Contains(st.rejected[0].reason, "fail-closed") {
 			t.Fatalf("%s: reason = %q, want 含 fail-closed", missing, st.rejected[0].reason)
 		}
+	}
+}
+
+// closeSeed 构造 filled 订单 + funding_hedge 两 open 腿（short 已结算 funding 30）。
+// 返回 fakeStore 供 CloseSimOrder 各用例复用。
+func closeSeed() *fakeStore {
+	st := newFakeStore()
+	o := fundingOrder(0)
+	o.Status = store.SimStatusFilled
+	st.addOrder(o)
+	st.positions = append(st.positions,
+		store.SimPosition{ID: 10, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge,
+			Venue: "binance", Symbol: "BTC", Side: store.SimSideLong, Qty: 100, RefPrice: 100,
+			Funding: false, PnL: 0, Status: store.SimPosStatusOpen},
+		store.SimPosition{ID: 11, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge,
+			Venue: "binance", Symbol: "BTC", Side: store.SimSideShort, Qty: 100, RefPrice: 100,
+			Funding: true, PnL: 30, Status: store.SimPosStatusOpen},
+	)
+	return st
+}
+
+func closeReq(id int64) *connect.Request[simv1.CloseSimOrderRequest] {
+	return connect.NewRequest(&simv1.CloseSimOrderRequest{Id: id, Note: "人工平仓"})
+}
+
+// TestCloseSimOrder：filled 订单 + open 腿 → 按当前价结算浮动 → 整单平。订单 closed、
+// 两腿 settled；realized = 已结算 funding + 浮动合计；realized_rmb = 即期折算。
+// funding_hedge 对冲净值 = 价格浮动两腿抵消（long +1000 / short -1000）+ funding 30。
+func TestCloseSimOrder(t *testing.T) {
+	st := closeSeed()
+	st.addFact(fact.KindTicker, "binance", "BTC", 110, t0.Add(-time.Minute)) // +10% vs ref 100
+	st.addFact(fact.KindFX, fxVenue, fxSymbol, 7.2, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.CloseSimOrder(context.Background(), closeReq(1))
+	if err != nil {
+		t.Fatalf("CloseSimOrder: %v", err)
+	}
+	if resp.Msg.OrderId != 1 || resp.Msg.ClosedLegs != 2 {
+		t.Fatalf("resp = %+v, want order 1 closed_legs=2", resp.Msg)
+	}
+	// long: 0 + (110-100)*100*+1 = 1000；short: 30 + (110-100)*100*-1 = -970。
+	if resp.Msg.RealizedPnl != 30 {
+		t.Fatalf("realized_pnl = %v, want 30（浮动对冲抵消 + funding 30）", resp.Msg.RealizedPnl)
+	}
+	if resp.Msg.RealizedRmb != 30*7.2 {
+		t.Fatalf("realized_rmb = %v, want %v", resp.Msg.RealizedRmb, 30*7.2)
+	}
+	got, _ := st.orderByID(1)
+	if got.Status != store.SimStatusClosed || got.Note != "人工平仓" {
+		t.Fatalf("order = %+v, want closed + note 人工平仓", got)
+	}
+	byID := map[int64]store.SimPosition{}
+	for _, p := range st.positions {
+		byID[p.ID] = p
+	}
+	if byID[10].Status != store.SimPosStatusSettled || byID[10].PnL != 1000 {
+		t.Fatalf("long = %+v, want settled pnl=1000", byID[10])
+	}
+	if byID[11].Status != store.SimPosStatusSettled || byID[11].PnL != -970 {
+		t.Fatalf("short = %+v, want settled pnl=-970", byID[11])
+	}
+	// 平仓后再平 → 订单非 filled → FailedPrecondition（防重复平）。
+	_, err = s.CloseSimOrder(context.Background(), closeReq(1))
+	if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+		t.Fatalf("second close code = %v, want FailedPrecondition", connect.CodeOf(err))
+	}
+}
+
+// TestCloseSimOrderTickerMissing：ticker 查不到 → 浮动 add=0（宁缺毋滥不编造），
+// realized 仅含已结算 funding；fx 缺失 → realized_rmb=0（前端标 USD 原值，D-047）。
+func TestCloseSimOrderTickerMissing(t *testing.T) {
+	st := closeSeed()
+	s := service(st, sim.Config{}) // 无 ticker / 无 fx 事实
+
+	resp, err := s.CloseSimOrder(context.Background(), closeReq(1))
+	if err != nil {
+		t.Fatalf("CloseSimOrder(no ticker): %v", err)
+	}
+	if resp.Msg.RealizedPnl != 30 || resp.Msg.ClosedLegs != 2 {
+		t.Fatalf("resp = %+v, want realized=30（仅 funding）/legs=2", resp.Msg)
+	}
+	if resp.Msg.RealizedRmb != 0 {
+		t.Fatalf("realized_rmb = %v, want 0（fx 缺失）", resp.Msg.RealizedRmb)
+	}
+}
+
+// TestCloseSimOrderNonFilled：非 filled（suggested/rejected/closed）→ FailedPrecondition，
+// 不产生任何写。
+func TestCloseSimOrderNonFilled(t *testing.T) {
+	for _, status := range []string{store.SimStatusSuggested, store.SimStatusRejected, store.SimStatusClosed} {
+		st := newFakeStore()
+		o := fundingOrder(0)
+		o.Status = status
+		st.addOrder(o)
+		s := service(st, sim.Config{})
+
+		_, err := s.CloseSimOrder(context.Background(), closeReq(1))
+		if connect.CodeOf(err) != connect.CodeFailedPrecondition {
+			t.Fatalf("%s: code = %v, want FailedPrecondition", status, connect.CodeOf(err))
+		}
+		if len(st.positions) != 0 {
+			t.Fatalf("%s: positions written = %d, want 0（不得写入）", status, len(st.positions))
+		}
+	}
+}
+
+// TestCloseSimOrderUnknownId：未知订单 → GetSimOrder ErrNotFound → Unavailable。
+func TestCloseSimOrderUnknownId(t *testing.T) {
+	s := service(newFakeStore(), sim.Config{})
+	_, err := s.CloseSimOrder(context.Background(), closeReq(999))
+	if connect.CodeOf(err) != connect.CodeUnavailable {
+		t.Fatalf("code = %v, want Unavailable", connect.CodeOf(err))
+	}
+}
+
+// TestCloseSimOrderNoOpenLegs：filled 订单但无 open 腿（已无持仓）→ InvalidArgument。
+func TestCloseSimOrderNoOpenLegs(t *testing.T) {
+	st := newFakeStore()
+	o := fundingOrder(0)
+	o.Status = store.SimStatusFilled
+	st.addOrder(o)
+	s := service(st, sim.Config{})
+
+	_, err := s.CloseSimOrder(context.Background(), closeReq(1))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument（无可平腿）", connect.CodeOf(err))
+	}
+}
+
+// TestCloseSimOrderInvalidId：id ≤ 0 → InvalidArgument。
+func TestCloseSimOrderInvalidId(t *testing.T) {
+	s := service(newFakeStore(), sim.Config{})
+	_, err := s.CloseSimOrder(context.Background(), closeReq(0))
+	if connect.CodeOf(err) != connect.CodeInvalidArgument {
+		t.Fatalf("code = %v, want InvalidArgument", connect.CodeOf(err))
 	}
 }
 

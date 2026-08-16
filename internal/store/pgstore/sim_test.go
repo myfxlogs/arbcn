@@ -355,6 +355,122 @@ func TestAcceptSimOrderAtomicity(t *testing.T) {
 	}
 }
 
+// TestCloseSimOrder（D-055 平仓闭环）：filled 订单 + 两腿 → 平仓 → 订单 closed +
+// 两腿 settled + pnl += AddPnl + note 追加 + 返回腿数 2；非 filled / 未知订单 →
+// ErrNotFound；腿非 open/不属于本单 → 整体回滚（订单保持 filled、腿不变）。
+// [对抗测试锚点] 删 CloseSimOrder 的 filled 守卫 / 删腿 open 守卫 → 拒绝断言必红；
+// 把腿 UPDATE 移出事务 → 回滚断言必红。
+func TestCloseSimOrder(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions")
+
+	s := New(pool)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	legs := []store.SimPosition{
+		{Ts: now, Kind: store.SimKindFundingHedge, Venue: "sim_local", Symbol: "BTC",
+			Side: store.SimSideLong, Qty: 10000, RefPrice: 60000, Funding: false, Status: store.SimPosStatusOpen},
+		{Ts: now, Kind: store.SimKindFundingHedge, Venue: "sim_local", Symbol: "BTC",
+			Side: store.SimSideShort, Qty: 10000, RefPrice: 60000, Funding: true, Status: store.SimPosStatusOpen},
+	}
+	// 建 filled 订单（含两腿）。
+	id, err := s.InsertSimOrder(ctx, store.SimOrder{Ts: now, Kind: store.SimKindFundingHedge,
+		Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+		RefPrice: 60000, ExpectedSpread: 10, Status: store.SimStatusSuggested})
+	if err != nil {
+		t.Fatalf("InsertSimOrder: %v", err)
+	}
+	if err := s.AcceptSimOrder(ctx, id, "确认成交", legs); err != nil {
+		t.Fatalf("AcceptSimOrder: %v", err)
+	}
+	open, _ := s.ListOpenSimPositions(ctx, "", "")
+	if len(open) != 2 {
+		t.Fatalf("open legs = %d, want 2", len(open))
+	}
+	// 短腿先积累一期已结算 funding（模拟 8h settle），pnl 保留在平仓 realized 里。
+	if err := s.SettleSimPosition(ctx, open[1].ID, 123.45, store.SimPosStatusOpen); err != nil {
+		t.Fatalf("SettleSimPosition: %v", err)
+	}
+
+	// 平仓：短腿浮动 −8000、长腿浮动 +8000（对冲净 0）→ 两腿皆 settled。
+	n, err := s.CloseSimOrder(ctx, id, "人工平仓", []store.SimLegClose{
+		{ID: open[0].ID, AddPnl: 8000},
+		{ID: open[1].ID, AddPnl: -8000},
+	})
+	if err != nil {
+		t.Fatalf("CloseSimOrder: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("closed legs = %d, want 2", n)
+	}
+	o, err := s.GetSimOrder(ctx, id)
+	if err != nil || o.Status != store.SimStatusClosed || o.Note != "人工平仓" {
+		t.Fatalf("order after close = %+v, %v, want closed/人工平仓", o, err)
+	}
+	all, _ := s.ListSimPositions(ctx, 0, 0)
+	if len(all) != 2 {
+		t.Fatalf("positions = %d, want 2", len(all))
+	}
+	for _, p := range all {
+		if p.Status != store.SimPosStatusSettled {
+			t.Fatalf("leg %d status = %q, want settled", p.ID, p.Status)
+		}
+	}
+	// 短腿 pnl = settled(123.45) + (−8000)；长腿 = 8000。按 side 核对（运行时双精度
+	// 计算与 DB float8 同 ULP，避免常量折叠差 1 ULP 的 flake）。
+	settled := float64(123.45)
+	if all[0].Side == store.SimSideShort {
+		all[0], all[1] = all[1], all[0]
+	}
+	if all[0].PnL != 8000 || all[1].PnL != settled-8000 {
+		t.Fatalf("pnl = long %v short %v, want 8000 / %v", all[0].PnL, all[1].PnL, settled-8000)
+	}
+	// 再平（已 closed）→ ErrNotFound（filled 守卫）。
+	if _, err := s.CloseSimOrder(ctx, id, "", []store.SimLegClose{{ID: open[0].ID}}); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("close(closed) = %v, want ErrNotFound", err)
+	}
+
+	// 非 filled 订单 / 未知订单 → ErrNotFound。
+	sid, _ := s.InsertSimOrder(ctx, store.SimOrder{Ts: now, Kind: store.SimKindFundingHedge,
+		Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+		RefPrice: 60000, Status: store.SimStatusSuggested})
+	if _, err := s.CloseSimOrder(ctx, sid, "", []store.SimLegClose{{ID: open[0].ID}}); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("close(suggested) = %v, want ErrNotFound", err)
+	}
+	if _, err := s.CloseSimOrder(ctx, 999_999, "", []store.SimLegClose{{ID: open[0].ID}}); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("close(missing) = %v, want ErrNotFound", err)
+	}
+
+	// 腿非本单（另一订单的腿 id 混入）→ 回滚：订单保持 filled、原两腿仍 open。
+	// 重建一个 filled 订单验证回滚语义。
+	id2, _ := s.InsertSimOrder(ctx, store.SimOrder{Ts: now, Kind: store.SimKindFundingHedge,
+		Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+		RefPrice: 60000, Status: store.SimStatusSuggested})
+	if err := s.AcceptSimOrder(ctx, id2, "", legs); err != nil {
+		t.Fatalf("AcceptSimOrder#2: %v", err)
+	}
+	open2, _ := s.ListOpenSimPositions(ctx, "", "")
+	if len(open2) != 2 {
+		t.Fatalf("open legs #2 = %d, want 2", len(open2))
+	}
+	// 把第一单已 settled 的腿混进第二单的平仓 → 腿 open 守卫 miss → 回滚。
+	if _, err := s.CloseSimOrder(ctx, id2, "", []store.SimLegClose{{ID: all[0].ID, AddPnl: 1}}); err == nil {
+		t.Fatal("close with foreign/settled leg = nil, want error（回滚）")
+	}
+	o2, _ := s.GetSimOrder(ctx, id2)
+	if o2.Status != store.SimStatusFilled {
+		t.Fatalf("order#2 after failed close = %q, want filled（回滚）", o2.Status)
+	}
+	if open, _ = s.ListOpenSimPositions(ctx, "", ""); len(open) != 2 {
+		t.Fatalf("open legs after failed close = %d, want 2（回滚）", len(open))
+	}
+	// 空 closes → 拒绝。
+	if _, err := s.CloseSimOrder(ctx, id2, "", nil); err == nil {
+		t.Fatal("close(empty closes) = nil, want error")
+	}
+}
+
 // TestRejectSimOrderAppendsFlag（M3-c C3）：suggested → rejected + risk_flags 追加
 // SPREAD_DRIFT（保留既有标记、去重）+ note 覆盖；非 suggested/未知 id → 报错（状态守卫）。
 // [对抗测试锚点] 删 RejectSimOrder 的 status='suggested' 守卫 → 非 suggested 拒绝断言必红。

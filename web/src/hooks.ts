@@ -19,6 +19,7 @@ import type {
   UnackedAlert,
 } from "./gen/arbcn/dashboard/v1/dashboard_pb";
 import type {
+  CloseSimOrderResponse,
   GetSimReportResponse,
   SimOrder,
   SimPosition,
@@ -29,8 +30,9 @@ import type {
 const POLL_MS = 60_000;
 
 // useSim 模拟执行面板（M3-c C4，04-m3-spec §10.5）：建议订单 + 模拟持仓 + 对账报告
-// + 测试网账户（D-040）。确认走 SimService.ConfirmSimOrder（后端唯一写路径，suggested
-// 守卫原子成交）；确认成功后本地刷新各区。SIMULATED 徽标由 SimExec 组件固定渲染（可检查）。
+// + 测试网账户（D-040）。写路径 = ConfirmSimOrder（开仓）+ CloseSimOrder（平仓，D-055
+// 整单平：订单全部腿一起退，绝不单腿留裸敞口 D-019）；成功后本地刷新各区。
+// SIMULATED 徽标由 SimExec 组件固定渲染（可检查）。
 // D-047 P0：本 hook 由使用它的页面组件挂载（OverviewPage/SimPage），hook 生命周期 =
 // 视图生命周期；加 60s 轮询（8h 结算新单可被确认面板捕获，不再只靠手动刷新）。
 // refreshKey：顶部全局刷新信号（App 递增）→ effect 重载。
@@ -42,6 +44,7 @@ export function useSim(refreshKey?: number): {
   fxAvailable: boolean;
   error: string;
   confirm: (id: bigint) => Promise<boolean>;
+  close: (id: bigint, note?: string) => Promise<CloseSimOrderResponse | null>;
   reload: () => void;
 } {
   const [orders, setOrders] = useState<SimOrder[]>([]);
@@ -94,6 +97,20 @@ export function useSim(refreshKey?: number): {
     }
   }, []);
 
+  // close 平仓（D-055 整单平，后端订单级原子事务：订单全部 open 腿一起退，防半仓裸敞口）。
+  // 返回 CloseSimOrderResponse（含 realized_pnl 实现净 PnL，前端平仓结果横幅展示）。
+  const close = useCallback(async (id: bigint, note?: string): Promise<CloseSimOrderResponse | null> => {
+    try {
+      const res = await sim.closeSimOrder({ id, note: note ?? "" });
+      setTick((n) => n + 1); // 刷新各区（订单 closed + 腿 settled）
+      setError("");
+      return res;
+    } catch (e) {
+      setError(String(e));
+      return null;
+    }
+  }, []);
+
   return {
     orders,
     positions,
@@ -102,6 +119,7 @@ export function useSim(refreshKey?: number): {
     fxAvailable,
     error,
     confirm,
+    close,
     reload: useCallback(() => setTick((n) => n + 1), []),
   };
 }

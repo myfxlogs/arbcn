@@ -193,6 +193,13 @@ type KnowledgeEntry struct {
 	ValidationNote string     // 复核结论
 }
 
+// SimLegClose 单腿平仓参数（D-055）：AddPnl = 调用方按当前价计算的浮动 PnL
+// （(cur-ref)×qty×方向；行情缺失 = 0 不编造），平仓时并入已结算 pnl 后置 settled。
+type SimLegClose struct {
+	ID     int64
+	AddPnl float64
+}
+
 // SimOrder 值域（与 DB CHECK / spec 一致）。
 const (
 	SimStatusSuggested = "suggested" // 生成时默认（门禁全过）
@@ -200,6 +207,7 @@ const (
 	SimStatusFilled    = "filled"    // 本地模拟成交
 	SimStatusRejected  = "rejected"  // 门禁未过（负样本）
 	SimStatusExpired   = "expired"
+	SimStatusClosed    = "closed" // 人工平仓（D-055；仅 filled 订单可平）
 
 	SimKindFundingHedge = "funding_hedge" // 现货+永续对冲（cash-and-carry）
 	SimKindCarryAsset   = "carry_asset"   // 白名单生息资产（sUSDe/USDe 等）
@@ -302,6 +310,12 @@ type Store interface {
 	// SettleSimPosition 结算更新持仓腿：pnl += addPnl，status 覆盖（settled 关闭），
 	// updated_at = now。未知 id 无操作。
 	SettleSimPosition(ctx context.Context, id int64, addPnl float64, status string) error
+	// CloseSimOrder 人工平仓（D-055）：单事务原子——校验订单 status='filled' →
+	// 逐腿 pnl += closes[i].AddPnl + status='settled'（AddPnl = 调用方按当前价算的
+	// 浮动，已结算 funding 留在 pnl 内）+ 订单 status='closed' + note 追加。
+	// 腿必须属于该订单且为 open，否则整体回滚（不留半仓，不赌原则 D-019）。
+	// 返回实际平掉的腿数；未知订单 / 非 filled → ErrNotFound。
+	CloseSimOrder(ctx context.Context, orderID int64, note string, closes []SimLegClose) (int, error)
 
 	// ListKnowledgeEntries 返回经验库全部条目（signature ASC 稳定排序；D-046 浏览）。
 	ListKnowledgeEntries(ctx context.Context) ([]KnowledgeEntry, error)

@@ -1,7 +1,9 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：4 个 RPC（ListSimOrders / ConfirmSimOrder /
-// ListSimPositions / GetSimReport）。确认后仍是模拟（SIMULATED），无任何通往
-// 真实资金的按钮/路径（§6/§8；不赌原则 D-019）。
+// 独立域 arbcn.sim.v1（D-038 ①）：6 个 RPC（ListSimOrders / ConfirmSimOrder /
+// CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts）。
+// 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
+// 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
+// 按钮/路径（§6/§8；不赌原则 D-019）。
 // 与 dashboardv1 互不依赖（不动 dashboardv1 生成物，独立域零回归）。
 syntax = "proto3";
 
@@ -62,6 +64,20 @@ message ListSimPositionsResponse {
   repeated SimPosition positions = 1;
   bool fx_available = 2;  // 即期 USDCNH 可用（false → 前端按「USD 原值」标注，非真零 PnL；D-047 消除 0 占位启发式）
 }
+
+// CloseSimOrder 人工平仓（D-055）：整单平仓——订单全部 open 腿结算浮动后置 settled，
+// 订单置 closed。id 必填（仅 filled 订单可平）；note 平仓备注（可空）。
+// 对 funding_hedge 对冲结构 = 两腿一起退（不赌原则 D-019：绝不单腿留裸敞口）。
+message CloseSimOrderRequest {
+  int64 id = 1;
+  string note = 2;
+}
+message CloseSimOrderResponse {
+  int64 order_id = 1;
+  int32 closed_legs = 2;      // 平掉的腿数
+  double realized_pnl = 3;    // 平仓实现净 PnL（已结算 + 浮动合计，模拟 USD）
+  double realized_rmb = 4;    // 即期 USDCNH 折算（汇率缺失 = 0，前端标注 USD 原值）
+}
 message GetSimReportRequest {}
 message GetSimReportResponse {
   string markdown = 1;        // 报告内容（文件不存在 = 空 + note 说明）
@@ -97,6 +113,7 @@ message GetTestnetAccountsResponse { repeated TestnetAccount accounts = 1; }
 service SimService {
   rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
   rpc ConfirmSimOrder(ConfirmSimOrderRequest) returns (ConfirmSimOrderResponse);
+  rpc CloseSimOrder(CloseSimOrderRequest) returns (CloseSimOrderResponse);
   rpc ListSimPositions(ListSimPositionsRequest) returns (ListSimPositionsResponse);
   rpc GetSimReport(GetSimReportRequest) returns (GetSimReportResponse);
   rpc GetTestnetAccounts(GetTestnetAccountsRequest) returns (GetTestnetAccountsResponse);

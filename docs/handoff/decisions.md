@@ -400,3 +400,14 @@
   ③ **前端内联表单**：KnowledgeBoard 每行「复核」（已复核显示「再次复核」）按钮 → 行内表单（状态 select 生效中/已更新/已撤销 + 判定文本输入留空=保留 + 必填复核结论 + 确认复核/取消）；提交走 RPC，成功后重拉列表，`validated_at` 落值 → 「待复核」变「复核 <ts>」。
 - **理由**：经验库是「决策资产」，复核必须是决策层行为（owner 在环），不由系统自动写（避免自说自话的「已复核」）；note 必填保证留痕可追溯（F 文档）；verdict 可留空保留 = 常见复核只改状态不改判定的最简路径。
 - **结论**：proto + buf 再生成（Service 自动接线，漏实现即编译失败）+ Store 接口 + pgstore UPDATE（COALESCE 保留路径）+ 服务校验 + 6 处 fake 接口对齐 + hook（status 参数）。**测试全绿**：pgstore roundtrip（validated_at 置值/status/verdict/note、空 verdict 保留、未知签名 ErrNotFound）+ service（空 sig/空 note/非法 status → InvalidArgument、成功回读、未知签名 → Unavailable）+ 锚点 TestSimKindLabelCoverage/TestSimExecBadgeRenderable；tsc/npm build/go build 绿。**部署 + 实测**：RPC 拒空 note/拒非法 status（400）/未知签名（503）三条拒绝路径 live 命中；CDP 复核表单渲染（select 三态、verdict 预填「坑·核实」、note 必填占位、确认复核按钮）；1280 等高不破坏。**零执行门禁/规则/阈值/D-016 改动；不接 LLM（D-043）；不赌（D-019）。**
+
+## D-055 模拟盘平仓 + 浮动收益列（对话 #72，业主「只做了开仓，还有平仓没做，就做了 1/2」）
+- **背景**：业主指出模拟执行「只做了开仓（确认下单），平仓功能缺失」，且要求「模拟持仓中要显示浮动收益」。已核实现状：sim_positions 无 close 路径（SettleFunding 只累计 pnl、腿永 open），持仓区已有「实时收益 = 已结算 + 未实现浮动」合并列但无独立「浮动收益」列、无平仓按钮。
+- **决策**：
+  ① **平仓 = 订单级整单平（绝不单腿）**：新 RPC `CloseSimOrder` + `Store.CloseSimOrder`——单事务「订单 status='filled' 守卫 → 逐腿 pnl += AddPnl + status='settled'（腿须属于该单且 open，任一 miss 整体回滚）→ 订单 closed + note」；funding_hedge 对冲两腿一起退（D-019 不赌：单腿平 = 裸敞口，订单级 rowSpan 按钮表达整单平）。
+  ② **AddPnl = 当前价浮动**：`(curPrice − refPrice) × qty × dir`（short=−1）；ticker 查不到 → add=0（宁缺毋滥不编造浮动，与 ListSimPositions 同口径）；已结算 funding 留在 pnl 内。`realized_pnl` = 各腿 (pnl + add) 合计（模拟 USD）；`realized_rmb` = 即期 USDCNH 折算（汇率缺失 = 0，前端标注 USD 原值，D-047 口径）。
+  ③ **双层防重复平**：服务层前置校验（GetSimOrder → status != filled → FailedPrecondition）+ store 层 filled 守卫 + 腿 open 守卫（并发双平仅先到者成功）。
+  ④ **迁移 0008**：sim_orders.status CHECK 加 `closed`（文件式自动应用，部署即生效）。
+  ⑤ **前端**：持仓表加独立「浮动收益」列（当前价缺失标 — 不编造）；每订单首腿 rowSpan 渲染「平仓」按钮（二次点击确认，同 ConfirmPanel 模式，armed 实心警示高亮）；成功后横幅显示实现净 PnL（USD + 即期 RMB）；settled 腿不进持仓表（持仓 = 当前持有）。
+- **理由**：平仓与开仓对称是模拟盘完整闭环的必缺半；订单级整单平直映 D-019（对冲结构拆腿 = 引入方向敞口，违反不赌第一性原则）；AddPnl 复用 ListSimPositions 已定的浮动口径（单一真相源，P3）；二次确认复用既有 UI 模式（A 原则不新造）；settled 腿移出持仓表 = 持仓语义即当前持有。
+- **结论**：migration 0008 + store.CloseSimOrder（事务 + 守卫，对抗测试 TestCloseSimOrder 删守卫必红）+ sim.proto +6 RPC（proto 头注释 4→6，buf 再生成）+ service（前置校验 + latestValue 浮动 + fx 折算）+ simapi fakeStore 真语义 + 5 处 fake panic stub + service 测试 6 场景（成功对冲净值/fund期加仓/ticker 缺失 add=0/非 filled/未知/无腿/id≤0）+ hooks useSim.close（返回响应含 realized_pnl）+ SimExec 浮动列 + 平仓按钮 + style.css .btn-close。**测试全绿**（pgstore 含迁移 count 8 + simapi 全场景 + 锚点 TestSimKindLabelCoverage/TestSimExecBadgeRenderable）；**部署实测**：migration 0008 自动应用（healthz pending_migrations → ok）、新二进制 inode 匹配、served bundle == 新 dist（index-EdR3ou5I.js，含「确认平仓/浮动收益/closeSimOrder」字符串）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——平仓仍人工触发、模拟盘无真实资金路径。**

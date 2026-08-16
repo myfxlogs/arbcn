@@ -1,7 +1,8 @@
 // Package simapi：模拟执行 ConnectRPC 服务（04-m3-spec §10 M3-c，独立域 arbcn.sim.v1）。
-// 5 个 RPC：ListSimOrders / ConfirmSimOrder / ListSimPositions / GetSimReport /
-// GetTestnetAccounts（D-040 测试网账户区）。
-// **ConfirmSimOrder 是本包唯一写路径**（无自动确认定时器、无其他改单状态入口，§10.6 C5）；
+// 6 个 RPC：ListSimOrders / ConfirmSimOrder / CloseSimOrder / ListSimPositions /
+// GetSimReport / GetTestnetAccounts（D-040 测试网账户区）。
+// **写路径仅 ConfirmSimOrder + CloseSimOrder**（无自动确认/平仓定时器，§10.6 C5；
+// 平仓 = D-055 人工整单平——订单全部 open 腿一起退，绝不单腿留裸敞口 D-019）；
 // 确认后仍是模拟（SIMULATED），无任何通往真实资金的按钮/路径（§6/§8，不赌原则 D-019）。
 // 本包零网络零密钥（D-010）：只读 store + 纯函数门禁，无任何真实账户/下单端点。
 package simapi
@@ -172,6 +173,80 @@ func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1
 	// fx_available：真实可用信号（D-047）——前端据此区分「汇率缺失（USD 原值）」与
 	// 「真零 PnL（显示 0）」，不再用 pnl_rmb=0 兼表两义。
 	return connect.NewResponse(&simv1.ListSimPositionsResponse{Positions: out, FxAvailable: fxOK}), nil
+}
+
+// CloseSimOrder 人工平仓（D-055，第二写路径）：整单平仓——订单全部 open 腿按当前价
+// 结算浮动后置 settled，订单置 closed。对 funding_hedge 对冲结构 = 两腿一起退
+// （绝不单腿留裸敞口，D-019 不赌）。口径与 ListSimPositions 一致：
+//   - 浮动 add = (cur_price - ref_price) × qty × 方向（short=-1，long=+1）；
+//     ticker 查不到 → add=0（宁缺毋滥不编造浮动，已结算 funding 留在 pnl 内）。
+//   - realized_pnl = 各腿 (pnl + add) 合计（模拟 USD）；realized_rmb = 即期 USDCNH
+//     折算（汇率缺失 = 0，前端标注 USD 原值，D-047 口径）。
+// 前置校验：未知订单 → Unavailable；status != filled → FailedPrecondition（防重复平）。
+// 竞态兜底：store.CloseSimOrder 内 filled 守卫 + 腿 open 守卫，双并发平仓仅先到者成功。
+func (s *Service) CloseSimOrder(ctx context.Context, req *connect.Request[simv1.CloseSimOrderRequest]) (*connect.Response[simv1.CloseSimOrderResponse], error) {
+	if req.Msg.Id <= 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument, fmt.Errorf("simapi: invalid order id %d", req.Msg.Id))
+	}
+	o, err := s.st.GetSimOrder(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	if o.Status != store.SimStatusFilled {
+		return nil, connect.NewError(connect.CodeFailedPrecondition,
+			fmt.Errorf("simapi: order %d status = %q, want filled（仅已成交订单可平仓）", o.ID, o.Status))
+	}
+
+	// 拉全部 open 腿，按 order_id 过滤（store.ListOpenSimPositions 无订单维度）。
+	positions, err := s.st.ListOpenSimPositions(ctx, "", "")
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	closes := make([]store.SimLegClose, 0, 2)
+	realized := 0.0
+	for _, p := range positions {
+		if p.OrderID != req.Msg.Id {
+			continue
+		}
+		curPrice, curOK, err := s.latestValue(ctx, fact.KindTicker, p.Venue, p.Symbol)
+		if err != nil {
+			return nil, storeErr(err)
+		}
+		add := 0.0
+		if curOK {
+			dir := 1.0
+			if p.Side == store.SimSideShort {
+				dir = -1
+			}
+			add = (curPrice - p.RefPrice) * p.Qty * dir
+		}
+		closes = append(closes, store.SimLegClose{ID: p.ID, AddPnl: add})
+		realized += p.PnL + add
+	}
+	if len(closes) == 0 {
+		return nil, connect.NewError(connect.CodeInvalidArgument,
+			fmt.Errorf("simapi: order %d 无 open 持仓腿（无可平）", req.Msg.Id))
+	}
+
+	n, err := s.st.CloseSimOrder(ctx, req.Msg.Id, req.Msg.Note, closes)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+
+	realizedRmb := 0.0
+	fxRate, fxOK, err := s.latestValue(ctx, fact.KindFX, fxVenue, fxSymbol)
+	if err != nil {
+		return nil, storeErr(err)
+	}
+	if fxOK {
+		realizedRmb = realized * fxRate
+	}
+	return connect.NewResponse(&simv1.CloseSimOrderResponse{
+		OrderId:     req.Msg.Id,
+		ClosedLegs:  int32(n),
+		RealizedPnl: realized,
+		RealizedRmb: realizedRmb,
+	}), nil
 }
 
 // GetTestnetAccounts 测试网账户快照列表（D-040 SimExec 测试网账户区数据面）。

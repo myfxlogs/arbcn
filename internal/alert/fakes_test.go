@@ -215,6 +215,9 @@ func (m *memStore) UpsertKnowledgeEntry(context.Context, store.KnowledgeEntry) (
 func (m *memStore) ReviewKnowledgeEntry(context.Context, string, string, string, string) error {
 	panic("memStore: ReviewKnowledgeEntry not used")
 }
+func (m *memStore) CloseSimOrder(context.Context, int64, string, []store.SimLegClose) (int, error) {
+	panic("memStore: CloseSimOrder not used")
+}
 
 // fakeClock 测试注入时钟。
 type fakeClock struct{ t time.Time }

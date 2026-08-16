@@ -334,3 +334,51 @@ func (s *Store) SettleSimPosition(ctx context.Context, id int64, addPnl float64,
 		WHERE id = $3`, addPnl, status, id)
 	return err
 }
+
+// CloseSimOrder 人工平仓（D-055）：单事务原子——订单必须 status='filled'
+// （RowsAffected 守卫：未知/非 filled/已平 → 0 行 → 回滚 ErrNotFound），全部
+// closes 腿逐条「pnl += AddPnl + status='settled' + updated_at=now()」且要求
+// 腿属于该订单且 status='open'（任一腿守卫 miss → 整体回滚，不留半仓裸敞口
+// D-019），订单置 closed + note 追加。返回实际平掉的腿数。
+// [对抗测试锚点] 删 filled 守卫 / 删腿 open 守卫 / 删 note 追加 → TestCloseSimOrder 必红。
+func (s *Store) CloseSimOrder(ctx context.Context, orderID int64, note string, closes []store.SimLegClose) (int, error) {
+	if len(closes) == 0 {
+		return 0, errors.New("pgstore: close sim order: closes required")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("pgstore: close sim order: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // 成功后 Rollback 是 no-op
+
+	tag, err := tx.Exec(ctx,
+		`UPDATE sim_orders
+		 SET status = $1, note = CASE WHEN $2 <> '' THEN $2 ELSE note END
+		 WHERE id = $3 AND status = $4`,
+		store.SimStatusClosed, note, orderID, store.SimStatusFilled)
+	if err != nil {
+		return 0, fmt.Errorf("pgstore: close sim order: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return 0, store.ErrNotFound
+	}
+	n := 0
+	for _, c := range closes {
+		tag, err := tx.Exec(ctx,
+			`UPDATE sim_positions
+			 SET pnl = pnl + $1, status = $2, updated_at = now()
+			 WHERE id = $3 AND order_id = $4 AND status = $5`,
+			c.AddPnl, store.SimPosStatusSettled, c.ID, orderID, store.SimPosStatusOpen)
+		if err != nil {
+			return 0, fmt.Errorf("pgstore: close sim order: leg %d: %w", c.ID, err)
+		}
+		if tag.RowsAffected() == 0 {
+			return 0, fmt.Errorf("pgstore: close sim order %d: 腿 %d 非 open/不属于本单（回滚，防半仓）", orderID, c.ID)
+		}
+		n++
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("pgstore: close sim order: commit: %w", err)
+	}
+	return n, nil
+}
