@@ -13,11 +13,14 @@ export function MatrixTable({
   cols,
   cell,
   empty,
+  colLabel,
 }: {
   rows: string[];
   cols: string[];
   cell: (row: string, col: string) => MatrixCell | null;
   empty: string;
+  // colLabel 列头显示名（key 不变，仅展示层缩写——防长协议名撑宽矩阵出横向滑块）。
+  colLabel?: (col: string) => string;
 }) {
   if (rows.length === 0) return <p className="empty">{empty}</p>;
   return (
@@ -28,7 +31,7 @@ export function MatrixTable({
             <th scope="col" aria-label="行头" />
             {cols.map((c) => (
               <th scope="col" key={c}>
-                {c}
+                {colLabel ? colLabel(c) : c}
               </th>
             ))}
           </tr>

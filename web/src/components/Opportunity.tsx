@@ -60,6 +60,26 @@ function calLabel(symbol: string): string {
   }
 }
 
+// venueLabel 事实 venue → 矩阵列头显示名（practices #18：映射对照后端 venue 全集，
+// 未知名回退原名）。defi_rate 协议 ID 过长（aave-v3 等 14~16 字符）会撑宽矩阵
+// 出横向滑块，缩为协议短名；funding 的 binance/okx 本就短，走 default 回退。
+function venueLabel(v: string): string {
+  switch (v) {
+    case "aave-v3":
+      return "Aave";
+    case "blackrock-buidl":
+      return "BlackRock";
+    case "ethena-usde":
+      return "Ethena";
+    case "morpho-blue":
+      return "Morpho";
+    case "ondo-yield-assets":
+      return "Ondo";
+    default:
+      return v;
+  }
+}
+
 // Opportunity 机会面板：funding 矩阵 + 稳定币利率表 + IV + 逆回购/时点倒计时。
 export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHealth: SourceHealth[] }) {
   const health = healthMap(sourceHealth);
@@ -77,7 +97,7 @@ export function Opportunity({ facts, sourceHealth }: { facts: Fact[]; sourceHeal
       <MatrixTable rows={funding.rows} cols={funding.cols} cell={funding.get} empty="暂无资金费率数据" />
 
       <h3>稳定币金额档利率（项目 × 币种 · 年化 %）</h3>
-      <MatrixTable rows={defi.rows} cols={defi.cols} cell={defi.get} empty="暂无 DeFi 利率数据" />
+      <MatrixTable rows={defi.rows} cols={defi.cols} cell={defi.get} colLabel={venueLabel} empty="暂无 DeFi 利率数据" />
 
       <h3>IV 隐含波动率</h3>
       <div className="stats">

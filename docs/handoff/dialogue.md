@@ -4,13 +4,7 @@
 > 全量原文在各工具自身 session 文件中（人类可读），此处只落实质纪要。
 
 
-> #1~#6 已移 LOG.md（T2 归档，git 追溯）
-
-## #7 · 2026-08-15 · 外部方案（千问）评估（D-018）
-- **参与方**：业主、Claude（千问方案作为外部输入）
-- **议题**：业主引入千问 AI 的"20 万人民币境内美元/人民币对冲理财"方案，要求评估。
-- **核实与裁决**：逐条核实 7 项主张——华夏全对冲互认基金真实（采纳入产品雷达）；民生/中信美元定存利率吻合（采纳）；工行"0.8%"错误（实际 2.8%，差 240 元非 1,840）；两得宝 R5/C5 准入门槛与业主画像冲突（拒绝）；"美联储下半年降息"前提与 2026-08 加息预期矛盾（拒绝短存逻辑）；压力测试年息套 6 个月场景夸大 ~2×；购汇用途申报建议不合规（纠正）。吸收 1 个工具，拒绝 3 项结构。
-- **决策号**：D-018。
+> #1~#7 已移 LOG.md（T2 归档，git 追溯）
 
 ## #8 · 2026-08-15 · 千问方案完整收益重算（推敲求证）
 - **参与方**：业主、Claude
@@ -445,3 +439,11 @@
 - **交付闭环教训**（业主：「提交，推送，应用」）：Claude 完成 #57/#58/#59 自审落档 + 本地 commit 后，把「部署应用 + 推送远端」当可选项晾着等业主催——§7.3 自审不是交付终点。**practices #19 写入**：运行态改动 check-out 收尾必须「构建 → 部署应用 → 推送」三步闭环，本地 commit ≠ 上线。
 - **结论**：布局改造部署应用完成（新 hash index-DdoEXWry.js，served 匹配磁盘 dist，row-col/确认下单 均入 bundle）+ go test/vet 全绿 + healthz ok；本次会话全部 commit 推送 GitHub。
 - **决策号**：无新 D#（纯前端布局调整 + 流程教训，后端/协议零改动）。
+
+## #61 · 2026-08-16 · 业主三问（defi_rate 五项是什么 / 矩阵横向滑块根因 / 实盘操作 / 是否接 LLM）· 问答 → 决策层
+- **参与方**：业主（提问）、Claude（决策层 + 施工）
+- **议题 1（defi_rate 身份）**：业主问 `aave-v3/blackrock-buidl/ethena-usde/morpho-blue/ondo-yield-assets` 是什么——**不是交易所，是 DeFi 协议资金池**（DefiLlama yields 数据源，格式 `资产@协议`），喂 carry 稳定币生息档（D-021 第二档）。五项当前年化：USDC@aave-v3 **12.57%（Aave 借贷利率尖峰，异常值，单点不代表长期）** / SUSDE@ethena-usde 4.35% / STEAKUSDC@morpho-blue 4.16% / BUIDL@blackrock-buidl 3.57% / USDY@ondo-yield-assets 3.55%。**注意：这些池只在事实库，carry 白名单默认空（M3-b §9.6 安全默认），未走 D# 显式配置前 carry 订单会被 WHITELIST 拒单。**
+- **议题 2（横向滑块根因 + 修复）**：业主问「名称太长导致左右滑块？」——**确认**：总览页机会面板「稳定币金额档利率」矩阵把 5 个协议名当列头（14~16 字符 × 5 列，`white-space: nowrap` + `.table-scroll overflow-x:auto`）→ 矩阵撑宽出滑块。**修复**：`MatrixTable` 加可选 `colLabel` 显示名（key 不变）+ `Opportunity.tsx` 加 `venueLabel` 映射（aave-v3→Aave / blackrock-buidl→BlackRock / ethena-usde→Ethena / morpho-blue→Morpho / ondo-yield-assets→Ondo，未知名回退原名，practices #18 全集对照）；列头变短矩阵收进卡片。部署实测新 hash index-CJDJqr2V.js served 匹配，5 label 全入 bundle。
+- **议题 3（实盘操作）**：业主问实盘如何操作——见下方「实盘操作」答复（系统不自动执行，人工下单 + 台账记账）。
+- **议题 4（是否接 LLM）**：业主问本项目有无必要接入 LLM——**Claude 裁决：不建议接入**（见答复：与「先核实再采纳/可机械检查」原则冲突 + 结构化数据无自然语言需求 + 模板叙述可替代）。若业主接受，落为 D# 决策。
+- **结论**：Q1 修复已构建部署应用 + 测试绿；本 commit 推送 GitHub。
