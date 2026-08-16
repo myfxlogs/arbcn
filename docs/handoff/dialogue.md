@@ -264,3 +264,14 @@
 - **施工（D-060）**：migration 0010 review_direction（幂等 IF NOT EXISTS）+ store ReviewKnowledgeEntry 加 direction + evidenceResult{text,hit,known} 重构（方向同源产出不反解析文本）+ recheckNeeded 翻转检测（proto #14）+ ReviewKnowledgeEntry 服务端方向快照（COALESCE 不覆盖）+ 前端 KnowledgeBoard 四态徽标/建议复核置顶/警示条/warn 按钮/上次核验方向。
 - **部署实测**：全量测试/vet/npm build 绿；**上线即抓真实事故**——ListInsights 503 = pgstore 扫 NULL review_direction 进 string（fake 用零值测不出、真库存量行有 NULL）→ *string 兜底 + NULL scan 回归测试；served bundle index-_k06EENF.js 匹配 dist + healthz ok；CDP 实测正常态（3 条「生效中+已复核」无警示条、间距 12px、右列序 经验库/确认下单/平仓、无横向溢出）+ 翻转态（Fetch 拦截注入 recheck → 警示条「建议复核 1 条」+ 资金费率尖峰陷阱置顶 warn 徽标 + 「建议复核」警示按钮 + 「上次核验 未命中」）。
 - **决策号**：D-060。
+
+---
+
+## #84 · 2026-08-16 · 拒单理由自明性改进（SPREAD_DRIFT note 前后数值 + 方向 + 阈值）
+
+- **议题**：业主查库问「2026-08-16 19:56:14 已拒单理由是什么？备注项是拒单理由吗？」→ 查证 = **sim_orders id=18**（funding_hedge 演练单 binance BTC，rejected，risk_flags={SPREAD_DRIFT}，note=`SPREAD_DRIFT: 预期年化变化 53.28%`，ref_price=62963，expected_spread=5.796%）。
+- **答疑（两次纠偏业主误读）**：① note 就是拒单理由（人类可读），risk_flags 是机器可读标记，二者对应；② **53.28% 是变化比例不是目标值**——生成时按 30d 均值预期年化 5.80%，确认时刻 binance BTC 当前 funding 已回落至 ~2.7%（`|2.71−5.80|/5.80≈53.3%`，DB 实据 21:00 起 binance BTC 2.6–4.1%），触发 `ConfirmDriftCheck` 年化变化 >20% 阈值（另有 ref 漂移 >2% 独立触发，D-038 C2/D-036 G5）→ fail-closed 拒单，设计内宁缺毋滥，从未成交无持仓。业主最初把「变化 53.28%」误读成「涨到 53.28%」。
+- **需求**：业主「明白了，那就是**理由说得不够详细清楚，这里需要改善**」。
+- **结论**：`internal/sim/confirm.go` 两条漂移拒单理由改为**自明格式**——年化：`SPREAD_DRIFT: 预期年化 5.80% → 2.71%（回落 53.30%，超阈值 ±20%）`（前后数值 + 方向词回落/上行 + 变化比例 + 阈值）；参考价：`SPREAD_DRIFT: 参考价 62000 → 65000（漂移 +4.84%，超阈值 ±2%）`。id=18 同款场景实测产出「预期年化 5.80% → 2.71%（回落 53.30%，超阈值 ±20%）」。测试断言更新（含回落/上行方向词对抗）+ 新增回落场景；其他拒单理由（UNHEDGED/SPREAD_LOW/SIZE_OVER/DAILY_OVER/WHITELIST/INVALID）已带数值/说明，无需动。
+- **部署实测**：全量测试/vet 绿 + 原子替换重启 + systemctl active + healthz ok + 运行二进制 = 新 /opt/arbcn/bin/arbcn。**历史记录 id=18 note 保持原样不改写**（审计留痕 P3，新格式只对后续新拒单生效）；如业主希望把 id=18 这条展示也改成清晰版可单独说。
+- **决策号**：无（消息文案改进，非设计决策）。

@@ -33,22 +33,33 @@ func TestConfirmDriftPasses(t *testing.T) {
 }
 
 // TestConfirmDriftRejectsDrift：[对抗测试锚点 §10.3] 删 `> 0.02` 漂移比较 → 本测试必红。
-// ref 漂移 2.01% → 拒（独立触发）；年化变化 20.2% → 拒（独立触发）。
+// ref 漂移 2.01% → 拒（独立触发）；年化变化 20.2% → 拒（独立触发）。理由须自明
+// （业主反馈）：含前后数值 + 阈值，方向词回落/上行正确。
 func TestConfirmDriftRejectsDrift(t *testing.T) {
 	reject, reason := ConfirmDriftCheck(100, 5, 102.01, 5)
 	if !reject {
 		t.Fatal("ConfirmDriftCheck(100,5,102.01,5) = pass, want reject（ref 漂移 2.01%）")
 	}
-	if !strings.Contains(reason, "ref_price 漂移") {
-		t.Fatalf("reason = %q, want 含 ref_price 漂移", reason)
+	if !strings.Contains(reason, "参考价 100 → 102.01") || !strings.Contains(reason, "±2%") {
+		t.Fatalf("reason = %q, want 含前后参考价 100→102.01 与阈值 ±2%%", reason)
 	}
 
+	// 上行：当前年化高于生成值。
 	reject, reason = ConfirmDriftCheck(100, 5, 100, 6.01)
 	if !reject {
 		t.Fatal("ConfirmDriftCheck(100,5,100,6.01) = pass, want reject（年化变化 20.2%）")
 	}
-	if !strings.Contains(reason, "预期年化变化") {
-		t.Fatalf("reason = %q, want 含 预期年化变化", reason)
+	if !strings.Contains(reason, "预期年化 5.00% → 6.01%") || !strings.Contains(reason, "上行") || !strings.Contains(reason, "±20%") {
+		t.Fatalf("reason = %q, want 含前后年化 5.00→6.01 + 方向词上行 + 阈值 ±20%%", reason)
+	}
+
+	// 回落：当前年化低于生成值（id=18 同款，5.80 → ~2.7 的误读场景）。
+	reject, reason = ConfirmDriftCheck(100, 5, 100, 3.9)
+	if !reject {
+		t.Fatal("ConfirmDriftCheck(100,5,100,3.9) = pass, want reject（年化回落 22%）")
+	}
+	if !strings.Contains(reason, "回落") || !strings.Contains(reason, "5.00% → 3.90%") {
+		t.Fatalf("reason = %q, want 含方向词回落 + 前后年化 5.00→3.90", reason)
 	}
 }
 

@@ -34,13 +34,20 @@ func ConfirmDriftCheck(genRef, genSpread, curRef, curSpread float64) (bool, stri
 			return true, fmt.Sprintf("SPREAD_DRIFT: 确认时刻 %s 非有限值（fail-closed 拒单）", v.name)
 		}
 	}
-	// ref_price 漂移 >2% 独立触发。
+	// ref_price 漂移 >2% 独立触发。理由写「生成参考价 → 确认时刻参考价 + 漂移比例 +
+	// 阈值」，方向由箭头表达（自明，业主反馈原「ref_price 漂移 x%」看不到前后数值）。
 	if drift := math.Abs(curRef-genRef) / genRef; drift > 0.02 {
-		return true, fmt.Sprintf("SPREAD_DRIFT: ref_price 漂移 %.2f%%", drift*100)
+		return true, fmt.Sprintf("SPREAD_DRIFT: 参考价 %v → %v（漂移 %+.2f%%，超阈值 ±2%%）", genRef, curRef, drift*100)
 	}
-	// 预期年化变化 >20% 独立触发（分母 genSpread 已保证非零）。
+	// 预期年化变化 >20% 独立触发（分母 genSpread 已保证非零）。理由写「生成预期年化 →
+	// 确认时刻年化 + 方向（回落/上行）+ 变化比例 + 阈值」——业主反馈原「预期年化变化
+	// 53.28%」被误读为「涨到 53.28%」，实为回落 53%，故显式给两值 + 方向词。
 	if spread := math.Abs(curSpread-genSpread) / genSpread; spread > 0.20 {
-		return true, fmt.Sprintf("SPREAD_DRIFT: 预期年化变化 %.2f%%", spread*100)
+		dir := "回落"
+		if curSpread > genSpread {
+			dir = "上行"
+		}
+		return true, fmt.Sprintf("SPREAD_DRIFT: 预期年化 %.2f%% → %.2f%%（%s %.2f%%，超阈值 ±20%%）", genSpread, curSpread, dir, spread*100)
 	}
 	return false, ""
 }
