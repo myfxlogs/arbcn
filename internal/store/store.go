@@ -237,6 +237,18 @@ const (
 	CashKindClose     = "close"      // 平仓（long +qty×cur / short −qty×cur）
 )
 
+// EquitySnapshot 是 sim_equity_snapshots 表的一行（D-062 判定门① 测量引擎时点快照）。
+// 五数 = GetSimAccount 同口径（equity = cash + market_value = capital + realized + unrealized），
+// Ts 为快照时刻（主键，8h settle tick 落点）。只读测量数据面，不参与执行/门禁。
+type EquitySnapshot struct {
+	Ts          time.Time
+	Equity      float64
+	Cash        float64
+	Realized    float64
+	Unrealized  float64
+	MarketValue float64
+}
+
 // SimOrder 值域（与 DB CHECK / spec 一致）。
 const (
 	SimStatusSuggested = "suggested" // 生成时默认（门禁全过）
@@ -365,6 +377,12 @@ type Store interface {
 	// ListCashFlows 按 ts DESC, id DESC 分页返回现金流流水（稳定排序）。
 	// limit ≤ 0 = 默认 100，offset < 0 = 0。
 	ListCashFlows(ctx context.Context, limit, offset int) ([]CashFlow, error)
+	// InsertEquitySnapshot 落一份 equity 时点快照（D-062 判定门① 测量引擎数据面）。
+	// ts 主键 ON CONFLICT 幂等：同一 tick 重复落 = 保留首份不覆盖。settleOnce 每 8h 调。
+	InsertEquitySnapshot(ctx context.Context, s EquitySnapshot) error
+	// ListEquitySnapshots 按 ts ASC 返回 [since, now) 内快照（升序 = TWR 链乘顺序）。
+	// since 零值 = 不过滤；limit ≤ 0 = 默认 10000（30 天 × 8h ≈ 90 份，默认足够）。
+	ListEquitySnapshots(ctx context.Context, since time.Time, limit int) ([]EquitySnapshot, error)
 
 	// ListKnowledgeEntries 返回经验库全部条目（signature ASC 稳定排序；D-046 浏览）。
 	ListKnowledgeEntries(ctx context.Context) ([]KnowledgeEntry, error)

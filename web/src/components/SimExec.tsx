@@ -3,6 +3,7 @@ import { fmtAmount } from "../format";
 import type {
   CashFlow,
   CloseSimOrderResponse,
+  GetPerformanceReportResponse, // D-062 判定门① 测量（PerformanceZone 组件 prop 类型）
   GetSimAccountResponse,
   GetSimReportResponse,
   SimOrder,
@@ -11,6 +12,7 @@ import type {
 } from "../gen/arbcn/sim/v1/sim_pb";
 import { kindText, legSideText, SimTag, SimulatedBadge } from "./sim";
 import { OrderHistoryZone } from "./OrderHistoryZone";
+import { PerformanceZone } from "./PerformanceZone"; // D-062 判定门① 测量（独立组件防 SimExec 超 450 行）
 
 // flowKindText 现金流类型 → 中文（D-056 逐笔流水表）。
 function flowKindText(kind: string): string {
@@ -364,6 +366,7 @@ export function SimExec({
   positions,
   accounts,
   account,
+  performance,
   report,
   fxAvailable,
   error,
@@ -374,6 +377,7 @@ export function SimExec({
   positions: SimPosition[];
   accounts: TestnetAccount[];
   account: GetSimAccountResponse | null;
+  performance: GetPerformanceReportResponse | null; // D-062 判定门① 测量
   report: GetSimReportResponse | null;
   fxAvailable: boolean;
   error: string;
@@ -394,6 +398,7 @@ export function SimExec({
         </div>
       ) : null}
       {account ? <AccountZone account={account} fxAvailable={fxAvailable} /> : null}
+      {performance ? <PerformanceZone perf={performance} /> : null}
       <PositionZone positions={positions} fxAvailable={fxAvailable} close={close} />
       {/* 对话 #81：订单历史（含 rejected 拒单负样本）置于持仓之后、账户信息之前 */}
       <OrderHistoryZone orders={orders} />

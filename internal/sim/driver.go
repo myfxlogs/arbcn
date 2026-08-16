@@ -194,8 +194,67 @@ func (d *Driver) settleLoop(ctx context.Context, ticks <-chan time.Time) error {
 					d.log.Warn("simtestnet probe failed", "err", err)
 				}
 			}
+			// D-062 判定门① 测量引擎数据面：每 tick 落 equity 时点快照（8h 粒度）。
+			// 独立于结算结果（测量要忠实记录每 tick 状态）；失败仅 warn 不阻断主循环，
+			// 与 report 渲染同口径（测量是辅，结算/呈现是主）。
+			if err := d.snapshotEquity(ctx); err != nil {
+				d.log.Warn("sim equity snapshot failed", "err", err)
+			}
 		}
 	}
+}
+
+// snapshotEquity 落 equity 时点快照（D-062，sim_equity_snapshots）。复用 GetSimAccount
+// 口径（simapi/account.go 同款五数）：cash = GetSimAccount、realized = Σ ListSimPositions
+// PnL、unrealized/market_value = Σ open 腿 dir×qty×cur（dir：long+1/short−1；ticker 缺失
+// 该腿按 0 计不编造）。口径一致靠本方法 + account.go 各自独立实现（driver 不依赖 simapi，
+// 避免逆向依赖——internal/sim 是 simapi 的下层）。返回 8h tick 快照，供 GetPerformanceReport
+// 跨窗口 TWR/MWR + 判定门① 判定。
+//
+// [对抗测试锚点] D-062：删快照写入 → return_test 的 settle→快照断言必红。
+func (d *Driver) snapshotEquity(ctx context.Context) error {
+	acct, err := d.st.GetSimAccount(ctx)
+	if err != nil {
+		return fmt.Errorf("sim snapshot: account: %w", err)
+	}
+	positions, err := d.st.ListSimPositions(ctx, 10000, 0)
+	if err != nil {
+		return fmt.Errorf("sim snapshot: positions: %w", err)
+	}
+	realized := 0.0
+	for _, p := range positions {
+		realized += p.PnL
+	}
+	open, err := d.st.ListOpenSimPositions(ctx, "", "")
+	if err != nil {
+		return fmt.Errorf("sim snapshot: open: %w", err)
+	}
+	unrealized, marketValue := 0.0, 0.0
+	for _, p := range open {
+		fs, err := d.st.LatestFacts(ctx, fact.KindTicker, p.Venue, p.Symbol)
+		if err != nil {
+			return fmt.Errorf("sim snapshot: ticker %s@%s: %w", p.Symbol, p.Venue, err)
+		}
+		if len(fs) == 0 {
+			continue // 行情缺失该腿按 0 计（不编造）
+		}
+		cur := fs[0].Value
+		dir := 1.0
+		if p.Side == store.SimSideShort {
+			dir = -1
+		}
+		unrealized += (cur - p.RefPrice) * p.Qty * dir
+		marketValue += dir * p.Qty * cur
+	}
+	equity := acct.Cash + marketValue
+	return d.st.InsertEquitySnapshot(ctx, store.EquitySnapshot{
+		Ts:          d.now(),
+		Equity:      equity,
+		Cash:        acct.Cash,
+		Realized:    realized,
+		Unrealized:  unrealized,
+		MarketValue: marketValue,
+	})
 }
 
 // settleFactKind 腿 kind → 结算数据面 kind（practices #13 结算侧：数据面按实体类型

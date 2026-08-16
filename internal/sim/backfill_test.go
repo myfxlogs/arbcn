@@ -25,6 +25,7 @@ type storeStub struct {
 	facts          []fact.Fact // driver 测试的行情/费率面
 	cash           float64
 	flows          []store.CashFlow
+	snaps          []store.EquitySnapshot // D-062 snapshotEquity 落点（并发读断言）
 	nextOID        int64
 	nextPID        int64
 	dayNotional    float64
@@ -194,6 +195,50 @@ func (m *storeStub) ListOpenSimPositions(_ context.Context, symbol, venue string
 			continue
 		}
 		out = append(out, p)
+	}
+	return out, nil
+}
+
+// ListSimPositions 全量返回（含 settled；snapshotEquity 算 realized 用）。
+func (m *storeStub) ListSimPositions(_ context.Context, limit, offset int) ([]store.SimPosition, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := append([]store.SimPosition(nil), m.positions...)
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(out) {
+		return []store.SimPosition{}, nil
+	}
+	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// InsertEquitySnapshot 落一份快照（D-062 snapshotEquity 写点）。
+func (m *storeStub) InsertEquitySnapshot(_ context.Context, s store.EquitySnapshot) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.snaps = append(m.snaps, s)
+	return nil
+}
+
+// ListEquitySnapshots 按 ts ASC 返回 [since, +∞) 内快照。
+func (m *storeStub) ListEquitySnapshots(_ context.Context, since time.Time, limit int) ([]store.EquitySnapshot, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := []store.EquitySnapshot{}
+	for _, s := range m.snaps {
+		if !since.IsZero() && s.Ts.Before(since) {
+			continue
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
 	}
 	return out, nil
 }

@@ -23,19 +23,20 @@ func dropTables(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tables ..
 func TestMigrateIdempotent(t *testing.T) {
 	pool := testPool(t)
 	ctx := context.Background()
-	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "knowledge_entries", "schema_migrations")
+	dropTables(t, ctx, pool, "facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "sim_equity_snapshots", "knowledge_entries", "schema_migrations")
 
 	n, err := Migrate(ctx, pool, migrationsDir)
 	if err != nil {
 		t.Fatalf("Migrate(first): %v", err)
 	}
 	// 0001_init + 0002_rule_scope + 0003_alerts_delivered + 0004_ledger + 0005_sim +
-	// 0006_testnet_accounts + 0007_knowledge + 0008_sim_close + 0009_sim_cash
-	if n != 10 {
-		t.Fatalf("Migrate(first) applied = %d, want 10", n)
+	// 0006_testnet_accounts + 0007_knowledge + 0008_sim_close + 0009_sim_cash +
+	// 0010_metric_tier_snapshot + 0011_equity_snapshot
+	if n != 11 {
+		t.Fatalf("Migrate(first) applied = %d, want 11", n)
 	}
 
-	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "knowledge_entries"} {
+	for _, tbl := range []string{"facts", "rules", "trigger_states", "alerts", "ledger", "sim_orders", "sim_positions", "sim_testnet_accounts", "sim_account", "sim_cash_flow", "sim_equity_snapshots", "knowledge_entries"} {
 		var exists bool
 		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
@@ -50,8 +51,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&versions); err != nil {
 		t.Fatalf("count versions: %v", err)
 	}
-	if versions != 10 {
-		t.Fatalf("schema_migrations count = %d, want 10", versions)
+	if versions != 11 {
+		t.Fatalf("schema_migrations count = %d, want 11", versions)
 	}
 
 	n, err = Migrate(ctx, pool, migrationsDir)

@@ -293,3 +293,13 @@
   ③ **前向验证信号薄**——诚实基线 3.2–3.7% ≈ 0.3%/月，摩擦假设（0.3% 已核实普通主户，D-046）与窗口代表性主导结论 → 测量时记录环境条件（当期 funding 中位数/可交易面/有无窗口档）随结果留档。
 - **施工（D-061，docs-only 零代码）**：decisions.md 追加 **D-058 补充条款**——① 回测降级可选证伪自检（门禁条件回放，证伪可信证真无预测力，修订 D-036 边界）；② 判定门① 环境-策略分离（无窗口档「零单 = 正确输出」，禁止读成策略失败）；③ 测量口径补充（摩擦/窗口代表性/环境条件留档）；④ 7d 费率窗口统计 + TWR/MWR 列候选另立 D#。零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不赌（D-019）不接 LLM（D-043）。
 - **决策号**：D-061。
+
+## #86 · 2026-08-16 · 所有决定引进的方案落地（方案一先行）+ 判定门① 自欺盲区 → D-062/D-063
+
+- **参与方**：业主（「所有决定引进的方案，都要落地，而且要先落文档，确定引进方案，自我审计后开始执行，包括阶段0，具体先做那1个，由你决定」+ 中途补充「更大的盲区：判定门① 自己也会骗人，如果有条件的话，最好也一起解决掉」）、Claude（排定施工序 + 施工 + 防自欺层）
+- **议题**：① D-061 列候选（TWR/MWR + 7d 费率窗口统计 + 门禁条件回放）全部落地；② 判定门① 测量数据面自己会骗人——快照缺口/数据损坏会让 TWR 静默失真但 gate 照判 PASS/FAIL。
+- **决策（①）**：三个方案按依赖序落地——**方案一（阶段 0 判定门① 测量引擎 + TWR/MWR）先行**（直映 D-058「运行期定跨窗口 paper 收益测量口径」，最基础）→ 方案二 7d 费率窗口统计（可交易窗口判据）→ 方案三 门禁条件回放（可选自检非主线）。每个：落 D# → 定方案 → A–F 自审 → 施工。
+- **施工（D-062 方案一）**：migration 0011 `sim_equity_snapshots`（ts PK，8h tick 落点）+ driver.snapshotEquity 每 settle tick 持久化 + `internal/sim/return.go` 纯函数（TwrAnnualized：无窗口内外部流 = 期初期末简单年化，有流 = Dietz 链乘分段；MwrAnnualized：IRR 二分收敛；Annualize：(1+r)^(365/days)−1；快照 <2 或 days≤0 → ErrInsufficientData/ErrDataAnomaly 不编造）+ `GetPerformanceReport` RPC #8（窗口 = 最近 30 天，TWR/MWR 年化 + 判定门① 判定 + 环境统计 funding 中位数/max/高费率时段/可交易面 + 快照覆盖/期望）+ EvaluateGate 判定（判定线 = GateBaselineHigh 3.7 + Friction 0.3 = 4.0%，pending/pass/watch/fail/env_no_window/data_anomaly 六态；零成交 → env_no_window 非失败（D-061 环境-策略分离）；拒单 >0 → watch「有机会未进场」；高费率时段/小样本 PASS 附加警示）+ 前端 SimExec PerformanceZone（判定门① 徽标 + TWR/MWR + 环境瓦片 + 快照覆盖/期望 + 判定线说明）；对抗锚点（删 snapshotEquity 写入必红等）。
+- **施工（D-063 防自欺层，业主中途补充盲区）**：判定门① 可信度自检——**SnapshotCoverage**（8h tick 基线 3 份/天，<90% → 判定不采信 DATA_ANOMALY）+ **ValidateSnapshotIntegrity**（ts 单调 + equity≈cash+market_value 恒等式，损坏任何时候不采信）+ **GateTrustQualifier**（窗口未满 <30 天不误判数据坏；部分缺口附加警示不覆盖判定）+ **单位统一 ×100**（纯函数返回小数 0.708、gate 阈值与 RPC 字段为百分点点数 4.0——审计发现此前不经换算 0.7 vs 4.0 恒 FAIL，是真实的「判定门自己骗人」单位错配形态，编排层 ×100 一次共用同口径）+ PASS 自辩 caveat（环境红利/小样本明示）。测试锁定 TWR/MWR ≈70.84 锁死 ×100。
+- **部署（对话 #86）**：build → bin 原子替换 → systemctl restart（sudo 密码业主提供，此前 systemctl 交互认证受阻）→ 验 healthz ok（pending_migrations 消除，migration 0011 应用）+ psql sim_equity_snapshots 表存在（0 行，首 8h tick 未跑，符合预期）+ GetPerformanceReport RPC 返回 status=pending（「数据不足（窗口未满或快照 < 2），前向验证进行中」）+ served bundle == 新 dist（发现 bin 比 dist 早 28min 导致 396B 漂移 → 重建二进制消除，BUNDLE MATCH ✓）+ 进程 active 26s。
+- **决策号**：D-062、D-063。

@@ -481,3 +481,33 @@
   ④ **两个开源借鉴列为候选（另立 D# 落地）**：`7d 费率窗口统计`（7d min/max + 正费率占比，backpack-basis-trading-monitor 借鉴）作「当前是否处于可交易窗口」判据；`TWR/MWR 收益率口径`（Wealthfolio/Ghostfolio 系借鉴）作台账/归因 v2 候选，服务判定门① 跨窗口收益测量。
 - **理由**：与 D-058「盈利验证优先」完全同源——第 1 原则是策略**真能盈利**（业主原则，模拟盘真实费率结算的 paper 验证是唯一第一道闸）；回测证伪>证真（过去行情不代表未来，D-036 已排除交易策略回测，本决策把「历史数据回填+收敛统计（必做，D-036/§5.3）」与「策略收益回测（可选自检）」边界再收紧）；无机会环境≠策略失败（宁缺毋滥 D-019——把「环境无窗口」误判成「策略不行」会在没下雨的 30 天否定雨伞设计）；前向验证信号薄，测量口径必须诚实（摩擦/环境条件留档，practices #14 同源）。
 - **结论**：D-058 补充条款落定——回测不做为必做项（门禁条件回放为唯一可选形态）；判定门① 环境-策略分离进阶段 0 设计；7d 窗口统计/TWR 列候选待后续 D#；对话 #85 落 dialogue；本次方向级修正走 D# 留痕（§1 方向锚）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）。**
+
+## D-062 引进方案全量落地 + 方案一：阶段 0 判定门① 测量引擎（TWR/MWR 收益率口径）设计定稿（2026-08-16，对话 #86）
+- **背景**：业主指令「所有决定引进的方案，都要落地，而且要先落文档，确定引进方案，自我审计后开始执行，包括阶段 0，具体先做哪一个，由你决定」。D-061 列的候选（7d 费率窗口统计 + TWR/MWR + 回测摩擦/风险指标）+ 阶段 0（D-058 主线）全部从「候选/运行观察」进入真正落地。
+- **决策**：
+  ① **引进方案全量落地裁定（顺序由决策层定，一次一个，各走 D# + A–F 施工前自审再执行）**：
+     - **方案一（本 D#，先做）= 阶段 0 判定门① 测量引擎 + TWR/MWR 收益率口径**。主线优先：判定门① 是进入实盘的第一道闸（D-058），测量引擎让它从「运行期定口径」变成**可机械判定的测量**（P4 可检查性）；TWR/MWR 正是测量口径的工程实现，二者一体施工。
+     - **方案二（后续 D#）= 7d 费率窗口统计**（7d min/max + 正费率占比，backpack 系借鉴）：作「当前是否处于可交易窗口」判据 + 方案一环境条件记录的增强（滚动 7d 视角）。
+     - **方案三（后续 D#）= 门禁条件回放**（可选证伪自检引擎 + 回测摩擦/滑点/杠杆建模 + Sharpe/maxDD/VaR 风险指标）：非必做，最后。
+  ② **方案一数据面 = equity 时点快照**：migration 0011 `sim_equity_snapshots`（ts timestamptz PRIMARY KEY + equity/cash/realized/unrealized/market_value double precision NOT NULL）+ store `EquitySnapshot`/`InsertEquitySnapshot`（`ON CONFLICT (ts) DO NOTHING` 每 tick 幂等）/`ListEquitySnapshots(ctx, since, limit)`。`driver.settleOnce` 末尾追加 `snapshotEquity(ctx)`（复用 GetSimAccount 口径：cash = GetSimAccount、realized = Σ ListSimPositions PnL、unrealized/market_value = Σ open 腿 dir×qty×cur via LatestFacts ticker；失败 warn 不阻断结算，与 report 渲染同口径），每 8h tick 落一份。
+  ③ **方案一测量 = TWR/MWR 纯函数**（`internal/sim/return.go`，零网络零密钥 D-010，math 纯函数可对抗测试）：
+     - **TWR（时间加权年化）**：equity 快照按 ts 排序、以**外部资金流**（kind=capital_in，未来含 capital_out）为界分子段、段内 `(E_end−out)/(E_start+in)−1` 几何连乘后按窗口天数年化 `(1+r)^(365/d)−1`。当前模拟盘外部流只有初始 capital_in → **TWR = 期初→期末简单年化**（诚实标注）。
+     - **MWR（资金加权年化 / IRR）**：外部现金流（+流入/−流出）+ 期末 equity 求 IRR `Σ cfᵢ(1+r)^((T−tᵢ)/365) = E_T`，二分法收敛（r ∈ (−0.9999, 1000)）。当前 TWR = MWR（无外部进出）；**阶段 A 真金出入金后二者分叉**（TWR 测策略、MWR 测资金使用效率）——引擎现在做好，为真实账本直接复用。
+     - 边界：equity ≤ 0 / capital ≤ 0 / 窗口内快照 < 2 → 标「数据异常」不编造（practices #7）。
+  ④ **方案一判定 = 判定门①**（窗口 = 30 天，D-058；判定参数定为具名常量锚 D#）：`PASS` = TWR 年化 ≥ 判定线 **4.0%**（= 基线上限 3.7% + 摩擦余量 0.3%，摩擦 D-046 业主核实普通主户）→ 可进阶段 A；`WATCH` = 3.2% ≤ TWR < 4.0%（覆盖基线下限未覆盖摩擦 → 继续阶段 0 积累）；`FAIL` = TWR < 3.2% 或负（含止投信号，D-058「为负/不足即止投」）；`PENDING` = 首快照至今 < 30 天（数据不足，诚实标「前向验证进行中」）；**`ENV_NO_WINDOW`（环境-策略分离，D-061）** = 窗口内零成交（无 filled/closed 单）→ 本窗口测的是环境不是策略，标「当前无窗口」**不判 FAIL**；环境统计显示窗口内高费率时段（≥15%）> 0 时附注「有机会但未成交，需排查」（策略漏窗，属观察信号）。
+  ⑤ **方案一环境条件记录**（D-061 测量口径）：GetPerformanceReport 从 facts 历史 `QueryFacts(KindFunding, From=窗口起点)` 算窗口内 funding **中位数 / max / ≥15% 高费率时段数 / 可交易面（distinct venue+symbol 对）**（funding facts 为 `pct_annualized` 百分点点数，15 = 15% 年化）；诚实标注 = 只覆盖监控面内的 venue/symbol。
+  ⑥ **方案一 RPC + 前端**：sim.proto 第 8 个 RPC `GetPerformanceReport`（`window_days/twr_annualized/mwr_annualized/status/status_note/baseline_low/baseline_high/friction_margin/gate_threshold/funding_median/funding_max/high_window_events/tradable_pairs/start_ts_ms/end_ts_ms/order_count`）+ `buf generate --template buf.gen.sim.yaml` + `internal/simapi/performance.go`（编排快照+现金流+订单+facts→算→判定）；前端 SimExec 新增「盈利验证测量」卡（AccountZone 之后第二眼：判定门① 状态徽标 + TWR/MWR 年化 + 窗口天数 + 环境条件瓦片 + 判定线说明），hooks useSim 加 performance。
+  ⑦ **已知不一致标记（不在本 D# 改，P3 留痕）**：`report.go` `defaultFrictionRate = 0.2%`（M3-b §5.2 收敛统计摩擦模型，spec 定稿）vs D-046 业主核实普通主户摩擦 0.3%——不同语义（收敛模型 vs 实盘摩擦余量），判定门用 0.3%（D-046 权威值），report.go 0.2% 维持 spec 口径，待统一时另走 D#。
+- **理由**：业主「所有决定引进的方案都要落地」= 从「候选」到「交付」的闭环（P6 增量优先 + §7.3 交付自审——先文档→自审→施工，流程不可跳）；顺序 = 主线优先（阶段 0 是 D-058 主线，判定门① 是第一道闸，其余方案都服务它）；TWR/MWR 是「跨窗口 paper 收益」测量口径的正解（D-058「运行期定测量口径」落定，消除资金进出污染，为阶段 A 真金出入金直接复用）；equity 快照跟随既有 8h settle tick 零新调度（A 架构复用）；判定线 4.0% = 基线上限 3.7% + 已核实摩擦 0.3%（paper 连「无风险替代 + 实盘摩擦」都覆盖不了 → 实盘必更差，摩擦后真实盈利唯一裁决前置）；环境-策略分离进判定逻辑 = D-061 条款工程化（无机会零单不误判 FAIL）；判定参数具名常量锚 D# = 门禁数值改动走 D# 纪律（AGENTS.md）。
+- **结论**：D-062 落定方案一设计，通过 A–F 施工前自审后开始施工（迁移 → store → driver 快照 → return.go 纯函数 → RPC → proto → 前端 → 测试 → 部署）。部署后 30 天内判定门① 为 `PENDING`（前向验证进行中，诚实），引擎从第 0 天开始积累快照，第 30 天起可机械判定。方案二/三各落 D# 后施工。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（判定门① 只读测量不自动执行）；不赌（D-019）；不接 LLM（D-043）。**
+
+## D-063 判定门① 可信度自检层——防「判定门① 自己也会骗人」（2026-08-16，对话 #86）
+- **背景**：业主在 D-062 方案一施工中途点出更大盲区：「判定门① 自己也会骗人」。D-062 的判定门① = 跨 30 天窗口测量 TWR/MWR 判 pass/watch/fail。但测量数据面是**系统自己出题自己答卷**（driver 落快照 → gate 读快照判结论），存在三处自欺向量：①**快照缺口静默**——服务中断/落点缺失时 TWR 链乘跨缺口段被静默跳过（段边界被改）却照常出结论；②**数据损坏/口径漂移**——equity 恒等式被破坏、gate 仍采信过时的快照；③**单位错配**——TWR/MWR 纯函数返回小数（0.708 = 70.8%），判定阈值是百分点点数（4.0 = 4.0%），不经换算 gate 用 4.0 比 0.7 → 永远 FAIL 或永远 PASS（本 D# 施工中由对抗测试实测暴露：31 份满窗 +4.5% 快照判出 `fail`）。三者同根：**判定用数据面缺少自证可信的机制**，这正是 D-058「盈利验证优先」里验证环节自身的验证缺口。
+- **决策**：
+  ① **快照覆盖率（数据缺口不再静默）**：`SnapshotCoverage(windowDays, snapCount)` = 实际/期望（期望 = 窗口天数 × 3 份/天，8h tick；30 天 → 90）。覆盖率 < 90% → 判定不采信（`DATA_ANOMALY`，note 明示缺口）；90–100% → 附加警示「结果仅供参考」不覆盖判定；窗口未成熟（<30 天）→ 覆盖率检查不生效（判定门① 本就 `PENDING`，防把「还没数据」误判成「数据坏了」）。
+  ② **快照完整性校验**：`ValidateSnapshotIntegrity(snaps)`——ts 单调递增 + 每份快照 `equity ≈ cash + market_value`（driver 写入口径的恒等式，损坏即暴露）；任何破坏 → 判定不采信。
+  ③ **单位统一（施工实测修的错配）**：TwrAnnualized/MwrAnnualized/Annualize 纯函数保持数学惯例返回**小数**；判定门① 阈值（3.2/3.7/4.0）与 RPC 字段为**百分点点数**；换算在编排层 `performance.go` ×100 一次，gate 判定与 RPC 返回共用同一口径（P3 单源防单位错配回潮）。对抗测试锁死：30 天 +4.5% → TWR/MWR 年化 ≈ 70.84（不是 0.708）。
+  ④ **判定语加「自证偏差」警示（不覆盖判定）**：PASS 且窗口含 ≥15% 高费率时段 → 附「可能含环境红利而非策略能力，阶段 A 摩擦冒烟兜底」；PASS 且窗口成交 < 3 单 → 附「小样本 PASS 置信度有限」。
+  ⑤ **可信度数据面随结果留档**：GetPerformanceReport 响应新增 `snapshot_count` / `expected_snapshots` / `snapshot_coverage`，前端判定卡加「快照覆盖（判定可信度）」瓦片——覆盖率本身成为可检查的判定输入（P4）。
+- **理由**：与 D-061「环境-策略分离」同源——判定门① 不只测「环境有没有机会、策略能不能赚」，还要先回答「这次测量自己可不可信」；三者构成判定链：**数据面可信 → 环境/策略分离 → 门槛判定**。自欺向量都是静默的（缺口跳过、损坏照读、单位错配）——不引入自证机制，gate 的 PASS/FAIL 就是「系统自己骗自己」的权威出口。单位错配是纯工程 bug，但它在「判定门①」这种高信任出口上造成系统性失真，正因它是「测量自身的测量」，才符合业主「更大的盲区」判断。
+- **结论**：已落实现。return.go 新增 `SnapshotCoverage/ExpectedSnapshots/ValidateSnapshotIntegrity/GateTrustQualifier` + `EvaluateGate` PASS 警示语；performance.go 编排层 ×100 单位统一 + 覆盖率/完整性自检 + 可信度字段；proto 3 字段 + buf generate；前端判定卡覆盖瓦片；对抗测试（删覆盖率检查 → 低覆盖不采信必红；删 ×100 → 单位回潮必红；恒等式破坏 → 不采信必红）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（可信度层只改判定门① 的测量自身，不碰执行路径）；判定门① 仍只读不自动执行；不赌（D-019）；不接 LLM（D-043）。**

@@ -20,6 +20,7 @@ import type {
 } from "./gen/arbcn/dashboard/v1/dashboard_pb";
 import type {
   CloseSimOrderResponse,
+  GetPerformanceReportResponse, // D-062 判定门① 测量
   GetSimAccountResponse,
   GetSimReportResponse,
   SimOrder,
@@ -43,6 +44,7 @@ export function useSim(refreshKey?: number): {
   report: GetSimReportResponse | null;
   accounts: TestnetAccount[];
   account: GetSimAccountResponse | null;
+  performance: GetPerformanceReportResponse | null; // D-062 判定门① 测量
   fxAvailable: boolean;
   error: string;
   confirm: (id: bigint) => Promise<boolean>;
@@ -54,6 +56,7 @@ export function useSim(refreshKey?: number): {
   const [report, setReport] = useState<GetSimReportResponse | null>(null);
   const [accounts, setAccounts] = useState<TestnetAccount[]>([]);
   const [account, setAccount] = useState<GetSimAccountResponse | null>(null);
+  const [performance, setPerformance] = useState<GetPerformanceReportResponse | null>(null);
   const [fxAvailable, setFxAvailable] = useState(false);
   const [error, setError] = useState("");
   const [tick, setTick] = useState(0);
@@ -62,12 +65,13 @@ export function useSim(refreshKey?: number): {
     let alive = true;
     const load = async () => {
       try {
-        const [ordersRes, positionsRes, reportRes, accountsRes, accountRes] = await Promise.all([
+        const [ordersRes, positionsRes, reportRes, accountsRes, accountRes, perfRes] = await Promise.all([
           sim.listSimOrders({}),
           sim.listSimPositions({}),
           sim.getSimReport({}),
           sim.getTestnetAccounts({}),
           sim.getSimAccount({}),
+          sim.getPerformanceReport({}), // D-062 判定门① 跨窗口测量（只读）
         ]);
         if (!alive) return;
         setOrders(ordersRes.orders);
@@ -75,6 +79,7 @@ export function useSim(refreshKey?: number): {
         setReport(reportRes);
         setAccounts(accountsRes.accounts);
         setAccount(accountRes); // D-056 完整现金账本：账户净值 + 逐笔流水
+        setPerformance(perfRes);
         setFxAvailable(positionsRes.fxAvailable); // D-047 F4：真实汇率可用信号（区分「USD 原值」与真零 PnL）
         setError("");
       } catch (e) {
@@ -122,6 +127,7 @@ export function useSim(refreshKey?: number): {
     report,
     accounts,
     account,
+    performance,
     fxAvailable,
     error,
     confirm,

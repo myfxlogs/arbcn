@@ -1,10 +1,13 @@
 // arbcn 模拟执行 ConnectRPC 服务（docs/design/04-m3-spec.md §10 M3-c）。
-// 独立域 arbcn.sim.v1（D-038 ①）：7 个 RPC（ListSimOrders / ConfirmSimOrder /
-// CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount）。
+// 独立域 arbcn.sim.v1（D-038 ①）：8 个 RPC（ListSimOrders / ConfirmSimOrder /
+// CloseSimOrder / ListSimPositions / GetSimReport / GetTestnetAccounts / GetSimAccount /
+// GetPerformanceReport）。
 // 写路径仅 ConfirmSimOrder + CloseSimOrder（D-055 人工整单平，订单全部腿一起退，
 // 绝不单腿留裸敞口 D-019）；确认后仍是模拟（SIMULATED），无任何通往真实资金的
 // 按钮/路径（§6/§8；不赌原则 D-019）。
 // GetSimAccount（D-056 完整现金账本）= 只读账户视图：现金余额 + 逐笔流水 + 净值对账。
+// GetPerformanceReport（D-062 阶段 0 判定门① 测量）= 只读跨窗口 TWR/MWR + 判定门① 状态
+// + 环境条件，不触发任何写路径（判定门① 只测量不自动执行）。
 // 与 dashboardv1 互不依赖（不动 dashboardv1 生成物，独立域零回归）。
 syntax = "proto3";
 
@@ -141,6 +144,39 @@ message GetSimAccountResponse {
   repeated CashFlow flows = 9; // 逐笔流水（最近 100 条，ts DESC）
 }
 
+// GetPerformanceReport 阶段 0 判定门① 测量（D-062）：跨窗口 paper 收益 TWR/MWR +
+// 判定门① 判定 + 环境条件（D-061 环境-策略分离）。
+//   - 窗口 = 最近 30 天（D-058）；窗口未满 30 天 → status=pending（诚实标「前向验证进行中」）。
+//   - TWR 时间加权年化 / MWR 资金加权年化（当前无外部进出二者一致；阶段 A 真金出入金后分叉）。
+//   - 判定门①：pass（TWR ≥ 判定线 4.0% = 基线 3.7% + 摩擦 0.3%，可进阶段 A）/ watch /
+//     fail（止投）/ env_no_window（窗口零成交 → 环境无机会非策略失败，D-061）/ pending /
+//     data_anomaly。只测量不自动执行——进阶段 A 仍人工决策。
+//   - 环境条件：窗口内 funding 中位数/max/≥15% 高费率时段数/可交易面（只覆盖监控面内，
+//     诚实标注）。零执行门禁/规则/阈值改动（D-062）。
+message GetPerformanceReportRequest {}
+message GetPerformanceReportResponse {
+  double window_days = 1;        // 首尾快照天数（窗口未满 = 实际天数 < 30）
+  double twr_annualized = 2;     // TWR 时间加权年化 %（不可算 = 0 + status 说明）
+  double mwr_annualized = 3;     // MWR 资金加权年化 %（同上）
+  string status = 4;             // pass/watch/fail/env_no_window/pending/data_anomaly
+  string status_note = 5;        // 判定门① 中文说明（含判据）
+  double baseline_low = 6;       // 诚实基线下限 %（3.2）
+  double baseline_high = 7;      // 诚实基线上限 %（3.7）
+  double friction_margin = 8;    // 摩擦余量 %（0.3，D-046 业主核实普通主户）
+  double gate_threshold = 9;     // 判定线 %（= baseline_high + friction_margin = 4.0）
+  double funding_median = 10;    // 窗口内 funding 中位数 %（环境条件；无数据 = 0）
+  double funding_max = 11;       // 窗口内 funding max %（无数据 = 0）
+  int32 high_window_events = 12; // 窗口内 funding ≥ 15% 时段数（D-016 高费率窗口）
+  int32 tradable_pairs = 13;     // 可交易面 = distinct (venue,symbol) 对（监控面内）
+  int32 order_count = 14;        // 窗口内成交单数（filled+closed；0 = 测环境非策略）
+  int32 rejected_count = 15;     // 窗口内拒单数（rejected 负样本）
+  int64 start_ts_ms = 16;        // 窗口起点快照时刻
+  int64 end_ts_ms = 17;          // 窗口末点快照时刻
+  int32 snapshot_count = 18;     // 窗口内实际 equity 快照数（D-063 可信度：判定数据面自证）
+  int32 expected_snapshots = 19; // 连续运行基线期望快照数（8h tick；30d→90）
+  double snapshot_coverage = 20; // 实际/期望覆盖率（0–1；<0.9 → 判定不采信）
+}
+
 // SimService 为模拟执行面板提供查询与人工确认接口（M3-c 唯一写路径 = ConfirmSimOrder）。
 service SimService {
   rpc ListSimOrders(ListSimOrdersRequest) returns (ListSimOrdersResponse);
@@ -150,4 +186,5 @@ service SimService {
   rpc GetSimReport(GetSimReportRequest) returns (GetSimReportResponse);
   rpc GetTestnetAccounts(GetTestnetAccountsRequest) returns (GetTestnetAccountsResponse);
   rpc GetSimAccount(GetSimAccountRequest) returns (GetSimAccountResponse);
+  rpc GetPerformanceReport(GetPerformanceReportRequest) returns (GetPerformanceReportResponse);
 }

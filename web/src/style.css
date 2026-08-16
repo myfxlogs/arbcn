@@ -962,6 +962,35 @@ button.btn-close:disabled {
   border: 1px solid currentColor;
   background: transparent;
 }
+/* 判定门① 状态徽标（D-062 阶段 0 测量）：状态即决策表面，颜色可扫读。 */
+.gate-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.gate-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid currentColor;
+  background: transparent;
+}
+.gate-ok {
+  color: var(--pos, #15803d);
+}
+.gate-warn {
+  color: var(--warn, #b45309);
+}
+.gate-bad {
+  color: var(--bad, #b91c1c);
+}
+.gate-bg {
+  color: var(--ink-2, #555);
+}
 .num {
   text-align: right;
   font-variant-numeric: tabular-nums;

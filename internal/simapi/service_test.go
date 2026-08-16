@@ -3,6 +3,7 @@ package simapi
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,6 +32,7 @@ type fakeStore struct {
 	flows         []store.CashFlow
 	nextOrderID   int64
 	nextFlowIDNum int64
+	snaps         []store.EquitySnapshot // D-062 判定门① 测量数据面
 
 	accepted []acceptedCall // AcceptSimOrder 调用记录
 	rejected []rejectedCall // RejectSimOrder 调用记录
@@ -226,8 +228,24 @@ func (f *fakeStore) CloseSimOrder(_ context.Context, orderID int64, note string,
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
 	panic("fakeStore: InsertFacts not used")
 }
-func (f *fakeStore) QueryFacts(context.Context, store.FactQuery) ([]fact.Fact, error) {
-	panic("fakeStore: QueryFacts not used")
+// QueryFacts 按 kind/From/limit 过滤（ts 升序）——GetPerformanceReport 环境条件
+// 数据面（funding 历史）真语义；其余测试不经过（此前 panic 占位）。
+func (f *fakeStore) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
+	out := []fact.Fact{}
+	for _, ft := range f.facts {
+		if q.Kind != "" && ft.Kind != q.Kind {
+			continue
+		}
+		if !q.From.IsZero() && ft.Ts.Before(q.From) {
+			continue
+		}
+		out = append(out, ft)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
+	if q.Limit > 0 && q.Limit < len(out) {
+		out = out[:q.Limit]
+	}
+	return out, nil
 }
 func (f *fakeStore) UpsertRule(context.Context, store.Rule) (int64, error) {
 	panic("fakeStore: UpsertRule not used")
@@ -357,6 +375,28 @@ func (f *fakeStore) ListCashFlows(_ context.Context, limit, offset int) ([]store
 		return []store.CashFlow{}, nil
 	}
 	out = out[offset:]
+	if limit > 0 && limit < len(out) {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// InsertEquitySnapshot 落一份快照（D-062 判定门① 数据面）。
+func (f *fakeStore) InsertEquitySnapshot(_ context.Context, s store.EquitySnapshot) error {
+	f.snaps = append(f.snaps, s)
+	return nil
+}
+
+// ListEquitySnapshots 按 ts ASC 返回 [since, +∞) 内快照（TWR 链乘顺序）。
+func (f *fakeStore) ListEquitySnapshots(_ context.Context, since time.Time, limit int) ([]store.EquitySnapshot, error) {
+	out := []store.EquitySnapshot{}
+	for _, s := range f.snaps {
+		if !since.IsZero() && s.Ts.Before(since) {
+			continue
+		}
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Ts.Before(out[j].Ts) })
 	if limit > 0 && limit < len(out) {
 		out = out[:limit]
 	}
@@ -1191,4 +1231,114 @@ func TestGetTestnetAccounts(t *testing.T) {
 	if okx.Details[0].Asset != "USDT" || okx.Details[0].Balance != "5000" || okx.Details[0].EquityUsd != 5000 {
 		t.Errorf("okx detail[0] = %+v, want USDT 5000/5000", okx.Details[0])
 	}
+}
+
+// gateSnaps 造 N 份均匀间隔快照：首 ts=start、末 ts=start+days*24h，equity 从 from
+// 线性到 to，cash=equity（无持仓，D-063 恒等式成立）。n=1 → 单快照。
+func gateSnaps(start time.Time, days float64, n int, from, to float64) []store.EquitySnapshot {
+	out := make([]store.EquitySnapshot, n)
+	span := time.Duration(days * 24 * float64(time.Hour))
+	for i := 0; i < n; i++ {
+		frac := 0.0
+		if n > 1 {
+			frac = float64(i) / float64(n-1)
+		}
+		e := from + (to-from)*frac
+		out[i] = store.EquitySnapshot{Ts: start.Add(time.Duration(frac * float64(span))), Equity: e, Cash: e, Realized: to - from}
+	}
+	return out
+}
+
+// gateStore 造判定门① 测试 store：满窗快照 + 首启 capital_in（Ts 落在首快照前，
+// TWR 走简单期初期末路径）+ 本金。
+func gateStore(start time.Time, days float64, n int, from, to float64, orders ...store.SimOrder) *fakeStore {
+	st := &fakeStore{snaps: gateSnaps(start, days, n, from, to)}
+	st.capital, st.cash = from, to
+	st.flows = []store.CashFlow{{ID: 1, Ts: start, Kind: store.CashKindCapitalIn, Amount: from}}
+	st.orders = orders
+	return st
+}
+
+// TestGetPerformanceReport 判定门① RPC 端到端（D-062 + D-063 可信度层）：
+// PENDING（快照不足）/ PASS（满窗 30 天覆盖判定线 + 覆盖率字段）/ DATA_ANOMALY
+// （覆盖不足 → 判定不采信；恒等式破坏 → 判定不采信）/ ENV_NO_WINDOW（零成交）。
+func TestGetPerformanceReport(t *testing.T) {
+	ctx := context.Background()
+	start := t0.Add(-30 * 24 * time.Hour) // 30 天窗口起点
+	req := connect.NewRequest(&simv1.GetPerformanceReportRequest{})
+
+	t.Run("pending_insufficient_snaps", func(t *testing.T) {
+		resp, err := service(gateStore(start, 30, 1, 100, 100), sim.DefaultConfig()).GetPerformanceReport(ctx, req)
+		if err != nil {
+			t.Fatalf("GetPerformanceReport: %v", err)
+		}
+		if resp.Msg.Status != sim.GatePending {
+			t.Fatalf("status = %q, want pending", resp.Msg.Status)
+		}
+		if resp.Msg.SnapshotCount != 1 {
+			t.Errorf("snapshot_count = %d, want 1", resp.Msg.SnapshotCount)
+		}
+	})
+
+	t.Run("pass_full_coverage", func(t *testing.T) {
+		// 91 快照均匀跨 30 天（8h 间隔）→ 窗口 30 天满、覆盖率 91/90 截 1。
+		// 30 天 +4.5% → TWR 年化远超判定线 4.0% → PASS。一单成交。
+		st := gateStore(start, 30, 91, 100, 104.5,
+			store.SimOrder{ID: 1, Ts: t0.Add(-24 * time.Hour), Status: store.SimStatusFilled})
+		resp, err := service(st, sim.DefaultConfig()).GetPerformanceReport(ctx, req)
+		if err != nil {
+			t.Fatalf("GetPerformanceReport: %v", err)
+		}
+		m := resp.Msg
+		if m.Status != sim.GatePass {
+			t.Fatalf("status = %q (%s), want pass", m.Status, m.StatusNote)
+		}
+		if m.SnapshotCoverage < 0.99 || m.ExpectedSnapshots != 90 {
+			t.Errorf("coverage/expected = %v/%d, want ~1/90", m.SnapshotCoverage, m.ExpectedSnapshots)
+		}
+		// 单位锁定：RPC 返回百分点点数（30 天 +4.5% → 年化 ≈ 70.8，不是小数 0.708）。
+		// 防「判定门① 自己骗人」的单位错配回潮（gate 用 4.0 阈值比小数 0.7 永远 FAIL）。
+		if math.Abs(m.TwrAnnualized-70.8368) > 0.01 || math.Abs(m.MwrAnnualized-70.8368) > 0.01 {
+			t.Errorf("twr/mwr = %v/%v, want ≈70.84（百分点点数）", m.TwrAnnualized, m.MwrAnnualized)
+		}
+	})
+
+	t.Run("data_anomaly_low_coverage", func(t *testing.T) {
+		// 30 天窗口仅 20 快照（20/90 ≈ 22% < 90%）→ 判定不采信。
+		resp, err := service(gateStore(start, 30, 20, 100, 104.5,
+			store.SimOrder{ID: 1, Ts: t0.Add(-24 * time.Hour), Status: store.SimStatusFilled}), sim.DefaultConfig()).GetPerformanceReport(ctx, req)
+		if err != nil {
+			t.Fatalf("GetPerformanceReport: %v", err)
+		}
+		if resp.Msg.Status != sim.GateDataAnomaly {
+			t.Fatalf("status = %q, want data_anomaly（覆盖不足判定不采信）", resp.Msg.Status)
+		}
+		if !strings.Contains(resp.Msg.StatusNote, "覆盖率") {
+			t.Errorf("note = %q, want 含覆盖率", resp.Msg.StatusNote)
+		}
+	})
+
+	t.Run("data_anomaly_integrity", func(t *testing.T) {
+		// 恒等式破坏（快照 equity ≠ cash + market_value）→ 判定不采信。
+		st := gateStore(start, 30, 91, 100, 104.5,
+			store.SimOrder{ID: 1, Ts: t0.Add(-24 * time.Hour), Status: store.SimStatusFilled})
+		st.snaps[45].Equity = 999999
+		resp, err := service(st, sim.DefaultConfig()).GetPerformanceReport(ctx, req)
+		if err != nil {
+			t.Fatalf("GetPerformanceReport: %v", err)
+		}
+		if resp.Msg.Status != sim.GateDataAnomaly {
+			t.Fatalf("status = %q, want data_anomaly（恒等式破坏判定不采信）", resp.Msg.Status)
+		}
+	})
+
+	t.Run("env_no_window_zero_orders", func(t *testing.T) {
+		resp, err := service(gateStore(start, 30, 91, 100, 100), sim.DefaultConfig()).GetPerformanceReport(ctx, req)
+		if err != nil {
+			t.Fatalf("GetPerformanceReport: %v", err)
+		}
+		if resp.Msg.Status != sim.GateEnvNoWindow {
+			t.Fatalf("status = %q (%s), want env_no_window", resp.Msg.Status, resp.Msg.StatusNote)
+		}
+	})
 }

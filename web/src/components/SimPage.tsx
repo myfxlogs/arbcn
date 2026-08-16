@@ -12,6 +12,7 @@ export function SimPage() {
       positions={sim.positions}
       accounts={sim.accounts}
       account={sim.account}
+      performance={sim.performance} // D-062 判定门① 测量
       report={sim.report}
       fxAvailable={sim.fxAvailable}
       error={sim.error}

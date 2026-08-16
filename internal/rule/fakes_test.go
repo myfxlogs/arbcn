@@ -234,6 +234,12 @@ func (f *fakeStore) GetSimAccount(context.Context) (store.SimAccount, error) {
 func (f *fakeStore) ListCashFlows(context.Context, int, int) ([]store.CashFlow, error) {
 	panic("fakeStore: ListCashFlows not used")
 }
+func (f *fakeStore) InsertEquitySnapshot(context.Context, store.EquitySnapshot) error {
+	panic("fakeStore: InsertEquitySnapshot not used")
+}
+func (f *fakeStore) ListEquitySnapshots(context.Context, time.Time, int) ([]store.EquitySnapshot, error) {
+	panic("fakeStore: ListEquitySnapshots not used")
+}
 func (f *fakeStore) ListKnowledgeEntries(context.Context) ([]store.KnowledgeEntry, error) {
 	return nil, nil
 }
