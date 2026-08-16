@@ -401,6 +401,18 @@ td.neg {
   font-size: 12px;
   color: var(--ink-3);
 }
+/* —— D-064 7d 费率窗口卡：判据徽标 + 自明备注 + 逐标的表 —— */
+.window-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  flex-wrap: wrap;
+}
+.window-note {
+  color: var(--ink-2);
+  font-size: 12px;
+}
 /* —— 进化建议卡（D-044 L0）：只读证据候选 —— */
 .insights-sub {
   margin: -4px 0 8px;

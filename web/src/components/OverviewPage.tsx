@@ -1,6 +1,7 @@
 import { useKnowledge, useQuotes, useSim, type Snapshot } from "../hooks";
 import { ClosePanel } from "./ClosePanel";
 import { ConfirmPanel } from "./ConfirmPanel";
+import { FundingWindowZone } from "./FundingWindowZone";
 import { Insights } from "./Insights";
 import { KnowledgeBoard } from "./KnowledgeBoard";
 import { MarketMatrix } from "./MarketMatrix";
@@ -70,6 +71,9 @@ export function OverviewPage({
           />
         </div>
         <Opportunity cards={snap.cards} />
+        {/* D-064 7d 费率窗口：机会实算卡同域只读证据面（判据「basis 环境行不行」在
+            机会卡下方紧邻，读序 = 先环境判据再单笔账） */}
+        <FundingWindowZone window={snap.window} pairs={snap.windowPairs} />
         <Insights insights={snap.insights} />
         <Triggers states={snap.states} />
       </div>

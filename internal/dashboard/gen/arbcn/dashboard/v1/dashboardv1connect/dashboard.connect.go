@@ -82,6 +82,9 @@ const (
 	// DashboardServiceReviewKnowledgeEntryProcedure is the fully-qualified name of the
 	// DashboardService's ReviewKnowledgeEntry RPC.
 	DashboardServiceReviewKnowledgeEntryProcedure = "/arbcn.dashboard.v1.DashboardService/ReviewKnowledgeEntry"
+	// DashboardServiceListFundingWindowStatsProcedure is the fully-qualified name of the
+	// DashboardService's ListFundingWindowStats RPC.
+	DashboardServiceListFundingWindowStatsProcedure = "/arbcn.dashboard.v1.DashboardService/ListFundingWindowStats"
 )
 
 // DashboardServiceClient is a client for the arbcn.dashboard.v1.DashboardService service.
@@ -126,6 +129,10 @@ type DashboardServiceClient interface {
 	// 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
 	// signature 条目的判定记录（呈现面），不改任何规则/门禁。
 	ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error)
+	// ListFundingWindowStats 7d 费率窗口统计（D-064）：滚动 7d funding 环境
+	// （min/max/均值 + 正费率占比）→「当前是否处于可交易窗口」判据。只读证据面，
+	// 数据面 = 现有 funding facts 历史（零新采集）；不触碰任何执行门禁。
+	ListFundingWindowStats(context.Context, *connect.Request[v1.ListFundingWindowStatsRequest]) (*connect.Response[v1.ListFundingWindowStatsResponse], error)
 }
 
 // NewDashboardServiceClient constructs a client for the arbcn.dashboard.v1.DashboardService
@@ -235,27 +242,34 @@ func NewDashboardServiceClient(httpClient connect.HTTPClient, baseURL string, op
 			connect.WithSchema(dashboardServiceMethods.ByName("ReviewKnowledgeEntry")),
 			connect.WithClientOptions(opts...),
 		),
+		listFundingWindowStats: connect.NewClient[v1.ListFundingWindowStatsRequest, v1.ListFundingWindowStatsResponse](
+			httpClient,
+			baseURL+DashboardServiceListFundingWindowStatsProcedure,
+			connect.WithSchema(dashboardServiceMethods.ByName("ListFundingWindowStats")),
+			connect.WithClientOptions(opts...),
+		),
 	}
 }
 
 // dashboardServiceClient implements DashboardServiceClient.
 type dashboardServiceClient struct {
-	listLatestFacts      *connect.Client[v1.ListLatestFactsRequest, v1.ListLatestFactsResponse]
-	listAlerts           *connect.Client[v1.ListAlertsRequest, v1.ListAlertsResponse]
-	ackAlert             *connect.Client[v1.AckAlertRequest, v1.AckAlertResponse]
-	listTriggerStates    *connect.Client[v1.ListTriggerStatesRequest, v1.ListTriggerStatesResponse]
-	health               *connect.Client[v1.HealthRequest, v1.HealthResponse]
-	listUnacked          *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
-	ackAll               *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
-	listSourceHealth     *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
-	listFacts            *connect.Client[v1.ListFactsRequest, v1.ListFactsResponse]
-	addLedgerEntry       *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
-	listLedgerEntries    *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
-	ledgerSummary        *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
-	listInsights         *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
-	listOppCards         *connect.Client[v1.ListOppCardsRequest, v1.ListOppCardsResponse]
-	listKnowledgeEntries *connect.Client[v1.ListKnowledgeEntriesRequest, v1.ListKnowledgeEntriesResponse]
-	reviewKnowledgeEntry *connect.Client[v1.ReviewKnowledgeEntryRequest, v1.ReviewKnowledgeEntryResponse]
+	listLatestFacts        *connect.Client[v1.ListLatestFactsRequest, v1.ListLatestFactsResponse]
+	listAlerts             *connect.Client[v1.ListAlertsRequest, v1.ListAlertsResponse]
+	ackAlert               *connect.Client[v1.AckAlertRequest, v1.AckAlertResponse]
+	listTriggerStates      *connect.Client[v1.ListTriggerStatesRequest, v1.ListTriggerStatesResponse]
+	health                 *connect.Client[v1.HealthRequest, v1.HealthResponse]
+	listUnacked            *connect.Client[v1.ListUnackedRequest, v1.ListUnackedResponse]
+	ackAll                 *connect.Client[v1.AckAllRequest, v1.AckAllResponse]
+	listSourceHealth       *connect.Client[v1.ListSourceHealthRequest, v1.ListSourceHealthResponse]
+	listFacts              *connect.Client[v1.ListFactsRequest, v1.ListFactsResponse]
+	addLedgerEntry         *connect.Client[v1.AddLedgerEntryRequest, v1.AddLedgerEntryResponse]
+	listLedgerEntries      *connect.Client[v1.ListLedgerEntriesRequest, v1.ListLedgerEntriesResponse]
+	ledgerSummary          *connect.Client[v1.LedgerSummaryRequest, v1.LedgerSummaryResponse]
+	listInsights           *connect.Client[v1.ListInsightsRequest, v1.ListInsightsResponse]
+	listOppCards           *connect.Client[v1.ListOppCardsRequest, v1.ListOppCardsResponse]
+	listKnowledgeEntries   *connect.Client[v1.ListKnowledgeEntriesRequest, v1.ListKnowledgeEntriesResponse]
+	reviewKnowledgeEntry   *connect.Client[v1.ReviewKnowledgeEntryRequest, v1.ReviewKnowledgeEntryResponse]
+	listFundingWindowStats *connect.Client[v1.ListFundingWindowStatsRequest, v1.ListFundingWindowStatsResponse]
 }
 
 // ListLatestFacts calls arbcn.dashboard.v1.DashboardService.ListLatestFacts.
@@ -338,6 +352,11 @@ func (c *dashboardServiceClient) ReviewKnowledgeEntry(ctx context.Context, req *
 	return c.reviewKnowledgeEntry.CallUnary(ctx, req)
 }
 
+// ListFundingWindowStats calls arbcn.dashboard.v1.DashboardService.ListFundingWindowStats.
+func (c *dashboardServiceClient) ListFundingWindowStats(ctx context.Context, req *connect.Request[v1.ListFundingWindowStatsRequest]) (*connect.Response[v1.ListFundingWindowStatsResponse], error) {
+	return c.listFundingWindowStats.CallUnary(ctx, req)
+}
+
 // DashboardServiceHandler is an implementation of the arbcn.dashboard.v1.DashboardService service.
 type DashboardServiceHandler interface {
 	// ListLatestFacts 返回每 (kind, venue, symbol) 的最新事实（机会面板快照）。
@@ -380,6 +399,10 @@ type DashboardServiceHandler interface {
 	// 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
 	// signature 条目的判定记录（呈现面），不改任何规则/门禁。
 	ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error)
+	// ListFundingWindowStats 7d 费率窗口统计（D-064）：滚动 7d funding 环境
+	// （min/max/均值 + 正费率占比）→「当前是否处于可交易窗口」判据。只读证据面，
+	// 数据面 = 现有 funding facts 历史（零新采集）；不触碰任何执行门禁。
+	ListFundingWindowStats(context.Context, *connect.Request[v1.ListFundingWindowStatsRequest]) (*connect.Response[v1.ListFundingWindowStatsResponse], error)
 }
 
 // NewDashboardServiceHandler builds an HTTP handler from the service implementation. It returns the
@@ -485,6 +508,12 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 		connect.WithSchema(dashboardServiceMethods.ByName("ReviewKnowledgeEntry")),
 		connect.WithHandlerOptions(opts...),
 	)
+	dashboardServiceListFundingWindowStatsHandler := connect.NewUnaryHandler(
+		DashboardServiceListFundingWindowStatsProcedure,
+		svc.ListFundingWindowStats,
+		connect.WithSchema(dashboardServiceMethods.ByName("ListFundingWindowStats")),
+		connect.WithHandlerOptions(opts...),
+	)
 	return "/arbcn.dashboard.v1.DashboardService/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case DashboardServiceListLatestFactsProcedure:
@@ -519,6 +548,8 @@ func NewDashboardServiceHandler(svc DashboardServiceHandler, opts ...connect.Han
 			dashboardServiceListKnowledgeEntriesHandler.ServeHTTP(w, r)
 		case DashboardServiceReviewKnowledgeEntryProcedure:
 			dashboardServiceReviewKnowledgeEntryHandler.ServeHTTP(w, r)
+		case DashboardServiceListFundingWindowStatsProcedure:
+			dashboardServiceListFundingWindowStatsHandler.ServeHTTP(w, r)
 		default:
 			http.NotFound(w, r)
 		}
@@ -590,4 +621,8 @@ func (UnimplementedDashboardServiceHandler) ListKnowledgeEntries(context.Context
 
 func (UnimplementedDashboardServiceHandler) ReviewKnowledgeEntry(context.Context, *connect.Request[v1.ReviewKnowledgeEntryRequest]) (*connect.Response[v1.ReviewKnowledgeEntryResponse], error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ReviewKnowledgeEntry is not implemented"))
+}
+
+func (UnimplementedDashboardServiceHandler) ListFundingWindowStats(context.Context, *connect.Request[v1.ListFundingWindowStatsRequest]) (*connect.Response[v1.ListFundingWindowStatsResponse], error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, errors.New("arbcn.dashboard.v1.DashboardService.ListFundingWindowStats is not implemented"))
 }

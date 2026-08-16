@@ -51,6 +51,10 @@ service DashboardService {
   // 文本 verdict + 复核 note。人工在环动作（D-046 复核闭环的 UI 落点），只改该
   // signature 条目的判定记录（呈现面），不改任何规则/门禁。
   rpc ReviewKnowledgeEntry(ReviewKnowledgeEntryRequest) returns (ReviewKnowledgeEntryResponse);
+  // ListFundingWindowStats 7d 费率窗口统计（D-064）：滚动 7d funding 环境
+  // （min/max/均值 + 正费率占比）→「当前是否处于可交易窗口」判据。只读证据面，
+  // 数据面 = 现有 funding facts 历史（零新采集）；不触碰任何执行门禁。
+  rpc ListFundingWindowStats(ListFundingWindowStatsRequest) returns (ListFundingWindowStatsResponse);
 }
 
 // Fact 与 internal/fact.Fact 一一对应（统一事实模型 §4）。
@@ -307,3 +311,33 @@ message ReviewKnowledgeEntryRequest {
 }
 
 message ReviewKnowledgeEntryResponse {}
+
+// FundingWindowStats 7d 费率窗口统计（D-064）。Value 口径 = funding facts
+// pct_annualized 百分点点数（15 = 15% 年化）。class 判据：
+//   high       高费率窗口档 active（7d 均值 ≥ 15%，D-016 15% 档）
+//   tradable   可交易窗口（正费率占比 ≥ 90% 且均值 ≥ 0，basis/carry 环境可行）
+//   watch      临界窗口（正费率占比 ≥ 50% 且均值 ≥ 0，正负交替观察）
+//   not        非窗口（正费率占比 < 50% 或均值 < 0，basis 不可行，宁缺毋滥 D-019）
+message FundingWindowStats {
+  int32 count = 1;           // 窗口内 funding 读数数
+  double min = 2;            // 最低年化 %
+  double max = 3;            // 最高年化 %
+  double mean = 4;           // 均值年化 %
+  double positive_share = 5; // 正费率占比 0-1（value ≥ 0 读数占比）
+  string class = 6;          // high / tradable / watch / not
+  string note = 7;           // 中文备注（无数据 / 样本过少 / 判据说明）
+}
+
+message FundingWindowPair {
+  string venue = 1;
+  string symbol = 2;
+  FundingWindowStats stats = 3;
+}
+
+message ListFundingWindowStatsRequest {}
+
+message ListFundingWindowStatsResponse {
+  double window_days = 1;         // 7（D-064 窗口）
+  FundingWindowStats overall = 2; // 聚合（全部监控面 funding 读数）
+  repeated FundingWindowPair per_pair = 3; // 逐 venue|symbol（均值降序前 50）
+}

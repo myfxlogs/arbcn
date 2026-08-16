@@ -511,3 +511,21 @@
   ⑤ **可信度数据面随结果留档**：GetPerformanceReport 响应新增 `snapshot_count` / `expected_snapshots` / `snapshot_coverage`，前端判定卡加「快照覆盖（判定可信度）」瓦片——覆盖率本身成为可检查的判定输入（P4）。
 - **理由**：与 D-061「环境-策略分离」同源——判定门① 不只测「环境有没有机会、策略能不能赚」，还要先回答「这次测量自己可不可信」；三者构成判定链：**数据面可信 → 环境/策略分离 → 门槛判定**。自欺向量都是静默的（缺口跳过、损坏照读、单位错配）——不引入自证机制，gate 的 PASS/FAIL 就是「系统自己骗自己」的权威出口。单位错配是纯工程 bug，但它在「判定门①」这种高信任出口上造成系统性失真，正因它是「测量自身的测量」，才符合业主「更大的盲区」判断。
 - **结论**：已落实现。return.go 新增 `SnapshotCoverage/ExpectedSnapshots/ValidateSnapshotIntegrity/GateTrustQualifier` + `EvaluateGate` PASS 警示语；performance.go 编排层 ×100 单位统一 + 覆盖率/完整性自检 + 可信度字段；proto 3 字段 + buf generate；前端判定卡覆盖瓦片；对抗测试（删覆盖率检查 → 低覆盖不采信必红；删 ×100 → 单位回潮必红；恒等式破坏 → 不采信必红）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（可信度层只改判定门① 的测量自身，不碰执行路径）；判定门① 仍只读不自动执行；不赌（D-019）；不接 LLM（D-043）。**
+
+## D-064 方案二：7d 费率窗口统计——「当前是否处于可交易窗口」判据（D-061 候选落地，2026-08-16，对话 #86）
+- **背景**：D-062 裁定引进方案逐落地（方案一 TWR/MWR 已完成 D-062/D-063 部署闭环）。方案二 = **7d 费率窗口统计**（7d min/max + 正费率占比，backpack-basis-trading-monitor 借鉴），D-061 定位为**「当前是否处于可交易窗口」判据** + 判定门① 环境条件记录的滚动 7d 视角。
+- **决策**：
+  ① **数据面 = 现有 funding facts 历史**（`KindFunding`，`pct_annualized` 百分点点数，15 = 15% 年化；D-037 真实市场公开费率）：`QueryFacts(Kind=funding, From=now−7d)`，覆盖监控面内 venue/symbol（诚实标注，与 D-062 环境统计同口径）。**零新迁移零新采集**——纯读现有数据面（A 架构复用）。
+  ② **纯函数**（`internal/dashboard/windowstats.go`，dashboard 域只读决策支持，D-046 oppcalc 同模式）：
+     - `FundingWindowStats{Count, Min, Max, Mean, PositiveShare}`——PositiveShare = 正费率占比（value ≥ 0 的读数占比）。
+     - `ClassifyFundingWindow(stats) (class, note)` 判据（参数具名常量锚本 D#，D-016 高费率档同源）：
+       - **`HIGH`（高费率窗口档 active）** = 7d 均值 ≥ **15.0**（D-016 15% 档）→「当前处于 funding 窗口档（15–30% 档）」；
+       - **`TRADABLE`（可交易窗口）** = 正费率占比 ≥ **90%** 且均值 ≥ 0 →「费率持续为正，basis/carry 环境可行」（backpack 系判据：正费率占绝大多数才算可持续）；
+       - **`WATCH`（临界窗口）** = 正费率占比 ≥ **50%** 且均值 ≥ 0 →「费率正负交替，观察」；
+       - **`NOT`（非窗口）** = 其余（正费率占比 < 50% 或均值 < 0）→「费率多为负/不稳定，basis 交易不可行」（宁缺毋滥 D-019：不造可交易假象）。
+     - 数据不足守卫：count == 0 → class `NOT` + note「无数据（7d 内无 funding 落点）」不编造（practices #7）；count ≥ 1 但 < 3 → 附加「样本过少仅供参考」。
+  ③ **RPC**：dashboard 域第 N 个 RPC `ListFundingWindowStats`（`window_days` + `overall`（聚合 stats + class + note）+ `per_pair`（逐 venue|symbol 行 min/max/mean/positive_share/class，limit 前 50 按均值降序））。只读，不碰任何执行门禁。
+  ④ **前端**：监控总览新卡「7d 费率窗口」（机会实算卡同域只读证据面）：overall 徽标（可交易窗口/临界/非窗口/高费率窗口）+ 7d 均值/min/max/正费率占比瓦片 + 逐对明细表（紧凑）。挂 useSnapshot（总览快照第 N+1 路 RPC）。
+  ⑤ **与判定门① 关系**：环境条件记录增强（D-061 ③ 的「有无窗口档」从 30 天高费率时段计数扩展出滚动 7d 窗口判据）——只读上下文，不改变 EvaluateGate 判定逻辑本身。
+- **理由**：方案二补的是「**当前这一刻**处于什么费率环境」——30 天判定门① 测跨窗口结果，7d 窗口统计测当下可交易性，两个时间尺度各司其职（判定门① 是回看、窗口统计是现在时）；「正费率占比 ≥90%」比「min ≥ 0」稳健（单次负读数不杀死整个窗口，反映「大多数时间为正」的可持续性）；判据不设新目标阈值（15% 复用 D-016，90%/50% 是「持续为正 vs 正负交替」的占比判定），宁缺毋滥（D-019：非窗口不造可交易假象，与「环境无机会零单是正确输出」同源）。
+- **结论**：D-064 落定方案二设计，通过 A–F 施工前自审后开始施工（纯函数 → proto → RPC → 前端 → 测试 → 部署）。**零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动（只读证据面）；不赌（D-019）；不接 LLM（D-043）。**

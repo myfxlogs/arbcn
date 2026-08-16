@@ -7,6 +7,8 @@ import type {
   Alert,
   Fact,
   FactRmb,
+  FundingWindowStats, // D-064 7d 费率窗口统计（overall）
+  FundingWindowPair,  // D-064 逐 venue|symbol
   HealthResponse,
   Insight,
   KnowledgeEntry,
@@ -18,6 +20,7 @@ import type {
   TriggerState,
   UnackedAlert,
 } from "./gen/arbcn/dashboard/v1/dashboard_pb";
+import { emptyWindowStats } from "./windowDefaults";
 import type {
   CloseSimOrderResponse,
   GetPerformanceReportResponse, // D-062 判定门① 测量
@@ -144,6 +147,8 @@ export interface Snapshot {
   sourceHealth: SourceHealth[];
   insights: Insight[];
   cards: OpportunityCard[];
+  window: FundingWindowStats; // D-064 7d 费率窗口（overall 判据主答案）
+  windowPairs: FundingWindowPair[]; // D-064 逐 venue|symbol 明细
   health: HealthResponse;
   at: Date;
 }
@@ -335,8 +340,9 @@ export function useKnowledge(refreshKey?: number): {
   };
 }
 
-// useSnapshot 拉取全量快照（八 RPC 并行，含 M2-a 的 ListUnacked/ListSourceHealth、
-// D-046 的 ListOppCards）并按 POLL_MS 轮询；ackAlert/ackAll 确认后本地更新
+// useSnapshot 拉取全量快照（九 RPC 并行，含 M2-a 的 ListUnacked/ListSourceHealth、
+// D-046 的 ListOppCards、D-064 的 ListFundingWindowStats）并按 POLL_MS 轮询；
+// ackAlert/ackAll 确认后本地更新
 //（铃铛计数即时递减，不重拉）。
 export function useSnapshot(): {
   snap: Snapshot | null;
@@ -358,7 +364,7 @@ export function useSnapshot(): {
     const load = async () => {
       const v = ackVersion.current;
       try {
-        const [facts, states, alerts, unacked, sourceHealth, insights, cards, health] = await Promise.all([
+        const [facts, states, alerts, unacked, sourceHealth, insights, cards, window, health] = await Promise.all([
           dashboard.listLatestFacts({}),
           dashboard.listTriggerStates({}),
           dashboard.listAlerts({ limit: 200 }),
@@ -366,6 +372,7 @@ export function useSnapshot(): {
           dashboard.listSourceHealth({}),
           dashboard.listInsights({}),
           dashboard.listOppCards({}),
+          dashboard.listFundingWindowStats({}), // D-064 7d 费率窗口
           dashboard.health({}),
         ]);
         if (!alive) return;
@@ -378,6 +385,8 @@ export function useSnapshot(): {
           sourceHealth: sourceHealth.items,
           insights: insights.insights,
           cards: cards.cards,
+          window: window.overall ?? emptyWindowStats,
+          windowPairs: window.perPair,
           health,
           at: new Date(),
         });
