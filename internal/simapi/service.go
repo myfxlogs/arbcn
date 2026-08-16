@@ -126,9 +126,12 @@ func (s *Service) ConfirmSimOrder(ctx context.Context, req *connect.Request[simv
 	return connect.NewResponse(&simv1.ConfirmSimOrderResponse{Order: toSimOrder(updated), Accepted: true}), nil
 }
 
-// ListSimPositions 持仓腿列表 + 即期 RMB 折算（§10.5 C4 关键口径）。
-// pnl_rmb = pnl × 即期 USDCNH（绝对金额用即期，**非** RMBDayEnd 年化口径——H1/R6#1
-// 刻度线：那是费率折算，绝对金额不适用）；汇率缺失 → pnl_rmb=0 + 前端标注「USD 原值」。
+// ListSimPositions 持仓腿列表 + 即期 RMB 折算 + 实时数值（§10.5 C4 关键口径，对话 #57 需求 3）。
+//   - pnl_rmb = pnl × 即期 USDCNH（绝对金额用即期，**非** RMBDayEnd 年化口径——H1/R6#1
+//     刻度线：那是费率折算，绝对金额不适用）；汇率缺失 → pnl_rmb=0 + 前端标注「USD 原值」。
+//   - cur_price = ticker 最新行情；查不到 → 0 + 前端标「—」（unrealized 归 0，不编造浮动）。
+//   - expected_ann = 仅生息腿（Funding=true）查当前 funding 年化；现货腿/查不到 → 0（前端标 —）。
+//   - unrealized_pnl = (cur_price - ref_price) × qty × 方向（short=-1，long=+1）；浮动为负 = 浮亏。
 func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1.ListSimPositionsRequest]) (*connect.Response[simv1.ListSimPositionsResponse], error) {
 	positions, err := s.st.ListSimPositions(ctx, simOrderListLimit, 0)
 	if err != nil {
@@ -144,7 +147,27 @@ func (s *Service) ListSimPositions(ctx context.Context, _ *connect.Request[simv1
 		if fxOK {
 			rmb = p.PnL * fxRate
 		}
-		out = append(out, toSimPosition(p, rmb))
+		curPrice, curOK, err := s.latestValue(ctx, fact.KindTicker, p.Venue, p.Symbol)
+		if err != nil {
+			return nil, storeErr(err)
+		}
+		// unrealized 只依已确认的实时价计算（查不到 → 0，宁缺毋滥不编造浮动）。
+		unrealized := 0.0
+		if curOK {
+			dir := 1.0
+			if p.Side == store.SimSideShort {
+				dir = -1
+			}
+			unrealized = (curPrice - p.RefPrice) * p.Qty * dir
+		}
+		expectedAnn := 0.0
+		if p.Funding {
+			expectedAnn, _, err = s.latestValue(ctx, fact.KindFunding, p.Venue, p.Symbol)
+			if err != nil {
+				return nil, storeErr(err)
+			}
+		}
+		out = append(out, toSimPosition(p, rmb, curPrice, expectedAnn, unrealized))
 	}
 	return connect.NewResponse(&simv1.ListSimPositionsResponse{Positions: out}), nil
 }
@@ -296,12 +319,13 @@ func toTestnetAccount(a store.TestnetAccount) *simv1.TestnetAccount {
 	return out
 }
 
-// toSimPosition 映射 store.SimPosition → proto（pnlRmb 由调用方按即期折算）。
-func toSimPosition(p store.SimPosition, pnlRmb float64) *simv1.SimPosition {
+// toSimPosition 映射 store.SimPosition → proto（pnlRmb / 实时数值由调用方按即期折算与行情填充）。
+func toSimPosition(p store.SimPosition, pnlRmb, curPrice, expectedAnn, unrealized float64) *simv1.SimPosition {
 	return &simv1.SimPosition{
 		Id: p.ID, OrderId: p.OrderID, TsMs: p.Ts.UnixMilli(), Kind: p.Kind,
 		Venue: p.Venue, Symbol: p.Symbol, Side: p.Side, Qty: p.Qty,
 		RefPrice: p.RefPrice, Funding: p.Funding, Pnl: p.PnL, PnlRmb: pnlRmb, Status: p.Status,
+		CurPrice: curPrice, ExpectedAnn: expectedAnn, UnrealizedPnl: unrealized,
 	}
 }
 

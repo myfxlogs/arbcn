@@ -188,6 +188,9 @@ type SimPosition struct {
 	Pnl           float64                `protobuf:"fixed64,11,opt,name=pnl,proto3" json:"pnl,omitempty"`                     // 已结算累计（模拟 USD）
 	PnlRmb        float64                `protobuf:"fixed64,12,opt,name=pnl_rmb,json=pnlRmb,proto3" json:"pnl_rmb,omitempty"` // 即期折算（汇率缺失 = 0，前端标注）
 	Status        string                 `protobuf:"bytes,13,opt,name=status,proto3" json:"status,omitempty"`
+	CurPrice      float64                `protobuf:"fixed64,14,opt,name=cur_price,json=curPrice,proto3" json:"cur_price,omitempty"`                // 实时价（ticker 最新；查不到 = 0，前端标 —）
+	ExpectedAnn   float64                `protobuf:"fixed64,15,opt,name=expected_ann,json=expectedAnn,proto3" json:"expected_ann,omitempty"`       // 预期年化%（当前 funding 年化；现货腿/查不到 = 0，前端标 —）
+	UnrealizedPnl float64                `protobuf:"fixed64,16,opt,name=unrealized_pnl,json=unrealizedPnl,proto3" json:"unrealized_pnl,omitempty"` // 未实现浮动 = (cur_price - ref_price) × qty × 方向（long=+1 short=-1）
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -311,6 +314,27 @@ func (x *SimPosition) GetStatus() string {
 		return x.Status
 	}
 	return ""
+}
+
+func (x *SimPosition) GetCurPrice() float64 {
+	if x != nil {
+		return x.CurPrice
+	}
+	return 0
+}
+
+func (x *SimPosition) GetExpectedAnn() float64 {
+	if x != nil {
+		return x.ExpectedAnn
+	}
+	return 0
+}
+
+func (x *SimPosition) GetUnrealizedPnl() float64 {
+	if x != nil {
+		return x.UnrealizedPnl
+	}
+	return 0
 }
 
 type ListSimOrdersRequest struct {
@@ -917,7 +941,7 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	"\n" +
 	"risk_flags\x18\v \x03(\tR\triskFlags\x12\x16\n" +
 	"\x06status\x18\f \x01(\tR\x06status\x12\x12\n" +
-	"\x04note\x18\r \x01(\tR\x04note\"\xaf\x02\n" +
+	"\x04note\x18\r \x01(\tR\x04note\"\x96\x03\n" +
 	"\vSimPosition\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\x03R\aorderId\x12\x13\n" +
@@ -932,7 +956,10 @@ const file_arbcn_sim_v1_sim_proto_rawDesc = "" +
 	" \x01(\bR\afunding\x12\x10\n" +
 	"\x03pnl\x18\v \x01(\x01R\x03pnl\x12\x17\n" +
 	"\apnl_rmb\x18\f \x01(\x01R\x06pnlRmb\x12\x16\n" +
-	"\x06status\x18\r \x01(\tR\x06status\".\n" +
+	"\x06status\x18\r \x01(\tR\x06status\x12\x1b\n" +
+	"\tcur_price\x18\x0e \x01(\x01R\bcurPrice\x12!\n" +
+	"\fexpected_ann\x18\x0f \x01(\x01R\vexpectedAnn\x12%\n" +
+	"\x0eunrealized_pnl\x18\x10 \x01(\x01R\runrealizedPnl\".\n" +
 	"\x14ListSimOrdersRequest\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\"G\n" +
 	"\x15ListSimOrdersResponse\x12.\n" +

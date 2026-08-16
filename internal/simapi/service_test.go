@@ -655,6 +655,63 @@ func TestListSimPositionsRMBConversion(t *testing.T) {
 	}
 }
 
+// TestListSimPositionsRealtime：实时数值字段（对话 #57 需求 3）。
+//   - cur_price = ticker 最新；expected_ann = 生息腿当前 funding 年化（现货腿 = 0）；
+//   - unrealized_pnl = (cur-ref) × qty × 方向（short=-1）；
+//   - ticker 缺失 → cur_price=0 + unrealized=0（不编造浮动）。
+// [对抗测试锚点] 删除 ListSimPositions 里 unrealized 计算 / cur_price 查询 → 本测试必红。
+func TestListSimPositionsRealtime(t *testing.T) {
+	// 永续空腿：ref=100, qty=10000；ticker=105 → 未实现 = (105-100)×10000×(-1) = -50000；
+	// funding=6.6 → expected_ann=6.6。现货多腿：expected_ann=0（非生息腿），unrealized 按 long 方向。
+	st := newFakeStore()
+	st.positions = []store.SimPosition{
+		{ID: 1, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge, Venue: "binance",
+			Symbol: "BTC", Side: store.SimSideShort, Qty: 10000, RefPrice: 100, Funding: true, PnL: 50},
+		{ID: 2, OrderID: 1, Ts: t0, Kind: store.SimKindFundingHedge, Venue: "binance",
+			Symbol: "BTC", Side: store.SimSideLong, Qty: 10000, RefPrice: 100, Funding: false, PnL: 0},
+	}
+	st.addFact(fact.KindTicker, "binance", "BTC", 105, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 6.6, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ListSimPositions(context.Background(), connect.NewRequest(&simv1.ListSimPositionsRequest{}))
+	if err != nil || len(resp.Msg.Positions) != 2 {
+		t.Fatalf("ListSimPositions = %d, %v, want 2", len(resp.Msg.Positions), err)
+	}
+	short, long := resp.Msg.Positions[0], resp.Msg.Positions[1] // 顺序 = fakeStore 原样
+	if short.CurPrice != 105 {
+		t.Fatalf("short cur_price = %v, want 105", short.CurPrice)
+	}
+	if short.ExpectedAnn != 6.6 {
+		t.Fatalf("short expected_ann = %v, want 6.6（funding 生息腿）", short.ExpectedAnn)
+	}
+	if short.UnrealizedPnl != -50000 {
+		t.Fatalf("short unrealized_pnl = %v, want -50000（(105-100)×10000×-1）", short.UnrealizedPnl)
+	}
+	if long.CurPrice != 105 {
+		t.Fatalf("long cur_price = %v, want 105", long.CurPrice)
+	}
+	if long.ExpectedAnn != 0 {
+		t.Fatalf("long expected_ann = %v, want 0（现货腿非生息）", long.ExpectedAnn)
+	}
+	if long.UnrealizedPnl != 50000 {
+		t.Fatalf("long unrealized_pnl = %v, want +50000（(105-100)×10000×+1）", long.UnrealizedPnl)
+	}
+
+	// ticker 缺失 → cur_price=0 + unrealized=0（不编造浮动，宁缺毋滥）。
+	st2 := newFakeStore()
+	st2.positions = append([]store.SimPosition(nil), st.positions...)
+	st2.addFact(fact.KindFunding, "binance", "BTC", 6.6, t0.Add(-time.Minute))
+	s2 := service(st2, sim.Config{})
+	resp2, err := s2.ListSimPositions(context.Background(), connect.NewRequest(&simv1.ListSimPositionsRequest{}))
+	if err != nil || len(resp2.Msg.Positions) != 2 {
+		t.Fatalf("ListSimPositions(no ticker) = %d, %v, want 2", len(resp2.Msg.Positions), err)
+	}
+	if got := resp2.Msg.Positions[0].UnrealizedPnl; got != 0 {
+		t.Fatalf("unrealized_pnl(no ticker) = %v, want 0（行情缺失不编造浮动）", got)
+	}
+}
+
 // TestGetSimReport：未启用（路径空 / HistoryDays=0）/ 文件不存在 / 存在 三态。
 func TestGetSimReport(t *testing.T) {
 	t.Run("disabled-empty-path", func(t *testing.T) {

@@ -12,13 +12,24 @@ import { useSim } from "../hooks";
 const SIMULATED = "SIMULATED";
 const SIMULATED_CN = "模拟";
 
-// riskLabel 风险门禁标记 → 中文徽标文案（未知名回退原名，演进预留）。
+// riskLabel 风险门禁标记 → 中文徽标文案（internal/sim/order.go Risk* 全量 7 个；
+// 未知名回退原名，演进预留）。拒单负样本原因明示，English 硬编码不出现。
 function riskLabel(flag: string): string {
   switch (flag) {
     case "SPREAD_DRIFT":
       return "漂移";
+    case "UNHEDGED":
+      return "未对冲";
+    case "SPREAD_LOW":
+      return "价差过低";
+    case "SIZE_OVER":
+      return "单笔超限";
+    case "DAILY_OVER":
+      return "日额超限";
     case "WHITELIST":
       return "未白名单";
+    case "INVALID_INPUT":
+      return "输入无效";
     default:
       return flag;
   }
@@ -207,15 +218,19 @@ function OrderZone({ orders, pending, busy, onConfirm }: { orders: SimOrder[]; p
   );
 }
 
-// PositionZone 模拟持仓：pnl（USD 模拟）+ pnl_rmb（即期折算，汇率缺失标注 USD 原值）。
-// PnL 为每 8h 结算的累计值（诚实标注），funding 生息腿明示。
+// PositionZone 模拟持仓（对话 #57 需求 3 实时数值）：
+//   - pnl（USD 模拟）= 每 8h 已结算累计；pnl_rmb = 即期折算（汇率缺失标注 USD 原值）。
+//   - 开仓价 = ref_price；当前价 = ticker 实时（查不到标 —）。
+//   - 预期年化 = 当前 funding 年化%（仅生息腿；现货腿/查不到标 —）。
+//   - 实时收益 = 已结算 pnl + 未实现浮动（funding_hedge 两腿对冲浮动≈0，主要体现资金费）。
+// funding 生息腿明示。
 function PositionZone({ positions }: { positions: SimPosition[] }) {
   const fxMissing = positions.length > 0 && positions.every((p) => p.pnlRmb === 0);
   return (
     <section className="card" aria-labelledby="sim-positions-title">
       <h2 id="sim-positions-title">模拟持仓 <SimTag /></h2>
       <p className="muted">
-        PnL 为每 8h 结算的累计模拟 USD；pnl_rmb 按即期 USDCNH 折算
+        实时收益 = 已结算 PnL + 未实现浮动（当前价 − 开仓价）；pnl_rmb 按即期 USDCNH 折算
         {fxMissing ? "（当前汇率不可用，标注 USD 原值）" : ""}。
       </p>
       {positions.length === 0 ? (
@@ -229,7 +244,11 @@ function PositionZone({ positions }: { positions: SimPosition[] }) {
                 <th scope="col">标的</th>
                 <th scope="col">腿方向</th>
                 <th scope="col">数量</th>
-                <th scope="col">PnL（USD 模拟）</th>
+                <th scope="col">开仓价</th>
+                <th scope="col">当前价</th>
+                <th scope="col">预期年化</th>
+                <th scope="col">已结算 PnL</th>
+                <th scope="col">实时收益（USD）</th>
                 <th scope="col">PnL（RMB 即期）</th>
                 <th scope="col">资金费</th>
               </tr>
@@ -246,7 +265,15 @@ function PositionZone({ positions }: { positions: SimPosition[] }) {
                   </td>
                   <td>{legSideText(p.side)}</td>
                   <td className="num">{fmtAmount(p.qty)}</td>
+                  <td className="num">{fmtAmount(p.refPrice)}</td>
+                  <td className={p.curPrice === 0 ? "muted" : "num"}>
+                    {p.curPrice === 0 ? "—" : fmtAmount(p.curPrice)}
+                  </td>
+                  <td className={p.expectedAnn > 0 ? "num" : "muted"}>
+                    {p.expectedAnn > 0 ? `${p.expectedAnn.toFixed(2)}%` : "—"}
+                  </td>
                   <td className="num">{fmtAmount(p.pnl)}</td>
+                  <td className="num">{fmtAmount(p.pnl + p.unrealizedPnl)}</td>
                   <td className={p.pnlRmb === 0 ? "muted" : "num"}>
                     {p.pnlRmb === 0 ? "USD 原值" : fmtAmount(p.pnlRmb)}
                   </td>
@@ -383,7 +410,20 @@ export function SimExec() {
           模拟执行加载失败：{error}
         </div>
       ) : null}
-      {result ? <div className="banner sim-result">{result}</div> : null}
+      {result ? (
+        <div className="banner sim-result">
+          <span>{result}</span>
+          <button
+            type="button"
+            className="banner-close"
+            aria-label="关闭提示"
+            title="关闭"
+            onClick={() => setResult("")}
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <OrderZone orders={orders} pending={pending} busy={busy} onConfirm={(id) => void onConfirm(id)} />
       <PositionZone positions={positions} />

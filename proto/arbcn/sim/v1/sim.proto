@@ -45,6 +45,9 @@ message SimPosition {
   double pnl = 11;            // 已结算累计（模拟 USD）
   double pnl_rmb = 12;        // 即期折算（汇率缺失 = 0，前端标注）
   string status = 13;
+  double cur_price = 14;      // 实时价（ticker 最新；查不到 = 0，前端标 —）
+  double expected_ann = 15;   // 预期年化%（当前 funding 年化；现货腿/查不到 = 0，前端标 —）
+  double unrealized_pnl = 16; // 未实现浮动 = (cur_price - ref_price) × qty × 方向（long=+1 short=-1）
 }
 
 message ListSimOrdersRequest  { string status = 1; }        // 空 = 全部

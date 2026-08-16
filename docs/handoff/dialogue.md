@@ -3,34 +3,8 @@
 > 有痕可阅。每次实质对话追加一段。超 450 行 → 最旧段移 LOG.md（留索引行）。
 > 全量原文在各工具自身 session 文件中（人类可读），此处只落实质纪要。
 
-## #1 · 2026-08-15 · 无损交接方案设计与角色确定
-- **参与方**：业主（人类）、Claude
-- **议题**：多 agent 协同 + 无损交接方案；角色确定；对话落文档。
-- **业主需求**：① 多 agent（任何 agent）协同，需无损交接；② 换 agent 不得偏方向 / 改实现 / 违约束；③ 交接要省 token；④ 角色：Claude 第一负责人 / 唯一决策者，其他 agent 施工方，业主只提需求（可能错误）；⑤ 全部对话落文档，有迹可查、有痕可阅。
-- **Claude 结论**：以六条第一性原则（P1–P6）推导交接方案 —— git 纯文本唯一共享通道 + T0/T1/T2 分层 + 私有记忆清扫仪式 + 交接负载固定格式 + 门禁化 + 对话纪要。已落 AGENTS.md / decisions.md / STATE.md。
-- **决策号**：D-001~D-006。
-- **待办**：业主给出 arbcn 领域需求 → charter 正式化（D-006）。
 
-## #2 · 2026-08-15 · 业务需求接收：20万国内套利（讨论阶段）
-- **参与方**：业主、Claude
-- **议题**：arbcn 业务需求（故事背景）。
-- **业主需求**：本金 20 万 RMB，国内，多币种配置可选，目标尽快做到"无风险套利（含套息）"，需要方案。
-- **Claude 结论**：纠偏——①零售市场无"无风险套利"；②套息是带敞口交易、非套利；③国内合法无风险收益 2026 现实 1–2%；④加密资金费率套息被 2026-02 八部门 42 号文明令禁止、损失自担、法律不保护；⑤跨境套息受资本管制限制。方案 = 三层组合（应急池/无风险底仓/套利增强/机会型），合法+保本预期 ~2–3.5%/年。
-- **决策号**：D-007（国内合法路径收益边界约束）。
-- **待办**：业主回答风险锚点 / 合规边界 / 软件形态 → 正式化 charter + 方案文档。
-
-## #3 · 2026-08-15 · 三锚点收敛 + 决策层裁决（charter 正式化）
-- **参与方**：业主、Claude（决策层模型）
-- **议题**：业主三锚点回答后的决策裁决。
-- **业主选择**：①接受跨境/加密合规风险；②中风险 5–8%/年；③决策监控+记账（不自动执行）。
-- **Claude 裁决**：目标 5–8%/回撤 ≤8% 锚定，但诚实按年份分布交付（差年 2.5–3.5 / 平年 3.5–5 / 好年 5.5–7）；五层组合 S0–S4 + 阶段门禁；USD 套息走境内合法通道（美元定存 3.0–3.6%、QDII 卫星），汇率逆风分 3 批建仓；加密层 D-013 门禁——当前 funding 5–11% 未达 15% 激活线，监控中不激活。
-- **决策号**：D-008（charter）~ D-013（S4 门禁）。
-- **待办**：业主确认 charter → Phase 0 开工（台账 + S0/S1 建仓清单）。
-
-## #4 · 2026-08-15 · 门禁误拦与修复（D-014）
-- **事件**：charter 正式化提交被 pre-commit 以"AGENTS.md 有删除行"拦截。
-- **裁决**：守卫范围收窄为历史标记行（计数制）；AGENTS.md 移出守卫名单（变更控制 = decisions.md + git）。协议自证有效：门禁拦住 → 决策层修复 → 历史无损。
-- **决策号**：D-014。
+> #1~#4 已移 LOG.md（T2 归档，git 追溯）
 
 ## #5 · 2026-08-15 · 业主质疑最优解 → 方案自审计（D-015/D-016）
 - **参与方**：业主、Claude
@@ -460,3 +434,12 @@
 - **排查**：① 后端 ConfirmSimOrder RPC 直测（`{"id":"3"}`）→ accepted=true 订单变 filled（**后端正常**）；② 读前端 OrderRow 按钮 → 发现 `disabled={pending === o.id}`：首次点击 setPending(id) 后按钮文字变"再次点击确认？"，但**同时被 disabled** → 第二次点击 onClick 触发不了，确认动作悬死。防误点设计自相矛盾（等待用户再点的状态 = 禁用条件）。
 - **决策**：修三处——OrderRow/OrderZone/调用点把 `disabled={pending === o.id}` 改为 `disabled={busy}`（确认请求进行中才禁用，pending 态保持可点）；onConfirm 逻辑不变（首次 setPending，二次真确认）。教训入 practices #17。
 - **结论**：前端构建 + 嵌入二进制重建部署；后端 RPC 已实测订单 id=3 确认成交（filled，二次门禁通过）。re-arm funding_drill 触发新演练单供业主实测二次确认路径。
+
+## #58 · 2026-08-16 · SimExec 三处体验修复（提示条关闭 / 风险标记中文 / 持仓实时数值）· 业主反馈 → 决策层
+- **参与方**：业主（反馈 + 口径澄清）、Claude（决策层 + 施工）
+- **议题**：① 拒单提示条（如「订单 4 拒单（二次门禁未过，已存负样本）」）无关闭入口；② 风险标记 UNHEDGED 等英文硬编码；③ 模拟持仓缺实时价格/预期收益/实时收益。
+- **口径澄清**（AskUserQuestion 三项）：实时收益 = **已结算资金费 + 未结算价格浮动**；预期收益 = **预期年化%**（当前 funding 年化）；提示条 = **手动 × 关闭**。
+- **决策**：① `result` banner 加 `.banner-close` × 按钮（onClick setResult("")，style.css 加 flex 布局 + close 样式）；② `riskLabel()` 补全 internal/sim/order.go 全部 7 个 Risk* 常量中文徽标（UNHEDGED→未对冲 / SPREAD_LOW→价差过低 / SIZE_OVER→单笔超限 / DAILY_OVER→日额超限 / INVALID_INPUT→输入无效，SPREAD_DRIFT→漂移 / WHITELIST→未白名单保留，未知名回退原名）；③ 持仓实时数值：proto SimPosition 追加 +14 cur_price / +15 expected_ann / +16 unrealized_pnl（buf generate 同步 Go+TS）→ ListSimPositions 逐腿 `latestValue`（curPrice=ticker 最新、expectedAnn=仅生息腿查 funding 年化、unrealized=(cur-ref)×qty×方向 short=-1/long=+1，**ticker 缺失→0 不编造浮动**）→ toSimPosition 扩签名 → PositionZone 加 4 列（开仓价/当前价/预期年化/实时收益=已结算+未实现）。
+- **对抗测试**：TestListSimPositionsRealtime——short 腿 (105-100)×10000×-1=-50000 / long 腿 +50000 / expected_ann 6.6 / 现货腿 0；**删 unrealized 计算必红（已实测短路验证）**。
+- **结论**：全量测试 + vet 绿，npm run build 通过；部署实测——API：永续空腿 cur_price=63049 expected_ann=5.53%（当前 okx funding 年化，较生成时 avg_30d 6.63% 回落）unrealized=+286k，现货多腿 unrealized=−286k，**两腿对冲相消=0（delta 中性 ✓，D-019 不赌原则）**；前端：新 JS/CSS hash 托管匹配磁盘 dist，7 个中文徽标 + banner-close 均入 bundle。sim_orders id=4 拒单 SPREAD_DRIFT 20.08% 为设计内 fail-closed（确认时刻单点 funding 回落，二次门禁生效）。
+- **决策号**：无新 D#（纯 UI + 数据面展示增强，未触及架构/合规/资金面；口径由对话澄清落档）。
