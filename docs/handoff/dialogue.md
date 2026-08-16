@@ -244,3 +244,11 @@
 - **施工（D-059）**：后端 proto KnowledgeEntry.current_evidence + knowledgeEvidence/三 helper + ListKnowledgeEntries 编排（故障降级/缺数据不编造）；前端 ClosePanel 平仓卡（市场结构与确认下单之间）+ ConfirmPanel/ClosePanel scroll-cap + OrderHistoryZone（模拟执行 tab 六态订单历史 + rejected 拒单原因）+ KnowledgeBoard 证据行 + ReviewForm note 自动预填。零执行门禁改动。
 - **部署实测**：全量测试/vet/npm build 绿；原子替换重启 healthz ok；served bundle == 新 dist（index-DRVZi1Rk.js 含「订单历史/当前核验/确认平仓/已拒单/自动核验」）；live ListKnowledgeEntries 三条 evidence 正确（spike_trap 命中 ETH 10.95% vs 均值 3.75%（×2.9）/ cross_venue 命中 BTC 7.5pp·ETH 8.3pp / defi 未命中 SUSDE 4.39%）；ListSimOrders 拒单 18 负样本在库（SPREAD_DRIFT 53.28%）。
 - **决策号**：D-059。
+
+## #82 · 2026-08-16 · 画布加宽 + 复核按钮变形 + 右列间距/顺序 + 复核按钮同行 · 业主五问 → 施工部署
+- **参与方**：业主（反馈）、Claude（核验 + 施工 + 部署）
+- **议题**：① 市场结构经验库再宽一点；② 点开复核时确认按钮变形；③ 整个底画布更宽一些；④ 右列三卡（经验库/确认下单/平仓）间距太大、把左1 矩阵跟着拉高了，且确认下单应在平仓上方（对调）；⑤ 复核表单的取消/确认复核按钮应与复核结论同一行。
+- **核验**：`main` 整体就是那个"底画布"（max-width 1100px）——加宽它即同时满足 ①③；经验库在右列（3fr/2fr 的 2fr，桌面 ~421px），右列变宽依赖画布与列比例；**② 确认按钮变形根因** = `.review-actions` 桌面端无 `grid-column`，grid auto-placement 把它塞进复核表单第一列 110px（row 2 col 3）→ 两按钮被挤变形（手机有 span 2 桌面漏了）；**④ CDP 实测 1280**：右列三卡间间距 31/32px = **双倍间距 bug**（每卡自带基础 `.card{margin-bottom:16px}` + 右列 flex gap 16px 叠加；`.grid > .right-stack` 的 margin 清零只作用于 right-stack 自身、未覆盖其内部卡），右列总高 998px 撑过矩阵（矩阵内容实为 996）→ 整行被右列拉高；DOM 序为 经验库→平仓→确认下单，业主要求 确认下单在平仓上方；**⑤ CDP**：复核表单 复核结论（row2 span 2）+ 按钮（row3 全宽）不同行。
+- **施工（纯前端 CSS + OverviewPage DOM 序，零后端/RPC/门禁改动）**：①③ `main` max-width 1100→1440px；`.grid` 3fr:2fr→5fr:4fr（右列 ~421→619px、左列 631→773px 同步加宽无回归，860px 折叠单栏不受影响）；② `.review-actions` 显式 `grid-column` + 右对齐；④ `.right-stack > .card{margin-bottom:0}` 消双倍间距 + `.right-stack` gap 16→12px（三卡更紧凑聚合）+ OverviewPage 交换 ConfirmPanel/ClosePanel 顺序 = [经验库, 确认下单, 平仓]；⑤ 复核表单 `grid-template-columns:110px 1fr auto`，复核结论 span 2 + 按钮 `grid-column:3` 同行右对齐（align-items:end 底部与输入对齐），手机 ≤640px 改回 `span 2` 整行（基础 col 3 在 2 列网格会隐式建第三轨道）。
+- **部署实测**（CDP 1280/375）：右列间距 31/32→**11/12px**；DOM 序 = 经验库→确认下单→平仓；页高 2055→**1999**（矩阵 998→941 回落，右列不再撑高左1）；复核表单按钮与复核结论输入底对齐 0px（同行 ✓）；375px 无横向溢出 + 手机 actions 整行落复核结论下方（触屏友好）；served bundle == 新 dist（index-Cyt2Tw60.js / index-Dok6zbWG.css）+ healthz ok；全量测试/vet 未受影响（纯 CSS）。
+- **决策号**：—（纯呈现层，无方向改动；D-050/D-052/D-053 布局演进延续）。

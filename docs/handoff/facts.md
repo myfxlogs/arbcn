@@ -77,7 +77,118 @@
 
 
 <!-- ARBCN-EXPORT-BEGIN -->
-### 快照 2026-08-16 21:05（现行）
+### 快照 2026-08-16 21:17（现行）
+
+| 事实 | 值 | 单位 | 采集时刻 | 来源 |
+|------|-----|------|---------|------|
+| calendar month_end@rule | 15 | days | 2026-08-16 21:17 | rule |
+| calendar quarter_end@rule | 45 | days | 2026-08-16 21:17 | rule |
+| calendar thursday@rule | 4 | days | 2026-08-16 21:17 | rule |
+| defi_rate BUIDL@blackrock-buidl | 3.567 | pct_annualized | 2026-08-16 21:17 | yields.llama.fi/pools pool=b663ca59-c7e6-4435-ae4a-28d339ce6a15 |
+| defi_rate STEAKUSDC@morpho-blue | 4.158 | pct_annualized | 2026-08-16 21:17 | yields.llama.fi/pools pool=931ea9be-5f4d-428e-beaf-205fc5b4e2b5 |
+| defi_rate SUSDE@ethena-usde | 4.393 | pct_annualized | 2026-08-16 21:17 | yields.llama.fi/pools pool=66985a81-9c51-46ca-9977-42b4fe7bc6df |
+| defi_rate USDC@aave-v3 | 3.289 | pct_annualized | 2026-08-16 21:17 | yields.llama.fi/pools pool=aa70268e-4b52-42bf-a116-608b370f9501 |
+| defi_rate USDY@ondo-yield-assets | 3.55 | pct_annualized | 2026-08-16 21:17 | yields.llama.fi/pools pool=ac61ee82-2fe4-4f9b-a9cd-7fb33f598859 |
+| deposit_rate 一年@boc | 0.95 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三个月@boc | 0.65 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三年@boc | 1.25 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 二年@boc | 1.05 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 五年@boc | 1.3 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 半年@boc | 0.85 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 活期@boc | 0.05 | pct_annualized | 2026-08-16 21:17 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| funding BTC@binance | 2.904 | pct_annualized | 2026-08-16 21:17 | fapi/v1/premiumIndex rate=0.00002652 per8h |
+| funding BTC@okx | 10.6 | pct_annualized | 2026-08-16 21:17 | api/v5/public/funding-rate rate=0.0000968374221106 per8h |
+| funding ETH@binance | 2.941 | pct_annualized | 2026-08-16 21:17 | fapi/v1/premiumIndex rate=0.00002686 per8h |
+| funding ETH@okx | 10.95 | pct_annualized | 2026-08-16 21:17 | api/v5/public/funding-rate rate=0.0001000000000000 per8h |
+| funding TRX@binance | -1.379 | pct_annualized | 2026-08-16 21:17 | fapi/v1/premiumIndex rate=-0.00001259 per8h |
+| funding TRX@okx | 1.693 | pct_annualized | 2026-08-16 21:17 | api/v5/public/funding-rate rate=0.0000154624392440 per8h |
+| fx USDCNH@sina | 7.25 | price | 2026-08-16 19:52 | test:sina |
+| iv BTC@deribit | 35.29 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| iv ETH@deribit | 47.52 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| reverse_repo GC001@sina | 0.865 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sh204001 |
+| reverse_repo R-001@sina | 0.84 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sz131810 |
+| ticker BTC@binance | 6.304e+04 | price | 2026-08-16 21:17 | fapi/v1/ticker/price |
+| ticker BTC@okx | 6.304e+04 | price | 2026-08-16 21:17 | api/v5/market/tickers |
+| ticker ETH@binance | 1880 | price | 2026-08-16 21:17 | fapi/v1/ticker/price |
+| ticker ETH@okx | 1880 | price | 2026-08-16 21:17 | api/v5/market/tickers |
+| ticker TRX@binance | 0.3315 | price | 2026-08-16 21:17 | fapi/v1/ticker/price |
+| ticker TRX@okx | 0.3315 | price | 2026-08-16 21:17 | api/v5/market/tickers |
+
+### 快照 2026-08-16 21:12（已过期 · 被 2026-08-16 21:17 快照取代）
+
+| 事实 | 值 | 单位 | 采集时刻 | 来源 |
+|------|-----|------|---------|------|
+| calendar month_end@rule | 15 | days | 2026-08-16 21:12 | rule |
+| calendar quarter_end@rule | 45 | days | 2026-08-16 21:12 | rule |
+| calendar thursday@rule | 4 | days | 2026-08-16 21:12 | rule |
+| defi_rate BUIDL@blackrock-buidl | 3.567 | pct_annualized | 2026-08-16 21:12 | yields.llama.fi/pools pool=b663ca59-c7e6-4435-ae4a-28d339ce6a15 |
+| defi_rate STEAKUSDC@morpho-blue | 4.158 | pct_annualized | 2026-08-16 21:12 | yields.llama.fi/pools pool=931ea9be-5f4d-428e-beaf-205fc5b4e2b5 |
+| defi_rate SUSDE@ethena-usde | 4.393 | pct_annualized | 2026-08-16 21:12 | yields.llama.fi/pools pool=66985a81-9c51-46ca-9977-42b4fe7bc6df |
+| defi_rate USDC@aave-v3 | 3.289 | pct_annualized | 2026-08-16 21:12 | yields.llama.fi/pools pool=aa70268e-4b52-42bf-a116-608b370f9501 |
+| defi_rate USDY@ondo-yield-assets | 3.55 | pct_annualized | 2026-08-16 21:12 | yields.llama.fi/pools pool=ac61ee82-2fe4-4f9b-a9cd-7fb33f598859 |
+| deposit_rate 一年@boc | 0.95 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三个月@boc | 0.65 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三年@boc | 1.25 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 二年@boc | 1.05 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 五年@boc | 1.3 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 半年@boc | 0.85 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 活期@boc | 0.05 | pct_annualized | 2026-08-16 21:12 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| funding BTC@binance | 2.829 | pct_annualized | 2026-08-16 21:12 | fapi/v1/premiumIndex rate=0.00002584 per8h |
+| funding BTC@okx | 10.49 | pct_annualized | 2026-08-16 21:12 | api/v5/public/funding-rate rate=0.0000958442734753 per8h |
+| funding ETH@binance | 2.902 | pct_annualized | 2026-08-16 21:12 | fapi/v1/premiumIndex rate=0.00002650 per8h |
+| funding ETH@okx | 10.95 | pct_annualized | 2026-08-16 21:12 | api/v5/public/funding-rate rate=0.0001000000000000 per8h |
+| funding TRX@binance | -1.53 | pct_annualized | 2026-08-16 21:12 | fapi/v1/premiumIndex rate=-0.00001397 per8h |
+| funding TRX@okx | 1.774 | pct_annualized | 2026-08-16 21:12 | api/v5/public/funding-rate rate=0.0000161972433817 per8h |
+| fx USDCNH@sina | 7.25 | price | 2026-08-16 19:52 | test:sina |
+| iv BTC@deribit | 35.32 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| iv ETH@deribit | 47.54 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| reverse_repo GC001@sina | 0.865 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sh204001 |
+| reverse_repo R-001@sina | 0.84 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sz131810 |
+| ticker BTC@binance | 6.303e+04 | price | 2026-08-16 21:12 | fapi/v1/ticker/price |
+| ticker BTC@okx | 6.304e+04 | price | 2026-08-16 21:12 | api/v5/market/tickers |
+| ticker ETH@binance | 1880 | price | 2026-08-16 21:12 | fapi/v1/ticker/price |
+| ticker ETH@okx | 1880 | price | 2026-08-16 21:12 | api/v5/market/tickers |
+| ticker TRX@binance | 0.3317 | price | 2026-08-16 21:12 | fapi/v1/ticker/price |
+| ticker TRX@okx | 0.3317 | price | 2026-08-16 21:12 | api/v5/market/tickers |
+
+### 快照 2026-08-16 21:11（已过期 · 被 2026-08-16 21:12 快照取代）
+
+| 事实 | 值 | 单位 | 采集时刻 | 来源 |
+|------|-----|------|---------|------|
+| calendar month_end@rule | 15 | days | 2026-08-16 21:11 | rule |
+| calendar quarter_end@rule | 45 | days | 2026-08-16 21:11 | rule |
+| calendar thursday@rule | 4 | days | 2026-08-16 21:11 | rule |
+| defi_rate BUIDL@blackrock-buidl | 3.567 | pct_annualized | 2026-08-16 21:11 | yields.llama.fi/pools pool=b663ca59-c7e6-4435-ae4a-28d339ce6a15 |
+| defi_rate STEAKUSDC@morpho-blue | 4.158 | pct_annualized | 2026-08-16 21:11 | yields.llama.fi/pools pool=931ea9be-5f4d-428e-beaf-205fc5b4e2b5 |
+| defi_rate SUSDE@ethena-usde | 4.393 | pct_annualized | 2026-08-16 21:11 | yields.llama.fi/pools pool=66985a81-9c51-46ca-9977-42b4fe7bc6df |
+| defi_rate USDC@aave-v3 | 3.289 | pct_annualized | 2026-08-16 21:11 | yields.llama.fi/pools pool=aa70268e-4b52-42bf-a116-608b370f9501 |
+| defi_rate USDY@ondo-yield-assets | 3.55 | pct_annualized | 2026-08-16 21:11 | yields.llama.fi/pools pool=ac61ee82-2fe4-4f9b-a9cd-7fb33f598859 |
+| deposit_rate 一年@boc | 0.95 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三个月@boc | 0.65 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 三年@boc | 1.25 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 二年@boc | 1.05 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 五年@boc | 1.3 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 半年@boc | 0.85 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| deposit_rate 活期@boc | 0.05 | pct_annualized | 2026-08-16 21:11 | boc/fimarkets/lilv/fd31 表2025-05-20 |
+| funding BTC@binance | 2.804 | pct_annualized | 2026-08-16 21:11 | fapi/v1/premiumIndex rate=0.00002561 per8h |
+| funding BTC@okx | 10.46 | pct_annualized | 2026-08-16 21:11 | api/v5/public/funding-rate rate=0.0000955433588919 per8h |
+| funding ETH@binance | 2.847 | pct_annualized | 2026-08-16 21:11 | fapi/v1/premiumIndex rate=0.00002600 per8h |
+| funding ETH@okx | 10.95 | pct_annualized | 2026-08-16 21:11 | api/v5/public/funding-rate rate=0.0001000000000000 per8h |
+| funding TRX@binance | -1.546 | pct_annualized | 2026-08-16 21:11 | fapi/v1/premiumIndex rate=-0.00001412 per8h |
+| funding TRX@okx | 1.781 | pct_annualized | 2026-08-16 21:11 | api/v5/public/funding-rate rate=0.0000162653166314 per8h |
+| fx USDCNH@sina | 7.25 | price | 2026-08-16 19:52 | test:sina |
+| iv BTC@deribit | 35.32 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| iv ETH@deribit | 47.52 | pct | 2026-08-16 08:00 | api/v2/public/get_volatility_index_data DVOL |
+| reverse_repo GC001@sina | 0.865 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sh204001 |
+| reverse_repo R-001@sina | 0.84 | pct_annualized | 2026-08-14 15:30 | hq.sinajs.cn/list=sz131810 |
+| ticker BTC@binance | 6.304e+04 | price | 2026-08-16 21:11 | fapi/v1/ticker/price |
+| ticker BTC@okx | 6.304e+04 | price | 2026-08-16 21:11 | api/v5/market/tickers |
+| ticker ETH@binance | 1880 | price | 2026-08-16 21:11 | fapi/v1/ticker/price |
+| ticker ETH@okx | 1881 | price | 2026-08-16 21:11 | api/v5/market/tickers |
+| ticker TRX@binance | 0.3317 | price | 2026-08-16 21:11 | fapi/v1/ticker/price |
+| ticker TRX@okx | 0.3317 | price | 2026-08-16 21:11 | api/v5/market/tickers |
+
+### 快照 2026-08-16 21:05（已过期 · 被 2026-08-16 21:11 快照取代）
 
 | 事实 | 值 | 单位 | 采集时刻 | 来源 |
 |------|-----|------|---------|------|
