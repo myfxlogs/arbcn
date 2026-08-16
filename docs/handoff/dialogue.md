@@ -329,3 +329,19 @@
 - **施工**：`SimExec.tsx` 仅 JSX 渲染序调整（PositionZone + OrderHistoryZone 移至 AccountZone 与 PerformanceZone 之间）；零后端/RPC/门禁/样式改动。
 - **部署实测**：npm run build → go build → systemctl restart → healthz ok + served bundle == dist（md5 逐字节一致）。
 - **决策号**：纯前端呈现层，无 D#（布局演进延续 D-048/D-050/D-052/D-053 既有线）。
+
+## #90 · 2026-08-17 · facts.md 快照无界增长根治——快照段封顶 + 规则触发节流（D-066，STATE 待决策落定）
+
+- **参与方**：业主（「先把方案给 arb，仍然回来处理 arbcn 中同样的这个问题」——同型问题 = arb audit.pb / arbcn facts.md 快照，均为无界增长）、Claude（诊断 + 定案 + 施工 + 部署）
+- **议题**：facts.md 快照无界增长（STATE 待决策，发现时 1564 行/40 份 → 施工前已 **3404 行/90 份**）。根因：exporter 每次导出（boot + 24h 定时 + **每次规则 armed→active**）追加整份新快照、旧快照标「已过期」不删除 → **T2 级时间序列历史写进 T1 事实库**；规则触发是主力（90 份/约 4 天 ≈ 20 次/天）。快照是 bulk 镜像（每次 ~30 行高度重复），与手工事实行性质不同；全库无代码读 facts.md（唯一读者 = 人 + git）。
+- **决策（D-066）**：①**快照段封顶 `maxSnapshots=5`**——段内只留最近 5 份（现行 + 4 份已过期），最旧整体移除；**历史由 git 保留**（P2「历史机械滚出活跃层（git 保留，token 不付）」，facts.md 每次 check-out 提交即归档），**不另写 LOG.md**（P3：同一事实两份）；②**规则触发导出节流 `ruleTriggerThrottle=10min`**——距上次成功导出 <10min 的规则触发合并跳过（boot + 24h 定时不受节流）；③**节头稳定化**——「## 监控快照」节头重置到段顶（历史演进中被新快照顶到段中部，结构漂移顺手修正）；④**D-028「已过期不删除」规则适用范围修订**——手工事实行（少量、带 D# 锚点）保留「不删除」，机器快照段（bulk 镜像）改封顶淘汰。
+- **施工**：`exporter.go`（maxSnapshots/ruleTriggerThrottle 常量 + Run 节流判断 + writeSection 封顶&节头归一 + stripSectionHeader/truncateSnapshots 纯函数 + sectionHeader 文案）+ `exporter_test.go`（既有 6 测试语义不变；新增对抗 ×2：**删 truncateSnapshots → 第 6 份快照残留必红** / **删节流判断 → 5min 内二次触发即出第二快照必红**，均已实测红）。§10 全绿（build/vet/全量 test 含 pgstore 真库）。
+- **部署实测**：go build → systemctl restart → healthz ok；**boot 导出自愈：facts.md 90 份/3404 行 → 5 份/268 行**，手工事实段 5 节 + 7 行事实逐字保留、节头位于段顶、endMarker 归一独立成行。
+- **决策号**：D-066。
+
+## #91 · 2026-08-17 · 跨项目复盘：arb 是否需加模拟域？（业主问，judgment 修正早先引进建议）
+
+- **参与方**：业主（「arb 项目已经进了真金阶段了，还有必要加一个模拟域吗？」）、Claude（判断）
+- **议题**：早先 arbcn→arb 引进建议把「模拟执行域 + 盈利验证先行（D-058）」列为第一优先；业主质疑——arb 已真金，加模拟域是否必要。
+- **决策（Claude 唯一决策者判断）**：**arb 不建完整模拟域**。理由：①模拟域在 arbcn 的核心价值 = 真金前「盈利验证先行」（D-058），arb **已跨过这道门**（执行机制已用真钱验证）——搬整个 paper 域解决的是已不存在的问题；②arb 有比模拟更好的东西：**真实成交校准数据**（D-096 order_leg_fill 落真金滑点/swap/commission，17-audit 归因闭环首次可执行）——校准评估器用现实而非模拟假设；③真正值得引的是**窄机制**：回放证伪门禁（arbcn D-065，新策略/配置启用前回放历史高费率窗口防真金误操作，读现有数据成本低）+ 判定门① 前向验证（只对新策略，走小步真金冒烟 D-058 阶段 A ~1万，非全量模拟域）；④成本收益：完整模拟域 = arbcn 一串 D#（D-055/056/065 等），对已有真实校准数据的真金系统不划算。
+- **决策号**：无 arb 侧 D#（判断修正早先引进建议优先级；如需落 arb 文档另行登记）。

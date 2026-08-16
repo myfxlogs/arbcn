@@ -224,6 +224,78 @@ func TestRunExportsOnTrigger(t *testing.T) {
 	}
 }
 
+// TestExportCapsSnapshotCount：[对抗测试锚点 D-066]——
+// 连续导出 maxSnapshots+1 次 → 段内快照数恒为 maxSnapshots（最旧整体移除）；
+// 删除 writeSection 里 truncateSnapshots 调用 → 第 maxSnapshots+1 份残留必红。
+func TestExportCapsSnapshotCount(t *testing.T) {
+	x, path := newTestExporter(t)
+	ctx := context.Background()
+	for i := 0; i < maxSnapshots+1; i++ {
+		at := expNow.Add(time.Duration(i) * time.Minute)
+		x.Now = func() time.Time { return at }
+		if err := x.Export(ctx); err != nil {
+			t.Fatalf("Export(%d): %v", i, err)
+		}
+	}
+	doc, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	s := string(doc)
+	if n := strings.Count(s, "### 快照 "); n != maxSnapshots {
+		t.Errorf("快照数 = %d, want %d（封顶）", n, maxSnapshots)
+	}
+	// 最新份在最前、最旧份（首次导出时刻）已被移除。
+	latest := expNow.Add(maxSnapshots * time.Minute).Format(timeLayout)
+	if !strings.Contains(s, "### 快照 "+latest+"（现行）") {
+		t.Errorf("最新快照 %s 缺失", latest)
+	}
+	if strings.Contains(s, "### 快照 "+expNow.Format(timeLayout)) {
+		t.Error("最旧快照未移除（应被封顶淘汰）")
+	}
+	// 节头重置到段顶：位于最新快照之前。
+	if hi, si := strings.Index(s, "## 监控快照"), strings.Index(s, "### 快照 "); hi < 0 || hi > si {
+		t.Error("节头未重置到段顶（应在最新快照之前）")
+	}
+}
+
+// TestRunThrottlesRuleTrigger：[对抗测试锚点 D-066]——
+// 规则触发导出距上次成功导出 < ruleTriggerThrottle 被合并跳过；≥ 阈值才出新快照。
+// 删除 Run 里节流判断 → 5min 内二次触发即出第二快照必红。
+func TestRunThrottlesRuleTrigger(t *testing.T) {
+	x, path := newTestExporter(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- x.Run(ctx) }()
+
+	waitFor(t, 2*time.Second, func() bool {
+		b, _ := os.ReadFile(path)
+		return strings.Contains(string(b), "### 快照 2026-08-15 18:14（现行）")
+	})
+	// 距 boot 导出 +5min（< 阈值）：触发被节流，无新快照。
+	early := expNow.Add(5 * time.Minute)
+	x.Now = func() time.Time { return early }
+	x.OnRuleActive(context.Background(), store.Rule{}, nil)
+	time.Sleep(300 * time.Millisecond)
+	b, _ := os.ReadFile(path)
+	if strings.Contains(string(b), "### 快照 "+early.Format(timeLayout)+"（现行）") {
+		t.Error("节流失效：<10min 的规则触发仍写出新快照")
+	}
+	// 距 boot 导出 +12min（≥ 阈值）：触发生效，出新快照。
+	late := expNow.Add(12 * time.Minute)
+	x.Now = func() time.Time { return late }
+	x.OnRuleActive(context.Background(), store.Rule{}, nil)
+	waitFor(t, 2*time.Second, func() bool {
+		b, _ := os.ReadFile(path)
+		return strings.Contains(string(b), "### 快照 "+late.Format(timeLayout)+"（现行）")
+	})
+
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+}
+
 // waitFor 轮询等待条件成立（collect/rule 包同款）。
 func waitFor(t *testing.T, d time.Duration, cond func() bool) {
 	t.Helper()

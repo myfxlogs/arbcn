@@ -1,6 +1,8 @@
-// Package exporter：facts.md 自动导出（M2-b §5 / D-028 闭环）。
+// Package exporter：facts.md 自动导出（M2-b §5 / D-028 闭环，D-066 修订封顶+节流）。
 // 把监控最新值渲染进 docs/handoff/facts.md 的「监控快照」段：
-// 定时（日）+ 关键规则触发事件两种触发；旧快照标「已过期」不删除（D-028 规则）。
+// 定时（日）+ 关键规则触发事件两种触发；旧快照标「已过期」，段内只留最近 maxSnapshots
+// 份（D-066 封顶，历史由 git 保留；D-028「不删除」规则对机器快照段修订为封顶淘汰，
+// 手工事实行不变）。规则触发导出距上次成功导出 < ruleTriggerThrottle 合并跳过（节流）。
 // 机器可读投影 = DashboardService.ListFacts（web 前端事实快照视图，§5 挂起项闭合）。
 //
 // 段所有权：本组件独占 facts.md 中由 begin/endMarker 包裹的自包含区块（P3
@@ -16,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +35,17 @@ const (
 
 // 默认导出间隔（日）。
 const defaultInterval = 24 * time.Hour
+
+// maxSnapshots 快照段封顶（D-066）：段内只保留最近 N 份（现行 + 最近 N-1 份已过期），
+// 超出从尾部整体移除最旧份。历史由 git 保留（P2「历史机械滚出活跃层（git 保留，token
+// 不付）」）；D-028「不删除」规则对机器快照段由 D-066 修订为封顶淘汰（手工事实行不变）。
+const maxSnapshots = 5
+
+// ruleTriggerThrottle 规则触发导出节流（D-066）：距上次成功导出 < 该间隔的规则
+// armed→active 触发导出合并跳过。快照是「最近状态」参考面，10min 新鲜度足够
+// （DB + RPC ListFacts 有精确时刻值）；节流同时让 maxSnapshots 份窗口跨更长时间，
+// 防同一突发写出一串近同快照。boot + 24h 定时不受节流。
+const ruleTriggerThrottle = 10 * time.Minute
 
 // 快照时间戳格式（facts.md「核实」列同风格）。
 const timeLayout = "2006-01-02 15:04"
@@ -59,6 +73,8 @@ type Exporter struct {
 
 	trigger chan struct{} // 规则触发信号（容量 1，突发合并）
 	mu      sync.Mutex    // 串行化 Export（定时 goroutine 与规则回调并发）
+
+	lastExportAt time.Time // D-066 节流基线：最近一次成功导出时刻（仅 Run 单 goroutine 访问）
 }
 
 // New 构造 exporter。st 需满足 factsSource（store.Store 天然满足）。
@@ -93,6 +109,8 @@ func (x *Exporter) Run(ctx context.Context) error {
 	defer t.Stop()
 	if err := x.Export(ctx); err != nil {
 		x.log().Warn("exporter: boot export failed", "err", err)
+	} else {
+		x.lastExportAt = x.now()
 	}
 	for {
 		select {
@@ -101,10 +119,20 @@ func (x *Exporter) Run(ctx context.Context) error {
 		case <-t.C:
 			if err := x.Export(ctx); err != nil {
 				x.log().Warn("exporter: scheduled export failed", "err", err)
+			} else {
+				x.lastExportAt = x.now()
 			}
 		case <-x.trigger:
+			// D-066 节流：距上次成功导出 < 阈值 → 合并跳过（突发收敛）。失败不刷新
+			// 基线 → 下次触发可重试（不因失败吞掉后续刷新机会）。
+			if x.now().Sub(x.lastExportAt) < ruleTriggerThrottle {
+				x.log().Debug("exporter: rule-trigger export throttled", "since", time.Since(x.lastExportAt))
+				continue
+			}
 			if err := x.Export(ctx); err != nil {
 				x.log().Warn("exporter: rule-trigger export failed", "err", err)
+			} else {
+				x.lastExportAt = x.now()
 			}
 		}
 	}
@@ -138,7 +166,14 @@ func (x *Exporter) writeSection(snap string, now time.Time) error {
 		// [对抗测试锚点] 旧「现行」快照 → 已过期（保留旧值不删除）：
 		// 删除本行 → TestExportMarksOldExpiredNotDeleted 必红（§11②）。
 		oldSection = strings.Replace(oldSection, "（现行）", expiredMark(now), 1)
-		doc = before + beginMarker + "\n" + snap + oldSection + endMarker + after
+		// D-066 快照段封顶 + 节头稳定化：节头统一重置到段顶（历史演进中被逐次插入的
+		// 新快照顶到段中部），旧快照保留最近 maxSnapshots-1 份（snap 自身算第 1 份），
+		// 最旧机械移除（历史由 git 保留，P2）。[对抗测试锚点] 删除本行 →
+		// TestExportCapsSnapshotCount 必红。
+		block := snap + stripSectionHeader(oldSection)
+		block = truncateSnapshots(block, maxSnapshots)
+		block = strings.TrimRight(block, "\n") + "\n" // 段尾归一：endMarker 前恒留一行，防贴行
+		doc = before + beginMarker + "\n" + sectionHeader() + block + endMarker + after
 	} else {
 		// 段标记残缺（end 丢失）：按首次处理，追加新段。
 		doc = appendSection(doc, snap)
@@ -161,10 +196,52 @@ func cutEnd(rest string) (oldSection, after string, ok bool) {
 	return old, tail, has
 }
 
+// stripSectionHeader 摘除段内漂移的「## 监控快照」节头（历史演进中被逐次插入的新快照
+// 顶到段中部；写新段时统一重置到段顶——D-066 结构稳定化，块布局恒定可机械检查 P4）。
+// 从头位置删到下一个快照标题（或段尾），节头 + 说明行整体移除；找不到则原样返回。
+func stripSectionHeader(s string) string {
+	const h = "## 监控快照"
+	i := strings.Index(s, h)
+	if i < 0 {
+		return s
+	}
+	j := strings.Index(s[i:], "\n### 快照 ")
+	if j < 0 {
+		return s[:i]
+	}
+	return s[:i] + s[i+j+1:]
+}
+
+// truncateSnapshots 快照段封顶（D-066）：snapshots 按「### 快照 」标题切块（新在前），
+// 只保留最前 keep 份，从第 keep+1 份标题行首整体移除（含份间空行）。历史由 git 保留
+// （P2）；删除本函数的调用 → TestExportCapsSnapshotCount 必红。
+func truncateSnapshots(snapshots string, keep int) string {
+	const title = "### 快照 "
+	const sep = "\n" + title
+	var starts []int
+	if strings.HasPrefix(snapshots, title) {
+		starts = append(starts, 0)
+	}
+	for pos := 0; ; {
+		j := strings.Index(snapshots[pos:], sep)
+		if j < 0 {
+			break
+		}
+		pos += j
+		starts = append(starts, pos) // 该块前导换行位置（= 上一块结尾）
+		pos += len(sep)
+	}
+	if len(starts) <= keep {
+		return snapshots
+	}
+	return strings.TrimRight(snapshots[:starts[keep]], "\n")
+}
+
 // sectionHeader 快照段固定头部（段序号不写死，避免与手工节编号冲突）。
 func sectionHeader() string {
-	return "## 监控快照（arbcn 自动导出 · M2-b §5 / D-028 闭环）\n\n" +
-		"> 机器生成：监控最新值渲染进事实库；新快照到来 → 旧快照标「已过期」不删除。\n" +
+	return "## 监控快照（arbcn 自动导出 · M2-b §5 / D-028 闭环 · D-066 封顶）\n\n" +
+		"> 机器生成：监控最新值渲染进事实库；新快照到来 → 旧快照标「已过期」，段内只留最近 " +
+		strconv.Itoa(maxSnapshots) + " 份（历史由 git 保留）。\n" +
 		"> 机器可读投影：DashboardService.ListFacts（web 前端事实快照视图）。\n\n"
 }
 
