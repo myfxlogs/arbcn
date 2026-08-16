@@ -1001,14 +1001,12 @@ button.btn-close:disabled {
   white-space: normal;
   word-break: break-word;
 }
-/* 文字列（时间/状态/类型/标的/方向）左对齐，消除列内左侧空白 */
-.card[aria-labelledby="sim-orders-title"] table.rows th:nth-child(-n+5),
-.card[aria-labelledby="sim-orders-title"] table.rows td:nth-child(-n+5) {
-  text-align: left;
+/* 表头标题居中 + 单元格值左对齐（业主明确，对话 #84 后续④）：覆盖 table.rows
+   默认 th/td 右对齐——表头居中于值单元格上方，值统一左对齐（含数字列）。 */
+.card[aria-labelledby="sim-orders-title"] table.rows th {
+  text-align: center;
 }
-/* 备注列：左对齐 + 吸收剩余宽度 + 可换行完整显示 */
-.card[aria-labelledby="sim-orders-title"] table.rows th:nth-child(8),
-.card[aria-labelledby="sim-orders-title"] table.rows td:nth-child(8) {
+.card[aria-labelledby="sim-orders-title"] table.rows td {
   text-align: left;
 }
 .card[aria-labelledby="sim-orders-title"] .note-cell {
