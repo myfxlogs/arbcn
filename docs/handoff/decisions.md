@@ -350,3 +350,13 @@
 - **例外触发（何时才值得动）**：① 跨所费率分歧（`funding:cross_venue_divergence`，TRX binance vs okx 已核实真实分歧）在**流动性标的上**反复命中且业主确证两腿可套 → 才有加第三所（Bybit）的可度量动机（2 所 = 每币 1 分歧对 / 3 所 = 3 分歧对）；② 若拓宽 funding 窗口监测，**优先加流动性中市值标的（SOL/XRP 等）而非加所**——同样须先核实两所均有现货+永续（可对冲）且实证过 ≥15% 可持续窗口，受宁缺毋滥约束。
 - **理由**：这是「不加」的边界决策——未来 agent 提「引入 Bybit」须先过本决策触发条件，避免盲目扩数据面。纯数据源范围裁决，零代码改动。
 - **结论**：方向记录在案（facts.md 落档「funding 数据源边界」现行）；不建新 collector；改动须走 D#。
+
+## D-050 总览页布局第 2 版：业主指定 3×2 网格（信息架构 + 操作热区）（2026-08-16）
+- **背景**：业主对 D-048 布局仍不满意（对话 #68），给出精确 3×2 网格 + 两项原则：①「打开首页第 1 版就能完成基本的信息和操作」（首页自足）；② 追问「告警流的第一性原则是什么」。D-048 的核心子决策（U2 裁决先于数据、确认下单置顶整宽）被业主反转。
+- **决策**：
+  ① **3×2 网格（CSS grid auto-flow）**：左上1 = 市场数据矩阵（funding/defi/IV/逆回购**全展开**，眼睛扫描起点）｜右上1 = 市场结构经验库（defaultOpen）｜左2 = 机会面板（实算卡裁决，缩短）｜右2 = **确认下单（鼠标顺手高度 = 操作热区，业主指定）**｜左3 = 进化建议｜右3 = 触发器。窄屏回退单栏。
+  ② **机会面板拆分**（「缩短分页」落地）：数据矩阵独立成新组件 `MarketMatrix.tsx`（左上1 整卡），`Opportunity.tsx` 只剩实算卡（变短）。
+  ③ **告警流移入铃铛**（第1性原则推导）：告警的本质 = 系统对运营者的「有情况报告」，运营者第一眼问题 = 「**有没有需要我现在处置的？**」——是**状态问题**（有 N 条）不是内容问题（发生了什么）。故第一眼形态 = **未读数徽标**（header 铃铛），内容（时间线）+ 处置（ack）为**拉取式第二需求**（铃铛抽屉一键可达）。删除网格内 Alerts.tsx 时间线卡（未读数/时间线/ack 全由铃铛承接，信息不丢），同步删 `.timeline` 死 CSS 与 OverviewPage 的 ackBusy/ack props。
+  ④ **D-048 U2 反转留痕**：业主新优先级 = **数据监控置顶（眼睛扫描起点）+ 操作区放鼠标顺手高度（中右）**，取代 D-048「裁决先于数据、确认置顶」——布局迭代中业主可反转上一版子决策，走 D# 记录（决策在环，§0）。
+- **理由**：布局输入 = 业主的人体工学与信息架构直觉（左上 = 扫描起点、中右 = 鼠标热区），第一眼原则同源但维度不同（信息架构 vs 操作 ergonomics）；纯前端，零后端/RPC/门禁改动；删除 Alerts.tsx 满足 C 洁净（唯一引用 OverviewPage 已移除）。
+- **结论**：`MarketMatrix.tsx`（新）+ `Opportunity.tsx`（实算卡瘦身）+ `OverviewPage.tsx`（3×2 网格 + 删 Alerts/ackBusy/ack）+ `App.tsx`（OverviewPage props 同步）+ 删 `Alerts.tsx` + style.css（`.row`→`.grid` 3fr/2fr + 删 `.timeline*` 死规则）。grep 锚点恒绿（Opportunity 仍 import kindText 无字面量、ConfirmPanel 仍引 SimulatedBadge）；全量 go test/vet/npm build 绿；部署重启 + 实测 healthz ok + 新 inode 匹配 + served bundle == 新 dist（index-Bkl8ybxZ.js）。**纯前端布局，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——确认下单仍 SIMULATED + 人工确认。**

@@ -103,13 +103,7 @@ export default function App() {
 
       {tab === "overview" ? (
         snap ? (
-          <OverviewPage
-            snap={snap}
-            error={error}
-            ackBusy={ackBusy}
-            ack={ack}
-            refreshKey={refreshKey}
-          />
+          <OverviewPage snap={snap} error={error} refreshKey={refreshKey} />
         ) : (
           <p className="empty">连接服务中…</p>
         )

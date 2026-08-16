@@ -86,18 +86,19 @@ main {
   padding: 16px;
   margin-bottom: 16px;
 }
-/* —— 双栏：机会面板（宽）+ 告警流（窄）同一行，窄屏回退单栏 —— */
-.row {
+/* —— 3×2 网格（D-050 业主指定布局）：左上数据矩阵 / 右上经验库 / 左中机会裁决 /
+   右中确认下单 / 左下进化建议 / 右下触发器；auto-flow 天然按行落位，窄屏回退单栏 —— */
+.grid {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: 16px;
   align-items: start;
 }
-.row > .card {
-  margin-bottom: 16px; /* 行内卡片下边距由后续内容承担，双栏底部对齐 */
+.grid > .card {
+  margin-bottom: 0; /* 行距由 gap 承担，卡片不额外留白 */
 }
 @media (max-width: 860px) {
-  .row {
+  .grid {
     grid-template-columns: 1fr;
   }
 }
@@ -351,45 +352,7 @@ td.neg {
   font-size: 12px;
   color: var(--ink-3);
 }
-/* —— 告警时间线 —— */
-/* 高度封顶：后端一次最多返回 500 条，不设上限会把下方触发器顶出视口（页面被撑高）。
-   卡片内滚动，整页保持紧凑；铃铛通知中心（70vh 浮动层）已覆盖全量浏览。 */
-.timeline {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: min(60vh, 480px);
-  overflow-y: auto;
-}
-.timeline li {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-}
-.timeline li:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-.timeline-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.timeline-rule {
-  font-weight: 600;
-}
-.timeline-ts {
-  color: var(--ink-3);
-  font-size: 12px;
-}
-.timeline-msg {
-  margin: 4px 0 0;
-  color: var(--ink-2);
-}
-.timeline-head .ack {
-  margin-left: auto;
-}
-/* —— 进化建议卡（D-044 L0）：只读证据候选，行内复刻 timeline 骨架 —— */
+/* —— 进化建议卡（D-044 L0）：只读证据候选 —— */
 .insights-sub {
   margin: -4px 0 8px;
   color: var(--ink-3);
