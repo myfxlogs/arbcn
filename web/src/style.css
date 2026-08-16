@@ -96,15 +96,6 @@ main {
 .row > .card {
   margin-bottom: 16px; /* 行内卡片下边距由后续内容承担，双栏底部对齐 */
 }
-.row > .card:first-child {
-  grid-row: span 2; /* 机会面板左列跨两行，右列 Alerts+Confirm 与之同行（对话 #60） */
-}
-.row-col {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  min-width: 0;
-}
 @media (max-width: 860px) {
   .row {
     grid-template-columns: 1fr;
@@ -123,6 +114,46 @@ main {
 .card h3:first-of-type {
   margin-top: 4px;
 }
+/* —— 折叠块（D-048 Collapse 组件：受控 <details>；低频数据面折叠，首屏只留标题行） —— */
+.collapse {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+}
+.collapse-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  cursor: pointer;
+  list-style: none; /* 去原生 marker，用自绘 chevron */
+  user-select: none;
+}
+.collapse-summary::-webkit-details-marker {
+  display: none;
+}
+.collapse-chevron {
+  flex: none;
+  color: var(--ink-3);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+.collapse[open] .collapse-chevron {
+  transform: rotate(90deg);
+}
+.collapse-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.collapse-hint {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+.collapse > :not(.collapse-summary) {
+  padding-bottom: 4px;
+}
+
 .empty {
   color: var(--ink-3);
 }

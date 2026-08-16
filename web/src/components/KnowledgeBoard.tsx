@@ -1,6 +1,7 @@
 import { fmtTs } from "../format";
 import type { KnowledgeEntry } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { Chip, type ChipTone } from "./Chip";
+import { Collapse } from "./Collapse";
 
 // statusLabel 条目状态 → 中文（active=生效中 / superseded=已更新 / retracted=已撤销）。
 function statusLabel(s: string): string {
@@ -46,15 +47,18 @@ function sigLabel(sig: string): string {
 
 // KnowledgeBoard 市场结构经验库（D-046）：只读呈现已核实的模式条目（吸收=人工 D# 落盘，
 // git 跟踪；系统只匹配与呈现，不自动吸收）。复核状态：validated_at 有值 = 已复核，
-// 缺省 = 待复核。
+// 缺省 = 待复核。D-048 U3 第一眼原则：低频参考面默认折叠，仅系统检测到同签名命中
+// （knowledge_match → 进化建议提示）时由上层以 defaultOpen 展开呈现裁决对照。
 export function KnowledgeBoard({
   entries,
   error,
   onReload,
+  defaultOpen = false,
 }: {
   entries: KnowledgeEntry[];
   error: string;
   onReload: () => void;
+  defaultOpen?: boolean;
 }) {
   return (
     <section className="card" aria-labelledby="knowledge-title">
@@ -71,27 +75,29 @@ export function KnowledgeBoard({
       {entries.length === 0 ? (
         <p className="empty">暂无经验条目（等待吸收）</p>
       ) : (
-        <ul className="insights">
-          {entries.map((e) => (
-            <li key={e.signature} className="insight-row">
-              <div className="insight-head">
-                <Chip tone={statusTone(e.status)}>{statusLabel(e.status)}</Chip>
-                <span className="insight-cat">{sigLabel(e.signature)}</span>
-                <span className="insight-title">{e.verdict}</span>
-                <span className="insight-ts">
-                  {e.validatedAt ? `复核 ${fmtTs(e.validatedAt)}` : "待复核"}
-                </span>
-              </div>
-              {e.rationale ? <p className="insight-detail">{e.rationale}</p> : null}
-              <ul className="insight-actions">
-                <li>
-                  出处 {e.source || "—"} · 实例 {e.venue ? `${e.venue} · ${e.symbol}` : "—"}
-                </li>
-                {e.validationNote ? <li>复核结论：{e.validationNote}</li> : null}
-              </ul>
-            </li>
-          ))}
-        </ul>
+        <Collapse title={`已核实模式（${entries.length} 条）`} defaultOpen={defaultOpen}>
+          <ul className="insights">
+            {entries.map((e) => (
+              <li key={e.signature} className="insight-row">
+                <div className="insight-head">
+                  <Chip tone={statusTone(e.status)}>{statusLabel(e.status)}</Chip>
+                  <span className="insight-cat">{sigLabel(e.signature)}</span>
+                  <span className="insight-title">{e.verdict}</span>
+                  <span className="insight-ts">
+                    {e.validatedAt ? `复核 ${fmtTs(e.validatedAt)}` : "待复核"}
+                  </span>
+                </div>
+                {e.rationale ? <p className="insight-detail">{e.rationale}</p> : null}
+                <ul className="insight-actions">
+                  <li>
+                    出处 {e.source || "—"} · 实例 {e.venue ? `${e.venue} · ${e.symbol}` : "—"}
+                  </li>
+                  {e.validationNote ? <li>复核结论：{e.validationNote}</li> : null}
+                </ul>
+              </li>
+            ))}
+          </ul>
+        </Collapse>
       )}
     </section>
   );

@@ -1,6 +1,7 @@
 import { days, fmtTs, pct } from "../format";
 import type { Fact, OpportunityCard, SourceHealth } from "../gen/arbcn/dashboard/v1/dashboard_pb";
 import { Chip, type ChipTone } from "./Chip";
+import { Collapse } from "./Collapse";
 import { dotFor, healthMap } from "./freshness";
 import { MatrixTable, type MatrixCell } from "./Matrix";
 import { kindText } from "./sim";
@@ -115,7 +116,8 @@ function oppValue(v: number, suffix: (n: number) => string): string {
   return Number.isNaN(v) ? "—" : suffix(v);
 }
 
-// Opportunity 机会面板：funding 矩阵 + 稳定币利率表 + IV + 逆回购/时点倒计时 + 实算卡。
+// Opportunity 机会面板（D-048 U2 第一眼原则）：实算卡裁决置前（「钱在招手还是坑」先于
+// 数据下钻）；funding 矩阵默认展开（主数据恒可扫），defi/IV/逆回购折叠为低频下钻面。
 export function Opportunity({
   facts,
   sourceHealth,
@@ -136,60 +138,9 @@ export function Opportunity({
     <section className="card" aria-labelledby="opp-title">
       <h2 id="opp-title">机会面板</h2>
 
-      <h3>资金费率矩阵（币 × 所 · 年化 %）</h3>
-      <MatrixTable rows={funding.rows} cols={funding.cols} cell={funding.get} empty="暂无资金费率数据" />
-
-      <h3>稳定币金额档利率（项目 × 币种 · 年化 %）</h3>
-      <MatrixTable rows={defi.rows} cols={defi.cols} cell={defi.get} colLabel={venueLabel} empty="暂无 DeFi 利率数据" />
-
-      <h3>IV 隐含波动率</h3>
-      <div className="stats">
-        {iv.length === 0 ? (
-          <p className="empty">暂无 IV 数据</p>
-        ) : (
-          iv.map((f) => (
-            <StatTile
-              key={`${f.venue}:${f.symbol}`}
-              label={`${f.symbol} · ${f.venue}`}
-              value={pct(f.value, 1)}
-              sub={`更新 ${fmtTs(f.ts)}`}
-              title={f.src}
-              dot={dotFor(KIND_IV, f.venue, health) ?? undefined}
-            />
-          ))
-        )}
-      </div>
-
-      <h3>逆回购 + 下个时点倒计时</h3>
-      <div className="stats">
-        {repo.length === 0 ? (
-          <p className="empty">暂无逆回购数据</p>
-        ) : (
-          repo.map((f) => (
-            <StatTile
-              key={f.symbol}
-              label={`逆回购 ${f.symbol}`}
-              value={pct(f.value)}
-              sub={`更新 ${fmtTs(f.ts)}`}
-              title={f.src}
-              dot={dotFor(KIND_REPO, f.venue, health) ?? undefined}
-            />
-          ))
-        )}
-        {cal.map((f) => (
-          <StatTile
-            key={`${f.venue}:${f.symbol}`}
-            label={`时点 ${calLabel(f.symbol)}`}
-            value={days(f.value)}
-            sub={`来源 ${f.venue}`}
-            title={f.src}
-            dot={dotFor(KIND_CALENDAR, f.venue, health) ?? undefined}
-          />
-        ))}
-      </div>
-
       {/* D-046 机会实算卡：确定性算账（投运后无需 Claude 在场）。只读证据表面——
-          卡只说「这笔账划不划算」，执行门禁仍由规则引擎把关。 */}
+          卡只说「这笔账划不划算」，执行门禁仍由规则引擎把关。D-048 U2：裁决置前，
+          第一眼先见「钱在招手还是坑」，数据矩阵折叠在其下。 */}
       <h3>机会实算卡（确定性算账 · 扣摩擦净收益）</h3>
       {cards.length === 0 ? (
         <p className="empty">暂无实算卡（数据不足不产卡）</p>
@@ -216,6 +167,63 @@ export function Opportunity({
           ))}
         </ul>
       )}
+
+      {/* 数据下钻（D-048 U2）：funding 主矩阵默认展开，其余折叠——首屏给裁决，下钻留给需要时。 */}
+      <Collapse title="资金费率矩阵（币 × 所 · 年化 %）" defaultOpen>
+        <MatrixTable rows={funding.rows} cols={funding.cols} cell={funding.get} empty="暂无资金费率数据" />
+      </Collapse>
+
+      <Collapse title="稳定币金额档利率（项目 × 币种 · 年化 %）">
+        <MatrixTable rows={defi.rows} cols={defi.cols} cell={defi.get} colLabel={venueLabel} empty="暂无 DeFi 利率数据" />
+      </Collapse>
+
+      <Collapse title="IV 隐含波动率">
+        <div className="stats">
+          {iv.length === 0 ? (
+            <p className="empty">暂无 IV 数据</p>
+          ) : (
+            iv.map((f) => (
+              <StatTile
+                key={`${f.venue}:${f.symbol}`}
+                label={`${f.symbol} · ${f.venue}`}
+                value={pct(f.value, 1)}
+                sub={`更新 ${fmtTs(f.ts)}`}
+                title={f.src}
+                dot={dotFor(KIND_IV, f.venue, health) ?? undefined}
+              />
+            ))
+          )}
+        </div>
+      </Collapse>
+
+      <Collapse title="逆回购 + 下个时点倒计时">
+        <div className="stats">
+          {repo.length === 0 ? (
+            <p className="empty">暂无逆回购数据</p>
+          ) : (
+            repo.map((f) => (
+              <StatTile
+                key={f.symbol}
+                label={`逆回购 ${f.symbol}`}
+                value={pct(f.value)}
+                sub={`更新 ${fmtTs(f.ts)}`}
+                title={f.src}
+                dot={dotFor(KIND_REPO, f.venue, health) ?? undefined}
+              />
+            ))
+          )}
+          {cal.map((f) => (
+            <StatTile
+              key={`${f.venue}:${f.symbol}`}
+              label={`时点 ${calLabel(f.symbol)}`}
+              value={days(f.value)}
+              sub={`来源 ${f.venue}`}
+              title={f.src}
+              dot={dotFor(KIND_CALENDAR, f.venue, health) ?? undefined}
+            />
+          ))}
+        </div>
+      </Collapse>
     </section>
   );
 }

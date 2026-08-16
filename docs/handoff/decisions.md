@@ -331,3 +331,15 @@
   ⑦ **设计回归留痕**（§1 首行锚，改动走 D#）：对话 #59 曾把 useSim 提升 App 层共享（「确认后两处同刷新」）。本次下沉后，ConfirmPanel 确认 → 切 sim tab → SimPage 挂载即重拉最新，**天然覆盖原共享动机**，App 层共享不再必要——回归为「数据随视图」，不引入状态提升的隐式常驻。
 - **理由**：视图不可见 = 数据不需要 = 空转，数据获取层应与视图生命周期对齐（P4 可检查：hook 卸载即清 interval 可 grep）；映射收敛直接对应 P3 单一真相源；presence flag 复用既有 ListFactsResponse 模式（A 原则复用，不发明新机制）；0-as-missing 反模式二犯（practices #7/#23 同族），缺失信号必须显式 flag。
 - **结论**：三页面组件 + hooks 下沉/轮询/refreshKey + proto 两字段（FactRmb.covered / ListSimPositionsResponse.fx_available）+ buf generate + 映射收敛 + 小项清理 + FreshDot。对抗测试 TestSimKindLabelCoverage（红→绿已实证：写测试时 Opportunity 仍持 funding_hedge 字面量必红，删后转绿）。全量 go test（含真库 DSN）/vet/npm build 绿；部署重启（SIGKILL 既有模式）+ 实测 ListFacts covered 18/32、ListSimPositions fx_available=true、served bundle 匹配新 dist（index-c9bH9JKr.js）。
+
+## D-048 总览页布局重构：按「第一眼原则」定层级（UI 的第一性原则）（2026-08-16）
+- **背景**：业主指示（对话 #66）「UI 的第一性原则 = **用户第一眼最需要看到什么，从而来决写 UI 页面布局**」。D-047 已把数据层收敛，但**页面布局顺序仍违背第一眼原则**——原总览页顶到底 = 机会面板数据矩阵 → 告警流 → 确认下单（右列底部）→ 触发器 → 进化建议 → 经验库；业主作为唯一运营者打开面板的第一眼问题（重要性降序）是 ①该我行动（有没有待确认订单）②机会裁决（钱在招手还是坑）③系统健康（header 已就位）④信号流（告警/触发器/建议）⑤数据下钻（矩阵）。审计定位三处违背（U1 确认下单被顶出首屏 / U2 实算卡压在最底部 4 个矩阵之下 / U3 低频经验库占整卡），业主经 AskUserQuestion 拍板 **U1+U2+U3+U4 全量重构**。
+- **决策**：
+  ① **U1 确认下单置顶**：ConfirmPanel 从 `.row-col` 右列移出，成 `.row` 上方整宽卡片——「该我行动」永远第一眼可见。空态保底（单行 muted「暂无待确认订单」不消失）：保住手动刷新 / sim error 横幅 / 确认结果反馈的出口（诚实原则，错误不静默隐藏）。
+  ② **U2 机会裁决置前**：Opportunity 面板内「机会实算卡」区块移到 `<h2>` 之后第一位（裁决先于数据）；4 个数据块（funding/defi/IV/逆回购+时点）包进 Collapse，**funding 矩阵默认展开（主数据恒可扫）、defi/IV/repo 折叠**（下钻面）。实算卡无卡时保留「数据不足不产卡」空态，矩阵仍可展开下钻，不丢数据面。
+  ③ **U3 经验库降级**：KnowledgeBoard 条目列表包 Collapse，`defaultOpen` 由 OverviewPage 从 `snap.insights` 算 `hasKnowledgeMatch = some(category==="knowledge")` 传入——系统检测到同签名命中（进化建议出现「经验」类目）才默认展开，把判定记录提前呈现供裁决对照（D-046 决策的 UI 落点）。
+  ④ **U4 触发器仅 active**：Triggers 顶部只列 `state==="active"` 规则（信号面），无 active 单行「当前无触发中的规则」；全量规则表（armed/resolved 含）包 Collapse `defaultOpen={false}`（标题「全部规则（N 条）」）。
+  ⑤ **折叠机制 = 原生 `<details>` + 受控 open**：新组件 `Collapse.tsx`（title/hint/defaultOpen/children，useState + onToggle 同步），Opportunity/Triggers/KnowledgeBoard 三处复用——代码库现无折叠模式，用原生 HTML（零 JS 依赖、无障碍、可 grep）比自建 state 更简。
+  ⑥ **节序定稿**：error 横幅 → ConfirmPanel（置顶整宽）→ `.row`(Opportunity + Alerts 双栏) → Insights → Triggers → KnowledgeBoard。`.row` 简化为纯 2fr/1fr 双栏，**删除 `.row-col` 与 `grid-row: span 2`**（对话 #60 为「ConfirmPanel 进右列」建的，现不再需要，删死样式）。
+- **理由**：布局顺序直接对应「第一眼问题层级」（行动→裁决→信号→数据），纯前端零后端/RPC/门禁改动；折叠复用单一组件 + 原生语义（A 原则）；低频内容（经验库/全量规则）不占首屏是「数据下钻留给需要时」，不丢数据面（均可展开）。
+- **结论**：`Collapse.tsx` + Opportunity.tsx（实算卡置前 + 4 块折叠）+ Triggers.tsx（active 顶部 + 全量折叠）+ KnowledgeBoard.tsx（defaultOpen prop + 折叠）+ OverviewPage.tsx（ConfirmPanel 置顶 + `.row` 简化为双栏 + Insights 提序 + hasKnowledgeMatch 传入）+ style.css（.collapse 系列 + 删 .row-col/span 2）。grep 锚点恒绿（Opportunity 仍 import kindText 无字面量、ConfirmPanel 仍引 SimulatedBadge，测试未动）；全量 go test/vet/npm build 绿；部署重启（SIGKILL 既有模式）+ 实测 healthz ok + 新二进制 inode 匹配 + served bundle == 新 dist（index-DTovgGTO.js）。**纯前端布局，零执行门禁/规则/阈值/D-016/MinSpread/CarryMinSpread/白名单改动；不接 LLM（D-043）；不赌（D-019）——确认下单仍 SIMULATED + 人工确认。**

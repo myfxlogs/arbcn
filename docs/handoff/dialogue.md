@@ -106,3 +106,13 @@
 - **验证**：对抗测试 TestSimKindLabelCoverage 红→绿已实证（写测试时 Opportunity 仍持 funding_hedge 字面量必红，删后转绿）；全量 go test（含真库 DSN）/vet/npm build 绿；go vet 通过（无 TS6133 未用变量：OverviewPage ackAll prop 移除后 build 干净）。
 - **部署**：构建 → 部署 → 推送闭环（practices #19）。构建后 sudo 交互受阻 → 用 D-035 既有「SIGKILL 重启」模式（systemd Restart=on-failure 5s 拉起，状态全在 PG 持久化）；生产实测 healthz ok + 新二进制 inode 匹配（stat -L）+ served bundle == 新 dist（index-c9bH9JKr.js）+ ListFacts covered 18/32 + ListSimPositions fx_available=true + 4 持仓。
 - **决策号**：D-047（决策 + 回归留痕）; 教训入 practices #24（数据 hook 随视图生命周期 + 0 占位二犯）。
+
+## #66 · 2026-08-16 · 总览页布局按「第一眼原则」重构（D-048）· 业主指示方向 → 决策层审计 + 施工
+- **参与方**：业主（方向指示 + 拍板全量重构）、Claude（决策层 + 审计 + 施工）
+- **议题 1（UI 的第一性原则）**：业主「UI 部份，我是觉得用户第 1 眼最需要看到什么，从而来决写 UI 页面布局。」——UI 第一性原则 = **第一眼问题层级决定布局顺序**。
+- **审计结论**：推导业主（唯一运营者）打开面板的第一眼问题（重要性降序）= ① 该我行动（有没有待确认订单）② 机会裁决（钱在招手还是坑）③ 系统健康（header 徽标，已就位）④ 信号流（告警/触发器/进化建议）⑤ 数据下钻（矩阵）。定位三处违背：**U1** ConfirmPanel 在 `.row-col` 右列底部、告警流之下，待确认单易被顶出首屏；**U2** 机会实算卡压在本应属于它的机会面板最底部、4 个数据矩阵之下——裁决在数据之后；**U3** 低频经验库（D-046，参考面）占整卡高度。
+- **决策**：业主 AskUserQuestion 拍板 **「U1+U2+U3+U4（全量重构）」** → D-048：U1 确认下单置顶整宽（该我行动永远第一眼可见，空态保底不消失）；U2 实算卡移面板顶部（裁决先于数据），4 数据块包 Collapse（funding 默认展开 / defi/IV/repo 折叠下钻）；U3 经验库折叠（`hasKnowledgeMatch` 命中才默认展开，knowledge_match → 进化建议「经验」类目 → 展开判定记录供裁决对照）；U4 触发器仅 active 显示 + 全量规则表折叠；新组件 Collapse（原生 `<details>` 受控，零依赖可 grep），三处复用；节序定稿 error → ConfirmPanel → `.row`(机会+告警双栏) → 进化建议 → 触发器 → 经验库，删 `.row-col`/span 2 死样式。
+- **施工**：Collapse.tsx + OverviewPage.tsx（ConfirmPanel 置顶 + `.row` 简化 + Insights 提序 + hasKnowledgeMatch）+ Opportunity.tsx（实算卡置前 + 折叠）+ Triggers.tsx（active 顶部 + Collapse 全量）+ KnowledgeBoard.tsx（defaultOpen prop）+ style.css（.collapse 系列 + 删死样式）。
+- **验证**：grep 锚点恒绿（TestSimKindLabelCoverage 要求 Opportunity 无 funding_hedge 字面量、TestSimExecBadgeRenderable 要求 ConfirmPanel 引 SimulatedBadge——均未触及）；全量 go test（含真库 DSN）/vet/npm build 绿（tsc strict 无未用变量/import）。
+- **部署**：构建 → 部署 → 推送闭环（practices #19）。构建后 sudo 交互受阻 → D-035 既有「SIGKILL 重启」模式（systemd Restart=on-failure 拉起，状态全在 PG 持久化）；生产实测 healthz ok + 新二进制 inode 匹配（stat -L，21244274→21244337）+ served bundle == 新 dist（index-DTovgGTO.js 匹配磁盘）+ 前端第一眼顺序核对（待确认下单置顶 → 实算卡裁决在前 funding 展开 → 告警流右列 → 进化建议 → 触发器仅 active → 经验库折叠）。
+- **决策号**：D-048（决策 + 留痕）; 教训入 practices #25（布局 = 第一眼问题层级，裁决在数据前）。
