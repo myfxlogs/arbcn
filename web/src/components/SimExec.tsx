@@ -114,10 +114,12 @@ function RiskFlags({ flags }: { flags: string[] }) {
 function OrderRow({
   o,
   pending,
+  busy,
   onConfirm,
 }: {
   o: SimOrder;
   pending: bigint | null;
+  busy: boolean;
   onConfirm: (id: bigint) => void;
 }) {
   const canConfirm = o.status === "suggested";
@@ -143,7 +145,7 @@ function OrderRow({
           <button
             type="button"
             className="icon"
-            disabled={pending === o.id}
+            disabled={busy}
             onClick={() => onConfirm(o.id)}
           >
             {pending === o.id ? "再次点击确认？" : "确认成交"}
@@ -157,7 +159,7 @@ function OrderRow({
 }
 
 // OrderZone 建议订单列表：待确认 / 拒单负样本 / 已成交 分组。
-function OrderZone({ orders, pending, onConfirm }: { orders: SimOrder[]; pending: bigint | null; onConfirm: (id: bigint) => void }) {
+function OrderZone({ orders, pending, busy, onConfirm }: { orders: SimOrder[]; pending: bigint | null; busy: boolean; onConfirm: (id: bigint) => void }) {
   const groups: { key: string; title: string; list: SimOrder[] }[] = [
     { key: "suggested", title: "待确认", list: orders.filter((o) => o.status === "suggested") },
     { key: "rejected", title: "拒单负样本", list: orders.filter((o) => o.status === "rejected") },
@@ -193,7 +195,7 @@ function OrderZone({ orders, pending, onConfirm }: { orders: SimOrder[]; pending
                     </th>
                   </tr>
                   {g.list.map((o) => (
-                    <OrderRow key={o.id.toString()} o={o} pending={pending} onConfirm={onConfirm} />
+                    <OrderRow key={o.id.toString()} o={o} pending={pending} busy={busy} onConfirm={onConfirm} />
                   ))}
                 </Fragment>
               ))}
@@ -383,7 +385,7 @@ export function SimExec() {
       ) : null}
       {result ? <div className="banner sim-result">{result}</div> : null}
 
-      <OrderZone orders={orders} pending={pending} onConfirm={(id) => void onConfirm(id)} />
+      <OrderZone orders={orders} pending={pending} busy={busy} onConfirm={(id) => void onConfirm(id)} />
       <PositionZone positions={positions} />
       <TestnetAccountZone accounts={accounts} />
       <ReportZone

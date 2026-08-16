@@ -453,3 +453,10 @@
 - **排查链**：① xmin 事务序证实 tickers 在订单前已落库（排除数据竞态）；② 反汇编 + RPC 组合查询暴露过滤器错乱；③ inode 对比一度误判"运行旧二进制"（`stat` 不带 `-L` 返回 procfs 伪 inode，practices #16）；④ 逐字段 RPC 测试（kind 单独有效 / venue、symbol 单独失效）→ 锁定 **`pgstore.LatestFacts` SQL 运算符优先级 bug**（where 子句缺括号，DB 直查复现：`ticker/okx/BTC` 返回 5 行首行 funding@binance 负值）。
 - **决策**：D-042——① 每 where 子句加括号 `($1='' OR kind=$1)` + 对抗测试 TestLatestFactsFilters（删括号必红）；② 引擎 boot 竞态加固 `rule.Config.BootDelay`（Scheduler 与 Engine 并行启动，collector 首轮 poll 可能晚于引擎首评 → 首评空跑；main.go 接 15s）+ 对抗测试 TestRunBootDelay（删 sleep 必红）；③ 修正 migrate_test 陈旧断言（want 5→6，D-040 加 migration 0006）。
 - **结论**：全量测试 + vet 绿；部署实测 **sim_orders id=3 = suggested（okx BTC ref 63063.30 spread 6.64% risk_flags={}）**——演练单可确认→成交→8h 结算全链路闭环；拒单 id=1/2 保留为负样本（拒单不是失败）。教训入 practices #15（SQL where 子句括号）+ #16（stat -L）。
+
+## #57 · 2026-08-16 · 演练单确认按钮"再次点击确认"无响应 · 业主反馈 → 决策层
+- **参与方**：业主（反馈"再次点击确认？没有响应"）、Claude（决策层 + 施工）
+- **议题**：D-042 后演练单 id=3 suggested 可确认，业主在 SimExec 点"确认"——首次点击按钮变"再次点击确认？"（进入待确认态），再点**无响应**。
+- **排查**：① 后端 ConfirmSimOrder RPC 直测（`{"id":"3"}`）→ accepted=true 订单变 filled（**后端正常**）；② 读前端 OrderRow 按钮 → 发现 `disabled={pending === o.id}`：首次点击 setPending(id) 后按钮文字变"再次点击确认？"，但**同时被 disabled** → 第二次点击 onClick 触发不了，确认动作悬死。防误点设计自相矛盾（等待用户再点的状态 = 禁用条件）。
+- **决策**：修三处——OrderRow/OrderZone/调用点把 `disabled={pending === o.id}` 改为 `disabled={busy}`（确认请求进行中才禁用，pending 态保持可点）；onConfirm 逻辑不变（首次 setPending，二次真确认）。教训入 practices #17。
+- **结论**：前端构建 + 嵌入二进制重建部署；后端 RPC 已实测订单 id=3 确认成交（filled，二次门禁通过）。re-arm funding_drill 触发新演练单供业主实测二次确认路径。
