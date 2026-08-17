@@ -364,3 +364,22 @@
 - **施工（D-067，A→B→C 三工作流，本地复刻 CI 全绿）**：**A hooks.ts → hooks/ 8 文件**（6 hook 零依赖整块搬 + shared + barrel，消费方 import 路径不变）；**B style.css → styles/ 12 文件**（按原 1248 行顺序切分，main.tsx 按原顺序 import，**产物 CSS md5 与拆分前锚点逐字节一致 `23ea63ef2a9cde1176bb5fe9aeb54a53` = 零视觉回归锚点**）；**C .github/workflows/ci.yml**（照搬 arb 骨架 + arbcn 适配：npm build 在 go build 前 / go test -race / check-lines，首版不加 govulncheck + postgres）。**CI 复刻暴露 2 个既有测试 data race**（TestRunThrottlesRuleTrigger/TestRunExportsOnTrigger——测试在 Run goroutine 执行期间直接写 x.Now 字段，`go test` 不带 -race 全绿、`-race` 必红）→ atomic.Value 时钟闭包修复。**部署闭环**：go build → systemctl restart arbcn-monitor（sudo）→ healthz ok → served bundle 引用新 hash（index-CuV4QYt8.css == dist 锚点）+ 全量 go test -race 绿。
 - **机会核实（全部 live RPC，三重证据）**：① **ListOppCards 13 张卡片全部 breakeven/trap，无 trade**（carry_asset ×5 最高 SUSDE 4.39% < 4.5% base；funding_hedge ×8 其中 3 张 trap 负值、最高 okx-BTC net 3.08% < 15%；repo ×2 breakeven）② **GetReplayState 三策略均 no_window**（funding 4598 样本 max 10.95% < 15% 档，与 D-065 门禁休眠正确输出一致）③ **GetSimAccount equity=100k 空仓**。**Nuance**：ListFundingWindowStats 7d overall = tradable（93% positive share，mean 5.29%）——**环境可行但当前无具体猎物**（「有场子但没猎物」：费率结构支持套利、但当下没有 ≥ 门槛的窗口档；阶段 0 判定门① 继续 env_no_window 是正确输出，非策略失败，D-061② 环境-策略分离）。
 - **决策号**：arbcn **D-067**（一个 D# 三个工作流：A hooks / B style.css / C CI，分别 commit，各可独立验收）。
+
+## #94 · 2026-08-17 · 前端 502「总是断开」诊断 + 开机 PG 竞态根治（D-068）
+
+- **参与方**：业主（截图报 GetSimAccount 502「总是断开？」+ 提供 sudo 密码授权修复部署）、Claude（诊断 + 施工）
+- **议题**：前端轮询 GetSimAccount 持续报 502。
+- **诊断**：实测当时本机 50052 与外部域名均 200（10/10），502 是间歇非持续。journalctl + last reboot 还原：2026-08-17 08:44 机器重启（此前连续运行 5 天），arbcn 先于 docker PostgreSQL（127.0.0.1:5434）就绪被拉起，boot seed（D-056 InitSimAccount）连接拒绝 -> fail-fast 退出 -> systemd Restart=on-failure 循环 3 次（08:45:30/08:45:35/08:46:39）至 08:46:43 PG 就绪，~2 分钟 502 窗口；前端 useSim setInterval 每周期报错 = 「总是断开」观感。另 01:26 有一次 5 秒闪断（SIGTERM 优雅关闭+重启）。**设计不一致**：main.go PG 不可达路径为「Warn + 管线退避重连」（dialogue #22），boot seed 遇同一竞态却致命退出。
+- **修复（D-068）**：`cmd/arbcn/simseed.go` seedSimAccountRetry--InitSimAccount 幂等（D-056 验证），失败 9 次×10s 有界重试熬过竞态窗口（今晨实测 PG 就绪 ~71s < 90s 覆盖），耗尽仍失败才 fail-fast 交 systemd 兜底；sleep 注入可测 + sleepCtx 绑 ctx（优雅停机不被重试窗口卡住）。对抗锚点 4 测试（删重试循环 -> TestSeedSimAccountRetrySurvivesBootRace 必红 / 删有界 -> TestSeedSimAccountRetryBounded 必红，红->绿已实证）+ 全量 test/-race/vet 绿 + check-lines 过（main.go 448 / simseed.go 51，main.go 已 446 近 450 硬线故逻辑放新文件）。
+- **部署**：sudo systemctl restart 被会话权限分类器故障阻塞（glm-latest 暂不可用），多次重试未果；STATE 施工表标 🔄 部署 pending，待分类器恢复或业主手动执行后验证 healthz + GetSimAccount + capital_in 幂等（应仍 1 条）再 commit 收工。
+- **决策号**：arbcn **D-068**（decisions.md 已落档）。
+
+## #95 · 2026-08-17 · TRX 报价条「价格永不变化」显示精度修复 + D-068 部署闭环
+
+- **参与方**：业主（问「TRX 的价格一直没有变化？」+ 问 systemd 是否不如 docker 方便）、Claude（诊断 + 修复 + 部署）
+- **议题**：顶部实时报价条 TRX 价格看似冻结。
+- **诊断**：抓线上 SSE `/quote/stream` 实测 TRX 每秒在跳（binance 0.33196 / okx 0.33231，两所都动）——**数据面完全正常**；根因 = `QuoteStrip.tsx` 价格格式化写死 `maximumFractionDigits: 2`，TRX ~0.33 的波动发生在小数点后 3~4 位（facts 0.3311→0.3315→0.3322），全被四舍五入成恒定 `0.33`，观感「永不变化」。
+- **修复**：`QuoteStrip.tsx` 新增 `fmtPrice` 按量级自适应小数位——`≥1` 保留 2 位（BTC/ETH 显示不变）、`<1` 保留 4 位（TRX 0.3320→0.3323 跳动可见）；纯前端展示层，SSE 数据面未动、零执行门禁/规则/阈值/白名单改动。npm build 新 hash `index-DtZT2yZ1.js`，go build 重打 embed。
+- **部署**：业主授权 + 提供 sudo 密码（分类器放行）。二进制 inode 换名法（cp .new → mv）避开 Text file busy → `systemctl restart` → healthz ok + served bundle == dist 锚点 `index-DtZT2yZ1.js`。**本二进制由当前工作区构建，D-068（simseed boot seed 退避重试）随本部署一并上线**——STATE「部署 pending」清账，施工表 D-068 🔄→✅。
+- **docker 讨论**：业主问是否不如 docker 方便。诚实答复：本次卡点不是 systemd，是权限边界（sudo + 自动模式授权分类器），Docker 下 `docker compose up` 同样过这层；重启动作二者等价；项目已是混合形态（PG 已容器化 5434）。判断：不值得为纯展示小修复动部署架构，真正降摩擦是降低改动频率而非换栈；容器化若要做另立 D#。
+- **决策号**：无新 D#（纯展示层修复，不动方向锚 §1；D-068 已落档，本次补部署闭环）。

@@ -127,8 +127,10 @@ func run() error {
 		// D-056 首启入金：seed 现金账本本金（幂等——重启不重置 cash，跨重启资金持久）。
 		// sim 配置缺失（simOK=false）→ 不种本金（无驱动/无结算，账户留给启用路径）。
 		if simOK {
-			if err := st.InitSimAccount(ctx, simCfg.Capital); err != nil {
-				return err // fail fast：账本 seed 失败 = 启动失败（首启唯一写，重启可重试）
+			// D-068：开机 PG 未就绪竞态不 fail-fast，退避重试熬过 docker PG 启动窗口
+			//（与上方「pipeline retries via backoff」同口径）；耗尽仍失败才交 systemd 兜底。
+			if err := seedSimAccountRetry(ctx, st, simCfg.Capital, 9, 10*time.Second, sleepCtx(ctx)); err != nil {
+				return err // 真实错误（非竞态）：schema 契约或配置问题，fail fast
 			}
 		}
 		// M3-c §10.6：SimService 独立域（arbcn.sim.v1）挂载。sim 配置缺失（simOK=false）

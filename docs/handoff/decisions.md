@@ -616,3 +616,18 @@
   - **E 合规**：纯前端工程 + CI，零执行门禁/规则/阈值/MinSpread/CarryMinSpread/白名单改动；不触碰 §1 定位、D-010/D-013/D-016/D-019。
   - **F 文档**：本 D# + practices #43（CSS 顺序切分零回归锚点）/ #44（CI 照搬 arb 骨架裁剪 + race 时钟注入）+ dialogue #93 + STATE 施工表/清扫上翻/下一步。
 - **结论**：D-067 定稿，A–F 施工前自审通过。A/B/C 三工作流施工完成 + 本地复刻 CI 全绿 + 部署闭环（served bundle 引用新 hash，CSS md5 与拆分前锚点逐字节一致）。
+
+## D-068 开机 PG 竞态 boot seed 退避重试（反代 502 断连根治，对话 #94）
+
+- **背景**：业主报告前端 `GetSimAccount` 502「总是断开」。诊断（journalctl + last reboot）：2026-08-17 08:44 机器重启，arbcn 先于 docker PostgreSQL（127.0.0.1:5434）就绪被 systemd 拉起，`InitSimAccount` 连接拒绝 -> **fail-fast 退出** -> systemd Restart=on-failure 循环 3 次直至 PG 就绪（~2 分钟），期间反代 502；前端 useSim setInterval 轮询每周期报错 = 「总是断开」观感。**设计不一致**：`main.go` PG 开机不可达路径本为「Warn + 管线退避重连」（dialogue #22），但 boot seed（D-056）遇同一竞态却致命退出。
+- **决策**：`cmd/arbcn/simseed.go` 新文件--`seedSimAccountRetry(ctx, st, capital, attempts=9, wait=10s, sleep)`：InitSimAccount **幂等**（D-056 重启不重置账本）失败按固定间隔重试，**耗尽仍失败才 fail-fast** 交 systemd Restart=on-failure 外层兜底不变；sleep 注入可测 + 生产 `sleepCtx(ctx)` 绑定 ctx（优雅停机不被重试窗口卡住）。main.go 接线替换原单次调用。新文件因 main.go 已 446 行（450 硬线）。
+- **理由**：第一性--① 同一故障（PG 开机慢）两处策略相反是矛盾不是设计，统一到既有「退避熬竞态」口径；② 重试窗口 9×10s=90s 覆盖实测竞态（今晨 PG 就绪耗时 ~71s）；③ 幂等操作重试无副作用，有界重试不改变 fail-fast 语义（真实 schema/配置错误仍快速失败）。
+- **影响**：`cmd/arbcn/simseed.go`（新，51 行）+ `simseed_test.go`（4 测试）+ `main.go` 接线（446->448 行）+ STATE 施工表 + dialogue #94。
+- **A–F 施工前自审**：
+  - **A 架构**：复用 dialogue #22 既有口径；窄接口 simSeeder 只依赖 InitSimAccount；零新依赖/表/迁移。
+  - **B 实现**：固定间隔有界循环直接对应「熬过启动窗口」本质；无指数退避（PG 启动时间近似固定，1s..32s 指数会让首 3 次重试全落在竞态窗口内浪费）。
+  - **C 洁净**：sleep 注入消除测试对真实时间的依赖；无死代码。
+  - **D 正确性**：边界--首试即成（正常重启零重试）/ 持续失败（恰 attempts 次后返回，末次不 sleep）/ ctx 取消（sleep 中断立即返回 ctx.Err()）；对抗锚点已实证：删重试循环 -> TestSeedSimAccountRetrySurvivesBootRace 必红；删有界 -> TestSeedSimAccountRetryBounded calls 断言必红；全量 test + -race 绿。
+  - **E 合规**：纯启动健壮性，零执行门禁/规则/阈值/MinSpread/CarryMinSpread/白名单改动；D-019 不赌；D-010 零密钥。
+  - **F 文档**：本 D# + STATE 施工表/交接负载 + dialogue #94。
+- **结论**：D-068 定稿，施工 + 对抗实证 + 部署闭环。

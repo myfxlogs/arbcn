@@ -1,6 +1,16 @@
 import { fmtClock } from "../format";
 import type { Quote } from "../hooks";
 
+// fmtPrice 按量级自适应小数位：≥1 保留 2 位（BTC 63,405.00 / ETH 1,900.90），
+// <1 保留 4 位（TRX 0.3320 —— 若按 2 位会四舍五入成恒定 0.33，看起来"永不变化"）。
+function fmtPrice(p: number): string {
+  const digits = p >= 1 ? 2 : 4;
+  return p.toLocaleString("zh-CN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
 // venueLabel 报价源 → 中文（QuoteStrip 展示）。
 function venueLabel(venue: string): string {
   switch (venue) {
@@ -44,7 +54,7 @@ export function QuoteStrip({ quotes }: { quotes: Record<string, Quote> }) {
               <span className="muted">{it.symbol}</span>
               <span className="quote-venue">{venueLabel(it.venue)}</span>
               <strong className={it.q ? "num" : "muted"}>
-                {it.q ? it.q.price.toLocaleString("zh-CN", { maximumFractionDigits: 2 }) : "—"}
+                {it.q ? fmtPrice(it.q.price) : "—"}
               </strong>
             </span>
           ))}
