@@ -1,14 +1,11 @@
 import { fmtClock } from "../format";
 import type { Quote } from "../hooks";
 
-// fmtPrice 按量级自适应小数位：≥1 保留 2 位（BTC 63,405.00 / ETH 1,900.90），
-// <1 保留 4 位（TRX 0.3320 —— 若按 2 位会四舍五入成恒定 0.33，看起来"永不变化"）。
+// fmtPrice 显示完整报价、不做位数舍入：保留交易所原始精度（上限 12 位小数，
+// 源数据最多 ~5-6 位有效数字，12 只是兜底上限不参与舍入），加千分位便于阅读
+// （BTC 63,405 / TRX 0.33196）。不设最小小数位 → 不补尾零、不四舍五入。
 function fmtPrice(p: number): string {
-  const digits = p >= 1 ? 2 : 4;
-  return p.toLocaleString("zh-CN", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
+  return p.toLocaleString("zh-CN", { maximumFractionDigits: 12 });
 }
 
 // venueLabel 报价源 → 中文（QuoteStrip 展示）。
