@@ -383,3 +383,23 @@
 - **部署**：业主授权 + 提供 sudo 密码（分类器放行）。二进制 inode 换名法（cp .new → mv）避开 Text file busy → `systemctl restart` → healthz ok + served bundle == dist 锚点 `index-DtZT2yZ1.js`。**本二进制由当前工作区构建，D-068（simseed boot seed 退避重试）随本部署一并上线**——STATE「部署 pending」清账，施工表 D-068 🔄→✅。
 - **docker 讨论**：业主问是否不如 docker 方便。诚实答复：本次卡点不是 systemd，是权限边界（sudo + 自动模式授权分类器），Docker 下 `docker compose up` 同样过这层；重启动作二者等价；项目已是混合形态（PG 已容器化 5434）。判断：不值得为纯展示小修复动部署架构，真正降摩擦是降低改动频率而非换栈；容器化若要做另立 D#。
 - **决策号**：无新 D#（纯展示层修复，不动方向锚 §1；D-068 已落档，本次补部署闭环）。
+
+## #96 · 2026-08-17 · 报价条显示完整报价、不做位数舍入（补落档，commit b86295c）
+
+- **参与方**：业主（「报价，显示完整报价，不做位数舍入」）、Claude（修复 + 部署 + 补落档）
+- **议题**：报价条要显示交易所原始完整报价，不做位数舍入。
+- **施工**：`QuoteStrip.fmtPrice` 删除按量级自适应舍入（此前 2/4 位），改为 `maximumFractionDigits: 12` 保留交易所原始精度（BTC 63,405 / TRX 0.33196，不补尾零不四舍五入）——与 #95 的「按量级 2/4 位自适应」同源但业主明确「不做位数舍入」，故保留原始精度。纯前端展示层，SSE 数据面未动、零执行门禁/规则/阈值/白名单改动。
+- **落档说明**：本 commit 当时只更新了 STATE 现状 + QuoteStrip.tsx（git show 仅 2 文件），dialogue 纪要漏写——本次 check-out 补落档（有痕可阅，P1）。
+- **部署**：served == dist `index-CciLALb7.js` + healthz ok + 全量 test/vet 绿。
+- **决策号**：无新 D#（纯展示层，不动方向锚 §1）。
+
+## #97 · 2026-08-17 · 测试网执行层（镜像下单）——进入交易所模拟市场（D-098）
+
+- **参与方**：业主（「修改这一条，我们真正进入交易所提供的模拟市场（1万元真金冒烟）。一切采用交易所提供的密钥，全面进入交易所提供的模拟交易，而不是我们自行模拟。」）、Claude（最优解分析 + 决策 + 施工）
+- **议题**：把「本地自造成交」改为「进入交易所模拟市场」——全程用交易所 key 下单。这是 1 万真金冒烟（阶段 A）的前置里程碑。
+- **决策（AskUserQuestion）**：① 交易所范围 = **两家都接**（Binance USDT-M testnet + OKX demo）；② 执行层关系 = **镜像并存（推荐）**——本地 sim 继续用真实费率算 PnL 喂判定门①（D-037），testnet 层只验证「下单 → 回读 → 对账」执行机制，两者各司其职。
+- **施工（D-098）**：simtestnet 下单原语（Binance query 签名 + OKX body 签名 + `x-simulated-trading: 1` demo 标记头，SIMULATED 隔离下写操作可达）→ 守卫测试修订（`TestNoOrderEndpoints` → `TestOnlyTestnetOrderEndpoints` + `TestOnlyTestnetDomains`，仍禁主网域/主网下单 token）→ simapi `Executor` 窄接口 + `Service.Exec` 注入 + `mirrorToExec` best-effort 镜像（20s 总预算）→ migrations/0012 `sim_order_executions` + store 类型/接口/pgstore（ts ASC 回读）→ venue 路由（`ARBCN_SIM_EXEC_VENUE`，simapi 服务层读取，main 校验值域）。**镜像腿映射**：okx_demo = 现货多 + 永续空（完整 delta 中性，D-019）；binance_testnet = 仅永续腿（USDT-M 期货无现货，spot 跳过记 note，假钱无害）。
+- **关键修订（vs 原计划 §5）**：~~Driver 标注 Signal.Venue~~ → 服务层读 ExecVenue **不改订单 venue**——settleOnce 按腿 (venue,symbol) 查真实事实（facts 只存 binance/okx），覆盖 venue = 腿永不结算（D-037 真实费率结算失效）；镜像执行记录独立存放（P3 不重写 PnL）。
+- **验证**：全量 go vet/build/test/-race 绿 + 对抗守卫全绿（TestNoRealTradeTokens 确认 simapi 仍零网络零密钥 + TestNoNetworkImports 确认 sim 零网络）+ check-lines 过（main.go 411 / sim_exec.go 73 行）+ gofmt 干净。
+- **部署待办**：/etc/arbcn/arbcn-monitor.env 加 `ARBCN_SIM_EXEC_VENUE=okx_demo`（或 binance_testnet）→ 重启（sudo）→ 触发 funding_hedge 确认单 → 查 `sim_order_executions` 落真实 demo 成交回读（exchange_order_id + fill_price），本地 sim 成交照常（镜像失效不阻断本地 PnL）。
+- **决策号**：arbcn **D-098**（decisions.md 已落档）。

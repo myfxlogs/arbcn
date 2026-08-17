@@ -114,10 +114,10 @@ func TestSimTodayNotional(t *testing.T) {
 			t.Fatalf("InsertSimOrder: %v", err)
 		}
 	}
-	mk(now.Add(-3*time.Hour), store.SimStatusConfirmed, 10_000)  // 计入（09:00）
-	mk(now.Add(-2*time.Hour), store.SimStatusFilled, 20_000)     // 计入（10:00）
-	mk(now.Add(-time.Hour), store.SimStatusRejected, 99_000)     // 排除（拒单负样本）
-	mk(now.Add(-24*time.Hour), store.SimStatusConfirmed, 5_000)  // 昨日不计入
+	mk(now.Add(-3*time.Hour), store.SimStatusConfirmed, 10_000) // 计入（09:00）
+	mk(now.Add(-2*time.Hour), store.SimStatusFilled, 20_000)    // 计入（10:00）
+	mk(now.Add(-time.Hour), store.SimStatusRejected, 99_000)    // 排除（拒单负样本）
+	mk(now.Add(-24*time.Hour), store.SimStatusConfirmed, 5_000) // 昨日不计入
 
 	sum, err := s.TodaySimNotional(ctx, now)
 	if err != nil {
@@ -211,8 +211,8 @@ func TestSimPositionRoundtrip(t *testing.T) {
 
 	// 非法行拒绝：order_id 0 / qty ≤ 0。
 	for name, bad := range map[string]store.SimPosition{
-		"order 缺":  {Ts: now, Symbol: "BTC", Qty: 1},
-		"qty 零":    {OrderID: oid, Ts: now, Symbol: "BTC", Qty: 0},
+		"order 缺": {Ts: now, Symbol: "BTC", Qty: 1},
+		"qty 零":   {OrderID: oid, Ts: now, Symbol: "BTC", Qty: 0},
 	} {
 		if _, err := s.InsertSimPosition(ctx, bad); err == nil {
 			t.Errorf("%s: InsertSimPosition = nil, want error", name)
@@ -597,3 +597,73 @@ func TestInitSimAccountRepairsUnfunded(t *testing.T) {
 // simRiskWhitelist 与 sim 包常量对齐的测试局部别名（pgstore 不 import internal/sim，
 // 避免循环依赖；值域以 04-m3-spec §1.1 为准）。
 const simRiskWhitelist = "WHITELIST"
+
+// TestSimExecutionRoundtrip：[对抗测试锚点 D-098] 镜像下单执行记录写读回——
+// InsertSimExecution 落行（ts 零值=now、order_id FK）→ ListSimExecutions 按 order 读回逐项比对；
+// 非法行（order_id ≤ 0 / venue 空 / symbol 空 / qty ≤ 0）拒绝。删 INSERT 列/删 SELECT 列 → 必红。
+func TestSimExecutionRoundtrip(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	ensureSchema(t, ctx, pool)
+	resetTables(t, ctx, pool, "sim_orders", "sim_positions", "sim_order_executions")
+
+	s := New(pool)
+	orderID, err := s.InsertSimOrder(ctx, store.SimOrder{
+		Ts: time.Now(), SrcRule: "funding_warn", Kind: store.SimKindFundingHedge,
+		Venue: "sim_local", Symbol: "BTC", Side: store.SimSideHedge, Qty: 10000,
+		RefPrice: 60000, ExpectedSpread: 10, RiskFlags: []string{}, Status: store.SimStatusSuggested,
+	})
+	if err != nil {
+		t.Fatalf("InsertSimOrder: %v", err)
+	}
+
+	// ts 显式给值（早 1h，确保 ts ASC 居首）+ 零值（零值 → now()），venue 各一家。
+	idA, err := s.InsertSimExecution(ctx, store.SimExecution{
+		OrderID: orderID, Ts: time.Now().UTC().Add(-time.Hour), Leg: "perp", Venue: "okx_demo",
+		ExchangeOrderID: "777", Symbol: "BTC-USDT-SWAP", Side: "short", Qty: 1,
+		FillPrice: 59951, FillQty: 1, Status: "filled", Note: "mirror ok",
+	})
+	if err != nil {
+		t.Fatalf("InsertSimExecution#1: %v", err)
+	}
+	if _, err := s.InsertSimExecution(ctx, store.SimExecution{
+		OrderID: orderID, Leg: "perp", Venue: "binance_testnet",
+		Symbol: "BTCUSDT", Side: "short", Qty: 1, Status: "rejected", Note: "insufficient",
+	}); err != nil {
+		t.Fatalf("InsertSimExecution#2: %v", err)
+	}
+
+	got, err := s.ListSimExecutions(ctx, orderID)
+	if err != nil {
+		t.Fatalf("ListSimExecutions: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("executions len = %d, want 2", len(got))
+	}
+	// ts ASC, id ASC：idA 显式 now-1h（最早）在首位。
+	if got[0].ID != idA || got[0].OrderID != orderID || got[0].Leg != "perp" ||
+		got[0].Venue != "okx_demo" || got[0].ExchangeOrderID != "777" ||
+		got[0].Symbol != "BTC-USDT-SWAP" || got[0].Side != "short" || got[0].Qty != 1 ||
+		got[0].FillPrice != 59951 || got[0].FillQty != 1 || got[0].Status != "filled" ||
+		got[0].Note != "mirror ok" {
+		t.Errorf("got[0] = %+v（全字段读回）", got[0])
+	}
+	if got[1].Venue != "binance_testnet" || got[1].Status != "rejected" || got[1].Ts.IsZero() {
+		t.Errorf("got[1] = %+v（ts 零值应落 now，status=rejected）", got[1])
+	}
+
+	// orderID ≤ 0 = 全部；非法行拒绝。
+	if all, err := s.ListSimExecutions(ctx, 0); err != nil || len(all) != 2 {
+		t.Fatalf("ListSimExecutions(0) = %d, %v, want 2", len(all), err)
+	}
+	for name, bad := range map[string]store.SimExecution{
+		"order_id 零": {Venue: "okx_demo", Symbol: "BTC-USDT", Qty: 1},
+		"venue 空":    {OrderID: orderID, Symbol: "BTC-USDT", Qty: 1},
+		"symbol 空":   {OrderID: orderID, Venue: "okx_demo", Qty: 1},
+		"qty 零":      {OrderID: orderID, Venue: "okx_demo", Symbol: "BTC-USDT", Qty: 0},
+	} {
+		if _, err := s.InsertSimExecution(ctx, bad); err == nil {
+			t.Errorf("%s: InsertSimExecution = nil, want error", name)
+		}
+	}
+}

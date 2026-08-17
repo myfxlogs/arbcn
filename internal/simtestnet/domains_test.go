@@ -63,25 +63,61 @@ func TestOnlyTestnetDomains(t *testing.T) {
 	}
 }
 
-// TestNoOrderEndpoints：[对抗测试锚点 §9.4 S3] simtestnet 零下单路径——
-// 不得出现任何 order/place/trade 下单端点片段。出现 → 必红。
-func TestNoOrderEndpoints(t *testing.T) {
-	orderTokens := []string{
-		"/fapi/v1/order", "/fapi/v1/order/test",
-		"/api/v5/trade/order", "/api/v5/trade/place-order",
-		"placeOrder", "newOrder", "cancelOrder",
-		"/order", "/orders", "/trade",
-	}
+// testnetOrderPaths 是 simtestnet 允许的测试网/demo 下单端点路径字面量（executor*.go，
+// D-098 测试网执行层）。写路径只允许这三条；probe.go/config.go 保持只读。
+var testnetOrderPaths = []string{
+	"/fapi/v1/order",             // Binance USDT-M 期货 testnet 下单（query 签名）
+	"/api/v5/trade/order",        // OKX demo 下单（body 签名 + x-simulated-trading:1）
+	"/api/v5/trade/cancel-order", // OKX demo 撤单
+}
+
+// bannedOrderTokens 任何情况下都不许出现的下单 token：非测试网/非标准路径、或命名不符
+// 现有签名风格。出现 → 必红（误配/拼错主网路径 = 潜在真金路径）。
+var bannedOrderTokens = []string{
+	"/fapi/v1/order/test",       // 现货 test 端点（USDT-M 期货 testnet 无此物）
+	"/api/v5/trade/place-order", // 不存在的路径（拼错）
+	"newOrder",                  // 命名风格不符（现有 HMAC 签名走路径字面量）
+}
+
+// TestOnlyTestnetOrderEndpoints：[对抗测试锚点 §9.4 S3 + D-034 ② 修订] simtestnet 由
+// 「零下单路径」放宽为「仅测试网/demo 下单路径」——写路径只允许 testnetOrderPaths，且只
+// 出现在 executor*.go（probe/config 保持只读）。域仍由 TestOnlyTestnetDomains 把关
+// （任何主网 host → 必红）。这是 D-034 ② 修订的精确条款：testnet key 可下单，但仅限
+// 测试网/demo，SIMULATED 隔离与主网禁入不变。
+func TestOnlyTestnetOrderEndpoints(t *testing.T) {
 	for _, f := range nonTestGoFiles(t) {
 		body, err := os.ReadFile(filepath.Join(".", f))
 		if err != nil {
 			t.Fatalf("read %s: %v", f, err)
 		}
 		s := string(body)
-		for _, tok := range orderTokens {
+		for _, tok := range bannedOrderTokens {
 			if strings.Contains(s, tok) {
-				t.Errorf("%s 含下单端点片段 %q（§9.4 S3：simtestnet 零下单路径）", f, tok)
+				t.Errorf("%s 含禁下单 token %q（仅允许 testnetOrderPaths：%v）", f, tok, testnetOrderPaths)
 			}
+		}
+		// 下单端点 token 只允许在 executor*.go 出现（probe/config 保持只读；出现 → 必红）。
+		if !strings.HasPrefix(f, "executor") {
+			for _, tok := range []string{"/order", "/trade", "cancelOrder", "placeOrder"} {
+				if strings.Contains(s, tok) {
+					t.Errorf("%s 含下单端点 %q（写路径仅限 executor*.go；probe/config 只读）", f, tok)
+				}
+			}
+		}
+	}
+	// 正向锚点：executor 文件并集必须含全部允许的下单路径（写路径真实存在、可 grep，
+	// D-034 ② 修订落档）。删除任一下单端点 → 必红。
+	all := ""
+	for _, f := range []string{"executor.go", "executor_okx.go"} {
+		body, err := os.ReadFile(filepath.Join(".", f))
+		if err != nil {
+			t.Fatalf("read %s: %v", f, err)
+		}
+		all += string(body)
+	}
+	for _, want := range testnetOrderPaths {
+		if !strings.Contains(all, want) {
+			t.Errorf("executor 文件缺测试网下单端点 %q（写路径不可 grep = 交付不完整）", want)
 		}
 	}
 }

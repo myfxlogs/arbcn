@@ -32,6 +32,11 @@ type Config struct {
 	HistoryDays int
 	// ReportPath sim_report 周频报告输出路径（M3-b §9.5；ARBCN_SIM_REPORT_PATH）。
 	ReportPath string
+	// ExecVenue 测试网镜像下单执行 venue（D-098，ARBCN_SIM_EXEC_VENUE；空 = 镜像关）。
+	// 值域 {okx_demo, binance_testnet} 定义在 simtestnet（本包零网络零密钥，不 import 它；
+	// 校验在消费方 main/simapi）。非空时 ConfirmSimOrder 对 funding_hedge 逐腿镜像下单
+	// （best-effort，不改变订单 venue——结算仍按真实 venue 查费率，D-037 本地仍是 PnL 大脑）。
+	ExecVenue string
 }
 
 // DefaultConfig 返回定稿默认值（04-m3-spec §4 表 + M3-b §9.5/§9.6 默认）。
@@ -91,6 +96,9 @@ func FromEnv(getenv func(string) string) (Config, error) {
 	if v := strings.TrimSpace(getenv("ARBCN_SIM_REPORT_PATH")); v != "" {
 		cfg.ReportPath = v
 	}
+	// 测试网镜像执行 venue（D-098；空 = 镜像关）。值域校验在消费方 main/simapi——
+	// 本包不 import simtestnet（零网络零密钥），这里原样透传。
+	cfg.ExecVenue = strings.TrimSpace(getenv("ARBCN_SIM_EXEC_VENUE"))
 	// M1 复审：NaN/±Inf 对 `<`/`<=` 恒 false，`cfg.MinSpread <= 0` 会静默放行 NaN——
 	// SignalToOrder 的 `spread < cfg.MinSpread` 恒 false → SPREAD_LOW 门禁被架空
 	// （practices #7 同款，M3-a 的 NaN 教训）。非有限值 → 配置拒载。

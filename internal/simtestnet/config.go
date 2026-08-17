@@ -1,11 +1,14 @@
-// Package simtestnet：testnet 只读探针 + key 承载层（04-m3-spec §9.4 S3，D-034 ② 物理隔离）。
+// Package simtestnet：testnet 只读探针 + 镜像下单 + key 承载层（04-m3-spec §9.4 S3，
+// D-034 ② 物理隔离 + D-098 修订：testnet key 由只读探针放宽为「可下单」，仍 SIMULATED 隔离）。
 //
 // 与 internal/sim（零网络零密钥）物理隔离：本包是唯一触碰网络/密钥的地方。职责：
 //   - 加载 /etc/arbcn/arbcn-sim.env 的 SIM_* 配置；每 key 必须显式 SIMULATED=true，
 //     缺标记拒绝加载（对抗测试锚点）——密钥不会在无"这是模拟盘"声明时被接受。
 //   - 只读探针：binance_testnet / okx_demo 公共行情 + 账户只读查询，验证 key 连通；
 //     成功经 alert.Heartbeat.Record("sim_testnet_binance"/"sim_testnet_okx") 登记。
-//   - 零下单路径：本包只有只读端点，不含任何下单（订单委托）端点代码（domains_test 把关）。
+//   - 镜像下单（D-098）：executor*.go 对 testnet/demo 下市价单 → 回读成交，供
+//     simapi.ConfirmSimOrder 镜像落库（best-effort，不阻断本地模拟成交）。写路径只允许
+//     测试网/demo 端点，主网域禁入（domains_test 把关）。
 //
 // 依赖：key 由业主提供；缺失 → 降级禁用（不阻塞 S1/S2/S4/S5）。
 package simtestnet

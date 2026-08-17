@@ -207,6 +207,26 @@ type SimLegClose struct {
 	CashDelta float64
 }
 
+// SimExecution 是 sim_order_executions 表的一行（D-098 测试网执行层：镜像下单执行记录）。
+// ConfirmSimOrder 对 testnet/demo venue 订单逐腿镜像下单 → 回读成交 → 落一行；本地
+// sim_positions 仍是 PnL 大脑（D-037 真实费率），本表只记录「执行机制验证」（best-effort，
+// 成败不影响本地成交）。Status = ExecStatus*（placed/filled/partial/rejected/error）。
+type SimExecution struct {
+	ID              int64     // 主键（读取时回填）
+	OrderID         int64     // 来源订单（sim_orders.id）
+	Ts              time.Time // 下单时刻
+	Leg             string    // 腿标识（spot / perp）
+	Venue           string    // binance_testnet / okx_demo
+	ExchangeOrderID string    // 交易所订单号（回读；失败 = ""）
+	Symbol          string    // 交易所 instrument（如 BTCUSDT / BTC-USDT-SWAP）
+	Side            string    // 本地腿方向（long / short）
+	Qty             float64   // 请求 base 数量（换算后）
+	FillPrice       float64   // 回读成交均价（未成交 = 0）
+	FillQty         float64   // 回读已成交数量（未成交 = 0）
+	Status          string    // 执行状态（placed/filled/partial/rejected/error）
+	Note            string    // 拒单/错误原因；成功可空
+}
+
 // SimAccount 是 sim_account 表的一行（D-056 完整现金账本）：单模拟账户 id 恒 1。
 // Capital = 初始本金（首启 InitSimAccount 写入，重启不重置）；Cash = 现金余额
 // （随每笔 sim_cash_flow 原子增减）。UpdatedAt 读取时回填。
@@ -374,6 +394,12 @@ type Store interface {
 	InitSimAccount(ctx context.Context, capital float64) error
 	// GetSimAccount 取单模拟账户；无行 → 返回零值 SimAccount（不报错）。
 	GetSimAccount(ctx context.Context) (SimAccount, error)
+	// InsertSimExecution 追加镜像下单执行记录（D-098 sim_order_executions，best-effort）。
+	// order_id/venue/symbol 必填，qty > 0；ts 零值 = now。本地 PnL 大脑不读本表。
+	InsertSimExecution(ctx context.Context, e SimExecution) (int64, error)
+	// ListSimExecutions 按 order_id 返回执行记录（ts ASC, id ASC 建单序）；
+	// orderID ≤ 0 = 全部（ts ASC）。
+	ListSimExecutions(ctx context.Context, orderID int64) ([]SimExecution, error)
 	// ListCashFlows 按 ts DESC, id DESC 分页返回现金流流水（稳定排序）。
 	// limit ≤ 0 = 默认 100，offset < 0 = 0。
 	ListCashFlows(ctx context.Context, limit, offset int) ([]CashFlow, error)

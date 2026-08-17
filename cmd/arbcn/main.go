@@ -32,7 +32,6 @@ import (
 	"arbcn/internal/config"
 	"arbcn/internal/dashboard"
 	"arbcn/internal/exporter"
-	"arbcn/internal/fact"
 	"arbcn/internal/httpapi"
 	"arbcn/internal/knowledge"
 	"arbcn/internal/quote"
@@ -136,7 +135,9 @@ func run() error {
 		// M3-c §10.6：SimService 独立域（arbcn.sim.v1）挂载。sim 配置缺失（simOK=false）
 		// → 仍挂载：GetSimReport 返回未启用说明，其余 RPC 照常读 store（sim 表由迁移
 		// 0005 建好，不依赖 sim 驱动），不退出（D-032 同口径）。
-		simPath, simH := simapi.NewService(st, simCfg).Handler()
+		simSvc := simapi.NewService(st, simCfg)
+		simSvc.Exec = simMirrorExecutor(simnetCfg, simCfg)
+		simPath, simH := simSvc.Handler()
 		mux.Handle(simPath, simH)
 	}
 	mux.Handle("/manual/fact", manual.NewHandler(st)) // 人工录入降级通道（store 未接线时 503）
@@ -375,44 +376,6 @@ func sourceNames(srcs []collect.Named) []string {
 // settleInterval 8h 三班资金费率结算周期（M3-b §9.3；与 sim.settleInterval 同值，
 // 供心跳 Track / 探针来源元数据复用）。
 const settleInterval = 8 * time.Hour
-
-// loadSimConfig 从 ARBCN_SIM_* 加载 sim 配置；非法 → warn + 禁用（§7/D-032 降级不退出）。
-func loadSimConfig() (sim.Config, bool) {
-	cfg, err := sim.FromEnv(os.Getenv)
-	if err != nil {
-		slog.Warn("sim config invalid, sim driver disabled", "err", err)
-		return sim.Config{}, false
-	}
-	return cfg, true
-}
-
-// loadSimtestnetConfig 加载 testnet key 文件（/etc/arbcn/arbcn-sim.env）。
-// 文件缺失 → 降级禁用（业主未提供 key，S3 不阻塞 S1/S2/S4/S5）；SIMULATED 标记缺失 → warn 禁用。
-func loadSimtestnetConfig() (simtestnet.Config, bool) {
-	cfg, ok, err := simtestnet.Load(simtestnet.DefaultKeyPath)
-	if err != nil {
-		slog.Warn("simtestnet key config invalid, testnet probe disabled", "err", err)
-		return simtestnet.Config{}, false
-	}
-	if !ok {
-		slog.Warn("simtestnet key file not found, testnet probe disabled (S3 degrade, 不阻塞 S1/S2/S4/S5)")
-		return simtestnet.Config{}, false
-	}
-	return cfg, true
-}
-
-// probeEnabled testnet 探针是否启用：sim 驱动可用（settle tick 承载）且 testnet key 非空。
-func probeEnabled(simOK bool, cfg simtestnet.Config) bool {
-	return simOK && !cfg.Empty()
-}
-
-// probeSourceInfos 把 sim_testnet 探针源并入仪表盘源健康面（ListSourceHealth 数据面）。
-func probeSourceInfos() []dashboard.SourceInfo {
-	return []dashboard.SourceInfo{
-		{Name: simtestnet.SourceBinanceTestnet, IntervalSec: int64(settleInterval.Seconds()), Kind: fact.KindHeartbeat},
-		{Name: simtestnet.SourceOKXDemo, IntervalSec: int64(settleInterval.Seconds()), Kind: fact.KindHeartbeat},
-	}
-}
 
 // backfillFundingHistory 一次性幂等回填历史 funding（M3-b §9.5/§9.7 ①）。
 // 阻塞至完成；失败 warn 不退出（D-032 同口径）。幂等由 sim.BackfillHistory 保证

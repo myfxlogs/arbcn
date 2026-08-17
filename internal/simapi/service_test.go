@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"arbcn/internal/fact"
 	"arbcn/internal/sim"
 	simv1 "arbcn/internal/simapi/gen/arbcn/sim/v1"
+	"arbcn/internal/simtestnet"
 	"arbcn/internal/store"
 )
 
@@ -33,6 +35,7 @@ type fakeStore struct {
 	nextOrderID   int64
 	nextFlowIDNum int64
 	snaps         []store.EquitySnapshot // D-062 判定门① 测量数据面
+	execs         []store.SimExecution   // D-098 镜像下单执行记录
 
 	accepted []acceptedCall // AcceptSimOrder 调用记录
 	rejected []rejectedCall // RejectSimOrder 调用记录
@@ -105,6 +108,16 @@ func (f *fakeStore) ListSimOrders(context.Context, int, int) ([]store.SimOrder, 
 
 func (f *fakeStore) ListSimPositions(context.Context, int, int) ([]store.SimPosition, error) {
 	return append([]store.SimPosition(nil), f.positions...), nil
+}
+
+// InsertSimExecution / ListSimExecutions：D-098 镜像执行记录（best-effort 落库面）。
+func (f *fakeStore) InsertSimExecution(_ context.Context, e store.SimExecution) (int64, error) {
+	f.execs = append(f.execs, e)
+	return int64(len(f.execs)), nil
+}
+
+func (f *fakeStore) ListSimExecutions(context.Context, int64) ([]store.SimExecution, error) {
+	return append([]store.SimExecution(nil), f.execs...), nil
 }
 
 // UpsertTestnetAccount 幂等 upsert（source 主键；D-040）。
@@ -228,6 +241,7 @@ func (f *fakeStore) CloseSimOrder(_ context.Context, orderID int64, note string,
 func (f *fakeStore) InsertFacts(context.Context, []fact.Fact) error {
 	panic("fakeStore: InsertFacts not used")
 }
+
 // QueryFacts 按 kind/From/limit 过滤（ts 升序）——GetPerformanceReport 环境条件
 // 数据面（funding 历史）真语义；其余测试不经过（此前 panic 占位）。
 func (f *fakeStore) QueryFacts(_ context.Context, q store.FactQuery) ([]fact.Fact, error) {
@@ -307,6 +321,7 @@ func (f *fakeStore) TodaySimNotional(context.Context, time.Time) (float64, error
 func (f *fakeStore) InsertSimPosition(context.Context, store.SimPosition) (int64, error) {
 	panic("fakeStore: InsertSimPosition not used")
 }
+
 // ListOpenSimPositions 返回 open 腿（symbol/venue 空 = 不限；CloseSimOrder 数据面）。
 func (f *fakeStore) ListOpenSimPositions(_ context.Context, symbol, venue string) ([]store.SimPosition, error) {
 	out := []store.SimPosition{}
@@ -324,6 +339,7 @@ func (f *fakeStore) ListOpenSimPositions(_ context.Context, symbol, venue string
 	}
 	return out, nil
 }
+
 // nextFlowID 自增流水 id（fake 内存版）。
 func (f *fakeStore) nextFlowID() int64 {
 	f.nextFlowIDNum++
@@ -479,6 +495,113 @@ func TestListSimOrdersEmptyAndStatusFilter(t *testing.T) {
 		connect.NewRequest(&simv1.ListSimOrdersRequest{Status: store.SimStatusSuggested}))
 	if err != nil || len(sug.Msg.Orders) != 1 || sug.Msg.Orders[0].Status != store.SimStatusSuggested {
 		t.Fatalf("ListSimOrders(suggested) = %d orders, %v, want 1 suggested", len(sug.Msg.Orders), err)
+	}
+}
+
+// stubExecutor 是 simapi 测试的 Executor 桩（D-098）：记录镜像下单调用、回 canned 成交。
+// 满足接口契约（simtestnet.Executor 同签名），服务测试不触网。
+type stubExecutor struct {
+	venue   string
+	orderID int64
+	calls   []simtestnet.ExecOrder
+}
+
+func (x *stubExecutor) PlaceOrder(_ context.Context, o simtestnet.ExecOrder) (simtestnet.ExecResult, error) {
+	x.calls = append(x.calls, o)
+	return simtestnet.ExecResult{
+		Venue: x.venue, ExchangeOrderID: strconv.FormatInt(x.orderID, 10),
+		Symbol: o.Symbol + "USDT", Side: o.Side, Qty: o.Qty,
+		FillPrice: o.RefPrice * 0.999, FillQty: o.Qty / o.RefPrice,
+		Status: simtestnet.ExecStatusFilled,
+	}, nil
+}
+
+// TestConfirmSimOrderMirrorOKX：[对抗测试锚点 D-098] Exec 注入 + ExecVenue=okx_demo →
+// funding_hedge 确认时逐腿镜像下单（spot long + perp short 双放，OKX demo 有现货）→ 两条
+// 执行记录落库（exchange_order_id/fill 回读）→ 本地成交照常 + 镜像摘要进订单 note。
+// 删 mirrorToExec 调用 / 删 InsertSimExecution / 删任一腿 → 必红。
+func TestConfirmSimOrderMirrorOKX(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+	ex := &stubExecutor{venue: simtestnet.VenueOKXDemo, orderID: 777}
+	s := service(st, sim.Config{ExecVenue: simtestnet.VenueOKXDemo})
+	s.Exec = ex
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(mirror okx): %v", err)
+	}
+	if !resp.Msg.Accepted || resp.Msg.Order.Status != store.SimStatusFilled {
+		t.Fatalf("accepted = %v, status = %q, want true/filled", resp.Msg.Accepted, resp.Msg.Order.Status)
+	}
+	if len(ex.calls) != 2 {
+		t.Fatalf("PlaceOrder calls = %d, want 2（spot + perp）", len(ex.calls))
+	}
+	if ex.calls[0].Leg != "spot" || ex.calls[0].Side != store.SimSideLong ||
+		ex.calls[1].Leg != "perp" || ex.calls[1].Side != store.SimSideShort {
+		t.Errorf("mirror legs = %+v, want spot/long + perp/short", ex.calls)
+	}
+	if len(st.execs) != 2 {
+		t.Fatalf("executions = %d, want 2", len(st.execs))
+	}
+	if st.execs[0].Venue != simtestnet.VenueOKXDemo || st.execs[0].Status != simtestnet.ExecStatusFilled ||
+		st.execs[0].ExchangeOrderID != "777" || st.execs[0].Symbol == "" {
+		t.Errorf("execs[0] = %+v, want okx_demo/filled/777 + 非空 symbol", st.execs[0])
+	}
+	if st.execs[1].Leg != "perp" || st.execs[1].Side != store.SimSideShort {
+		t.Errorf("execs[1] = %+v, want perp/short", st.execs[1])
+	}
+	if !strings.Contains(resp.Msg.Order.Note, "镜像下单") {
+		t.Errorf("note 缺镜像摘要: %q", resp.Msg.Order.Note)
+	}
+}
+
+// TestConfirmSimOrderMirrorBinancePerpOnly：binance_testnet → 仅永续腿镜像（USDT-M 期货
+// testnet 无现货），spot 腿跳过 + note 记录原因；一条执行记录。
+func TestConfirmSimOrderMirrorBinancePerpOnly(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+	ex := &stubExecutor{venue: simtestnet.VenueBinanceTestnet, orderID: 1001}
+	s := service(st, sim.Config{ExecVenue: simtestnet.VenueBinanceTestnet})
+	s.Exec = ex
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(mirror binance): %v", err)
+	}
+	if len(ex.calls) != 1 || ex.calls[0].Leg != "perp" {
+		t.Fatalf("PlaceOrder calls = %+v, want 仅 perp（spot 腿跳过）", ex.calls)
+	}
+	if len(st.execs) != 1 || st.execs[0].Status != simtestnet.ExecStatusFilled {
+		t.Fatalf("executions = %+v, want 1 filled", st.execs)
+	}
+	if !strings.Contains(resp.Msg.Order.Note, "spot 腿跳过") {
+		t.Errorf("note 缺 spot 跳过说明: %q", resp.Msg.Order.Note)
+	}
+}
+
+// TestConfirmSimOrderMirrorOff：Exec 未注入 → 镜像关（M3-c 零回归）：无执行记录、note 无
+// 镜像摘要、本地成交照常。
+func TestConfirmSimOrderMirrorOff(t *testing.T) {
+	st := newFakeStore()
+	st.addOrder(fundingOrder(0))
+	st.addFact(fact.KindTicker, "binance", "BTC", 100, t0.Add(-time.Minute))
+	st.addFact(fact.KindFunding, "binance", "BTC", 5, t0.Add(-time.Minute))
+	s := service(st, sim.Config{})
+
+	resp, err := s.ConfirmSimOrder(context.Background(), confirmReq(1))
+	if err != nil {
+		t.Fatalf("ConfirmSimOrder(no mirror): %v", err)
+	}
+	if len(st.execs) != 0 {
+		t.Fatalf("executions = %d, want 0（Exec nil = 镜像关）", len(st.execs))
+	}
+	if strings.Contains(resp.Msg.Order.Note, "镜像下单") {
+		t.Errorf("note 不应含镜像摘要: %q", resp.Msg.Order.Note)
 	}
 }
 
@@ -1076,6 +1199,7 @@ func TestListSimPositionsRMBConversion(t *testing.T) {
 //   - cur_price = ticker 最新；expected_ann = 生息腿当前 funding 年化（现货腿 = 0）；
 //   - unrealized_pnl = (cur-ref) × qty × 方向（short=-1）；
 //   - ticker 缺失 → cur_price=0 + unrealized=0（不编造浮动）。
+//
 // [对抗测试锚点] 删除 ListSimPositions 里 unrealized 计算 / cur_price 查询 → 本测试必红。
 func TestListSimPositionsRealtime(t *testing.T) {
 	// 永续空腿：ref=100, qty=10000；ticker=105 → 未实现 = (105-100)×10000×(-1) = -50000；

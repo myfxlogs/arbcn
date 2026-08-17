@@ -177,3 +177,27 @@ func TestFromEnvHistoryDays(t *testing.T) {
 		t.Fatalf("HistoryDays(0) = %d, %v, want 0（禁用）", cfg0.HistoryDays, err)
 	}
 }
+
+// TestFromEnvExecVenue：ARBCN_SIM_EXEC_VENUE 透传（D-098）。空 = 镜像关；非空原样保留
+// （值域校验在消费方 main/simapi——sim 零网络零密钥不 import simtestnet，本测试只验透传）。
+func TestFromEnvExecVenue(t *testing.T) {
+	cfg, err := FromEnv(func(k string) string {
+		if k == "ARBCN_SIM_EXEC_VENUE" {
+			return " okx_demo "
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatalf("FromEnv: %v", err)
+	}
+	if cfg.ExecVenue != "okx_demo" {
+		t.Fatalf("ExecVenue = %q, want okx_demo（trim）", cfg.ExecVenue)
+	}
+	cfg0, err := FromEnv(func(string) string { return "" })
+	if err != nil {
+		t.Fatalf("FromEnv(empty): %v", err)
+	}
+	if cfg0.ExecVenue != "" {
+		t.Fatalf("ExecVenue 默认 = %q, want 空（镜像关安全默认）", cfg0.ExecVenue)
+	}
+}

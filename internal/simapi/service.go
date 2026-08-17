@@ -37,6 +37,10 @@ const (
 type Service struct {
 	st  store.Store
 	cfg sim.Config
+	// Exec 测试网镜像下单执行器（D-098）；nil = 镜像关（M3-c 默认，零回归）。注入面：
+	// main 在 testnet key 就绪且 ExecVenue 非空时挂 simtestnet.Executor。本包仍零网络
+	// 零密钥（接口注入，不直接触碰网络/key）。
+	Exec Executor
 	// Now 为测试注入时钟（确认成交腿时间戳等）；0 = time.Now。
 	// practices #10：时钟注入覆盖全 RPC 路径（入口层最容易漏 time.Now()）。
 	Now func() time.Time
@@ -113,10 +117,12 @@ func (s *Service) ConfirmSimOrder(ctx context.Context, req *connect.Request[simv
 		return connect.NewResponse(&simv1.ConfirmSimOrderResponse{Order: toSimOrder(updated), Accepted: false}), nil
 	}
 
-	// 通过 → 组 legs（共享 sim.BuildLegs）→ 原子成交。note 用订单生成价
+	// 通过 → 镜像下单（D-098，best-effort：testnet/demo 逐腿镜像 → 落执行记录，成败不影响
+	// 本地成交）→ 组 legs（共享 sim.BuildLegs）→ 原子成交。note 用订单生成价
 	// （ConfirmDriftCheck 已保证确认时刻漂移 <2%，成交腿 ref_price 口径一致）。
+	mirrorNote := s.mirrorToExec(ctx, o)
 	legs := sim.BuildLegs(o, s.now())
-	note := fmt.Sprintf("人工确认成交 @ ref_price %.2f（二次门禁通过）", o.RefPrice)
+	note := fmt.Sprintf("人工确认成交 @ ref_price %.2f（二次门禁通过）%s", o.RefPrice, mirrorNote)
 	if err := s.st.AcceptSimOrder(ctx, o.ID, note, legs); err != nil {
 		return nil, storeErr(err)
 	}

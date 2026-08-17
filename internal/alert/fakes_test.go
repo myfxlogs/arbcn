@@ -217,6 +217,12 @@ func (m *memStore) ListCashFlows(context.Context, int, int) ([]store.CashFlow, e
 func (m *memStore) InsertEquitySnapshot(context.Context, store.EquitySnapshot) error {
 	panic("memStore: InsertEquitySnapshot not used")
 }
+func (m *memStore) InsertSimExecution(context.Context, store.SimExecution) (int64, error) {
+	panic("memStore: InsertSimExecution not used (D-098 only simapi)")
+}
+func (m *memStore) ListSimExecutions(context.Context, int64) ([]store.SimExecution, error) {
+	panic("memStore: ListSimExecutions not used")
+}
 func (m *memStore) ListEquitySnapshots(context.Context, time.Time, int) ([]store.EquitySnapshot, error) {
 	panic("memStore: ListEquitySnapshots not used")
 }
